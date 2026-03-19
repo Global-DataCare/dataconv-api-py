@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: preconversion-api
+  namespace: preconversion
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "STATIC_IP_NAME_PLACEHOLDER"
+    networking.gke.io/managed-certificates: "MANAGED_CERT_NAME_PLACEHOLDER"
+spec:
+  rules:
+    - host: preconversion.example.globaldatacare.es
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: preconversion-api
+                port:
+                  number: 80

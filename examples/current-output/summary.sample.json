@@ -1,0 +1,20 @@
+{
+  "manufacturer": "qvet",
+  "tenantId": "demo",
+  "jurisdiction": "es",
+  "sector": "research",
+  "recordsTotal": 1,
+  "subjectsTotal": 1,
+  "documentReferenceEntries": 1,
+  "encounterEntries": 1,
+  "relatedPersonEntries": 0,
+  "patientEntries": 1,
+  "compositionEntries": 1,
+  "operationOutcomeEntries": 0,
+  "families": {
+    "vacunas": 1
+  },
+  "sections": {
+    "clinica:vacunas": 1
+  }
+}

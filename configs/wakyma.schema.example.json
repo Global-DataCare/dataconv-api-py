@@ -1,0 +1,79 @@
+{
+  "headerRowIndex": 2,
+  "fieldMap": {
+    "section": "",
+    "family": "Tipo",
+    "subfamily": "Tipo",
+    "concept": "Motivo",
+    "subjectId": "ID Interno Paciente",
+    "owner": "Propietario",
+    "ownerId": "NIF/CIF Propietario",
+    "species": "Mascota",
+    "breed": "Raza",
+    "genderStatus": "Estado Reproductivo",
+    "sourceId": "",
+    "date": "Fecha",
+    "time": "Hora"
+  },
+  "fieldDefaults": {
+    "section": "clinica"
+  },
+  "allowedSections": [
+    "clinica"
+  ],
+  "excludedSectionFamilies": [
+    "clinica:vacunacion"
+  ],
+  "ownerPublicRules": {
+    "enabled": false,
+    "containsAny": [
+      "ayuntamiento",
+      "cabildo",
+      "diputacion"
+    ],
+    "excludeContainsAny": [
+      "S.L.",
+      "S.A."
+    ],
+    "publicIdPrefixes": [
+      "P",
+      "Q",
+      "S"
+    ],
+    "identifierRegex": "^(?:[A-Z]\\d{7}[A-Z0-9]|\\d{8}[A-Z])$",
+    "relationship": "organization-owner"
+  },
+  "speciesContains": [
+    {
+      "contains": "Perro",
+      "value": "Perro"
+    },
+    {
+      "contains": "Gato",
+      "value": "Gato"
+    },
+    {
+      "contains": "Conejo",
+      "value": "Conejo"
+    },
+    {
+      "contains": "Cobaya",
+      "value": "Cobaya"
+    },
+    {
+      "contains": "Ave",
+      "value": "Ave"
+    }
+  ],
+  "loincBySectionFamily": {
+    "clinica:laboratorio": "30954-2",
+    "clinica:consulta": "34109-9",
+    "clinica:cirugia": "11504-8",
+    "clinica:medicamentos": "10160-0",
+    "clinica:*": "11503-0"
+  },
+  "encounterClassBySectionFamily": {
+    "clinica:*": "AMB"
+  },
+  "encounterServiceTypeBySectionFamily": {}
+}

@@ -1,0 +1,8 @@
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: preconversion-cert
+  namespace: preconversion
+spec:
+  domains:
+    - preconversion.example.globaldatacare.es

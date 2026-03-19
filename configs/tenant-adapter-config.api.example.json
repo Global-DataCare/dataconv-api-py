@@ -1,0 +1,94 @@
+{
+  "tenantDid": "did:web:<clinica>.globaldatacare.es",
+  "softwareId": "qvet-v2026.01",
+  "mode": "persistent",
+  "schemaConfig": {
+    "headerRowIndex": 1,
+    "fieldMap": {
+      "section": "SECTION",
+      "family": "FAMILY",
+      "subfamily": "SUBFAMILY",
+      "concept": "CONCEPT",
+      "subjectId": "SUBJECT_ID",
+      "owner": "OWNER",
+      "ownerId": "OWNER_ID",
+      "species": "SPECIES",
+      "breed": "BREED",
+      "genderStatus": "GENDER_STATUS",
+      "date": "DATE",
+      "time": "TIME"
+    },
+    "fieldDefaults": {},
+    "allowedSections": [],
+    "excludedSectionFamilies": [
+      "clinica:vacunas"
+    ],
+    "ownerPublicRules": {
+      "enabled": false,
+      "containsAny": [
+        "ayuntamiento",
+        "cabildo",
+        "diputacion"
+      ],
+      "excludeContainsAny": [
+        "S.L.",
+        "S.A."
+      ],
+      "publicIdPrefixes": [
+        "P",
+        "Q",
+        "S"
+      ],
+      "identifierRegex": "^(?:[A-Z]\\d{7}[A-Z0-9]|\\d{8}[A-Z])$",
+      "relationship": "organization-owner"
+    },
+    "loincBySectionFamily": {
+      "clinica:laboratorio": "30954-2",
+      "clinica:consultas": "34109-9",
+      "clinica:cirugia": "11504-8",
+      "clinica:medicamentos": "10160-0",
+      "clinica:varios": "11503-0"
+    },
+    "encounterClassBySectionFamily": {
+      "clinica:*": "AMB"
+    },
+    "encounterServiceTypeBySectionFamily": {}
+  },
+  "speciesFhir": {
+    "system": "http://hl7.org/fhir/target-species",
+    "codes": {
+      "100000108988": "Dogs",
+      "100000109056": "Cats",
+      "100000108888": "Cows",
+      "100000109022": "Sheep",
+      "100000109007": "Goats",
+      "100000108919": "Snake"
+    }
+  },
+  "speciesLocalToFhirCode": {
+    "PERRO": "100000108988",
+    "CANINA": "100000108988",
+    "GATO": "100000109056",
+    "FELINE": "100000109056",
+    "VACA": "100000108888",
+    "BOVINA": "100000108893",
+    "OVEJA": "100000109022",
+    "CABRA": "100000109007",
+    "SERPIENTE": "100000108919"
+  },
+  "runtimeDefaults": {
+    "language": "es-ES",
+    "dataUse": "secondary",
+    "subjectKind": "animal",
+    "subjectDidPrefix": "did:web:<clinica>.globaldatacare.es",
+    "includeFields": [
+      "DATE",
+      "CONCEPT",
+      "SECTION",
+      "FAMILY",
+      "SUBFAMILY",
+      "SUBJECT_ID",
+      "SPECIES"
+    ]
+  }
+}

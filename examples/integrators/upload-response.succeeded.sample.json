@@ -1,0 +1,59 @@
+{
+  "jti": "7b2cbca9-e6d6-470f-a795-63106ea282b7",
+  "thid": "up-sample-001",
+  "iss": "did:web:globaldatacare.es:employee:preconversion",
+  "aud": "did:web:clinic.example:employee:it:loader",
+  "type": "https://didcomm.org/plaintext/2.0/message",
+  "iat": 1760000000,
+  "exp": 1760000300,
+  "body": {
+    "resourceType": "Bundle",
+    "type": "batch-response",
+    "issues": {
+      "resourceType": "OperationOutcome",
+      "issue": [
+        {
+          "severity": "information",
+          "code": "informational",
+          "diagnostics": "Job status: succeeded"
+        }
+      ]
+    },
+    "data": [
+      {
+        "type": "ConversionResult",
+        "resource": {
+          "resourceType": "Bundle",
+          "type": "batch",
+          "data": [
+            {
+              "resource": {
+                "resourceType": "Patient"
+              }
+            },
+            {
+              "resource": {
+                "resourceType": "Composition"
+              }
+            }
+          ],
+          "total": 2
+        },
+        "response": {
+          "status": "200",
+          "outcome": {
+            "resourceType": "OperationOutcome",
+            "issue": [
+              {
+                "severity": "information",
+                "code": "informational",
+                "diagnostics": "Job status: succeeded"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "total": 1
+  }
+}

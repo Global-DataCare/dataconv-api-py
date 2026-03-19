@@ -1,0 +1,27 @@
+{
+  "iss": "did:web:clinic.example:employee:it:loader",
+  "thid": "thid-auto",
+  "jti": "req-auto",
+  "type": "https://didcomm.org/plaintext/2.0/message",
+  "vp_token": "{\"vp\":{\"type\":[\"VerifiablePresentation\"]}}",
+  "iat": 1760000000,
+  "exp": 1760003600,
+  "body": {
+    "resourceType": "Bundle",
+    "type": "batch",
+    "data": [],
+    "total": 0
+  },
+  "attachments": [
+    {
+      "id": "source-xlsx",
+      "media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "filename": "exampleQvetES.xlsx",
+      "data": {
+        "links": [
+          "https://www.dropbox.com/scl/fi/gkc57co2y9litpm7t81vt/exampleQvetES.xlsx?rlkey=5cnesxdtop8hfdryhrrlmo89w&dl=1"
+        ]
+      }
+    }
+  ]
+}

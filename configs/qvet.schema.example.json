@@ -1,0 +1,55 @@
+{
+  "headerRowIndex": 1,
+  "fieldMap": {
+    "section": "SECCION",
+    "family": "FAMILIA",
+    "subfamily": "SUBFAMILIA",
+    "concept": "CONCEPTO",
+    "subjectId": "ID_HISTORIA",
+    "owner": "PROPIETARIO",
+    "ownerId": "NIF_PROPIETARIO",
+    "species": "ESPECIE",
+    "breed": "RAZA",
+    "genderStatus": "ESTADO_REPRODUCTIVO",
+    "sourceId": "IDARTICULO",
+    "date": "FECHA",
+    "time": "HORA"
+  },
+  "fieldDefaults": {},
+  "allowedSections": [
+    "clinica"
+  ],
+  "excludedSectionFamilies": [
+    "clinica:vacunas"
+  ],
+  "ownerPublicRules": {
+    "enabled": false,
+    "containsAny": [
+      "ayuntamiento",
+      "cabildo",
+      "diputacion"
+    ],
+    "excludeContainsAny": [
+      "S.L.",
+      "S.A."
+    ],
+    "publicIdPrefixes": [
+      "P",
+      "Q",
+      "S"
+    ],
+    "identifierRegex": "^(?:[A-Z]\\d{7}[A-Z0-9]|\\d{8}[A-Z])$",
+    "relationship": "organization-owner"
+  },
+  "loincBySectionFamily": {
+    "clinica:laboratorio": "30954-2",
+    "clinica:consultas": "34109-9",
+    "clinica:cirugia": "11504-8",
+    "clinica:medicamentos": "10160-0",
+    "clinica:varios": "11503-0"
+  },
+  "encounterClassBySectionFamily": {
+    "clinica:*": "AMB"
+  },
+  "encounterServiceTypeBySectionFamily": {}
+}

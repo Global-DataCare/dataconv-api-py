@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preconversion-worker
+  namespace: preconversion
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  selector:
+    matchLabels:
+      app: preconversion-worker
+  template:
+    metadata:
+      labels:
+        app: preconversion-worker
+    spec:
+      serviceAccountName: preconversion-sa
+      containers:
+        - name: worker
+          image: europe-west1-docker.pkg.dev/your-gcp-project/preconversion/preconversion-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/app/scripts/container-entrypoint.sh", "PRECONV_WORKER_CMD"]
+          args: ["--poll-seconds", "1.5"]
+          envFrom:
+            - configMapRef:
+                name: preconversion-config
+            - secretRef:
+                name: preconversion-secrets
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1500m"
+              memory: "2Gi"

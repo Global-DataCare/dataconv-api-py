@@ -1,0 +1,64 @@
+{
+  "jti": "1d4070fe-72d3-42d9-8ea2-3468a5724d92",
+  "thid": "cfg-sample-001",
+  "iss": "did:web:globaldatacare.es:employee:preconversion",
+  "aud": "did:web:clinic.example:employee:it:admin",
+  "type": "https://didcomm.org/plaintext/2.0/message",
+  "iat": 1760000000,
+  "exp": 1760000300,
+  "body": {
+    "resourceType": "Bundle",
+    "type": "batch-response",
+    "data": [
+      {
+        "type": "TenantAdapterConfig",
+        "resource": {
+          "id": "tenant-a__qvet__v1.0__ES__",
+          "type": "tenant-adapter-config",
+          "alternateName": "tenant-a",
+          "softwareId": "qvet-v1.0",
+          "country": "ES",
+          "facilityId": "",
+          "revision": "1",
+          "createdAt": "2026-03-10T12:00:00Z",
+          "updatedAt": "2026-03-10T12:00:00Z",
+          "audit": {
+            "createdBy": "did:web:clinic.example:employee:it:admin",
+            "updatedBy": "did:web:clinic.example:employee:it:admin",
+            "txId": "",
+            "txTime": ""
+          },
+          "content": {
+            "mappingConfig": {
+              "headerRowIndex": 1
+            }
+          }
+        },
+        "response": {
+          "status": "200",
+          "outcome": {
+            "resourceType": "OperationOutcome",
+            "issue": [
+              {
+                "severity": "information",
+                "code": "informational",
+                "diagnostics": "configuration stored"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "total": 1,
+    "issues": {
+      "resourceType": "OperationOutcome",
+      "issue": [
+        {
+          "severity": "information",
+          "code": "informational",
+          "diagnostics": "configuration stored"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "jobId": "7f0c228b-7b6a-4aca-bdd9-08ae35235908",
+  "thid": "thid-issue-local-1",
+  "status": "succeeded",
+  "request": {
+    "alternateName": "acme",
+    "manufacturer": "qvet",
+    "manufacturerVersion": "v1.0",
+    "country": "ES",
+    "facilityId": "",
+    "inputRef": "file:///Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/runtime-data/blobs/uploads/4ebd7545-b924-49a5-a9ef-cf2f77eace66-exampleQvetES.xlsx",
+    "send": false,
+    "requestedBy": "did:web:clinic.example:employee:it:loader",
+    "mode": "persistent",
+    "inlineConfig": {},
+    "thid": "thid-issue-local-1"
+  },
+  "configKeyUsed": {
+    "alternateName": "acme",
+    "manufacturer": "qvet",
+    "manufacturerVersion": "v1.0",
+    "country": "es",
+    "facilityId": ""
+  },
+  "createdAt": "2026-03-13T05:44:27Z",
+  "startedAt": "2026-03-13T05:44:27Z",
+  "finishedAt": "2026-03-13T05:44:27Z",
+  "workerId": "preconv-worker",
+  "resultRef": "file:///Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/runtime-data/blobs/jobs/7f0c228b-7b6a-4aca-bdd9-08ae35235908/summary.json",
+  "error": "",
+  "deliveredAt": "2026-03-13T05:44:35Z"
+}

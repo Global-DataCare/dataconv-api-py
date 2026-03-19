@@ -1,0 +1,76 @@
+{
+  "jti": "f787d24f-e968-4bfc-ab4d-3dae5c6fc94f",
+  "thid": "patient-bea5e188740f935061d01996",
+  "type": "https://didcomm.org/plaintext/2.0/message",
+  "iss": "did:web:example.globaldatacare.es:employee:it:loader",
+  "aud": "did:web:clinic.globaldatacare.es",
+  "iat": 1772673694,
+  "exp": 1772673994,
+  "body": {
+    "resourceType": "Bundle",
+    "type": "batch",
+    "data": [
+      {
+        "resource": {
+          "resourceType": "Patient",
+          "id": "82ef6455-9c10-59a3-9f73-440939a6adc3",
+          "meta": {
+            "claims": {
+              "Patient.identifier": "did:web:example.org:animal:subject:zW1jubAfgQFCTho9XgbZXhfekVLNAc4KBmCicaijNywzqpN",
+              "Patient.active": "true",
+              "Patient.language": "es-ES"
+            }
+          },
+          "contained": [
+            {
+              "resourceType": "Composition",
+              "id": "40304495-a1bd-53d9-b7ea-8d7c8b0655eb",
+              "meta": {
+                "claims": {
+                  "Composition.identifier": "40304495-a1bd-53d9-b7ea-8d7c8b0655eb",
+                  "Composition.subject": "did:web:example.org:animal:subject:zW1jubAfgQFCTho9XgbZXhfekVLNAc4KBmCicaijNywzqpN",
+                  "Composition.section": "http://loinc.org|11369-6",
+                  "Composition.author": "",
+                  "Composition.date": "2026-03-05T01:21:34.680892+00:00",
+                  "Composition.type": "http://loinc.org|11369-6",
+                  "Composition.title": "immunizations index",
+                  "Composition.entry": "urn:uuid:3827b617-5938-5292-898d-852f9296d8f9,urn:uuid:01e85565-0cad-5313-b0d0-c430c6fabd9d"
+                }
+              }
+            },
+            {
+              "resourceType": "Encounter",
+              "id": "3827b617-5938-5292-898d-852f9296d8f9",
+              "meta": {
+                "claims": {
+                  "Encounter.identifier": "3827b617-5938-5292-898d-852f9296d8f9",
+                  "Encounter.subject": "did:web:example.org:animal:subject:zW1jubAfgQFCTho9XgbZXhfekVLNAc4KBmCicaijNywzqpN",
+                  "Encounter.date": "2026-01-01T10:00:00Z",
+                  "Encounter.status": "finished",
+                  "Encounter.class": "http://terminology.hl7.org/CodeSystem/v3-ActCode|AMB"
+                }
+              }
+            },
+            {
+              "resourceType": "DocumentReference",
+              "id": "01e85565-0cad-5313-b0d0-c430c6fabd9d",
+              "meta": {
+                "claims": {
+                  "DocumentReference.identifier": "01e85565-0cad-5313-b0d0-c430c6fabd9d",
+                  "DocumentReference.subject": "did:web:example.org:animal:subject:zW1jubAfgQFCTho9XgbZXhfekVLNAc4KBmCicaijNywzqpN",
+                  "DocumentReference.author": "",
+                  "DocumentReference.date": "2026-01-01T10:00:00Z",
+                  "DocumentReference.type": "urn:gdc:wakyma:clinica:vacunas:vacuna-perro",
+                  "DocumentReference.category": "http://loinc.org|11369-6",
+                  "DocumentReference.description": "Vacuna anual",
+                  "DocumentReference.language": "es-ES"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "total": 1
+  }
+}

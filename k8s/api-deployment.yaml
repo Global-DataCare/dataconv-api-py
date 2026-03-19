@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preconversion-api
+  namespace: preconversion
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  selector:
+    matchLabels:
+      app: preconversion-api
+  template:
+    metadata:
+      labels:
+        app: preconversion-api
+    spec:
+      serviceAccountName: preconversion-sa
+      containers:
+        - name: api
+          image: europe-west1-docker.pkg.dev/your-gcp-project/preconversion/preconversion-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/app/scripts/container-entrypoint.sh", "PRECONV_API_CMD"]
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: preconversion-config
+            - secretRef:
+                name: preconversion-secrets
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"

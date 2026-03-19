@@ -1,0 +1,62 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+artifacts/
+.venv/
+private-gcp-bootstrap.config
+private-cloudsql.env
+private-staging-notes.md
+private-preconversion-runtime-sa.json
+.env.local.gcp
+
+# Added
+response*
+requests/
+*.srl
+data/
+.npmrc
+.env*
+coverage
+tmp
+*.tgz
+
+admin*.*
+**/*.txt
+**/.DS_Store
+.idea/
+
+stripe.*
+_private_
+*private*.*
+*.production
+
+# Ignore all .env files...
+.env*
+# ...except for the example template.
+!.env.example
+
+# Local deploy config / secrets (never commit)
+private-deploy.config
+secrets/
+*.secrets
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock

@@ -1,0 +1,18 @@
+# Documentación operativa
+
+- [INTEGRATORS_GUIDE](../../INTEGRATORS_GUIDE.md)
+- [API_DEVELOPMENT_GUIDE](API_DEVELOPMENT_GUIDE.md)
+- [00 - Modos de operación](00-modos-operacion.md)
+- [01 - Instalación](01-instalacion.md)
+- [02 - Configuración de clínica](02-configuracion-clinica.md)
+- [03 - Ejecución y ejemplos](03-ejecucion-ejemplos.md)
+- [04 - Envío al gateway](04-envio-gateway.md)
+- [05 - Troubleshooting](05-troubleshooting.md)
+- [06 - Script rápido para IT](06-script-rapido.md)
+- [07 - Mapeo LOINC clínico](07-mapeo-loinc-clinica.md)
+- [08 - Configuración multi-tenant para API](08-api-config-multitenant.md)
+- [09 - Storage y Job Queue adapters](09-storage-y-job-queue-adapters.md)
+- [10 - Despliegue rápido en GKE](10-despliegue-gke.md)
+- [11 - Release staging a production](11-release-staging-production.md)
+- [12 - Ejemplos de salida actual](12-ejemplos-salida-actual.md)
+- [13 - Bootstrap GCP onehealth](13-bootstrap-gcp-onehealth.md)

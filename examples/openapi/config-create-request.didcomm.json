@@ -1,0 +1,29 @@
+{
+  "iss": "did:web:clinic.example:employee:it:admin",
+  "thid": "thid-auto",
+  "jti": "req-auto",
+  "type": "https://didcomm.org/plaintext/2.0/message",
+  "vp_token": "{\"vp\":{\"type\":[\"VerifiablePresentation\"]}}",
+  "iat": 1760000000,
+  "exp": 1760003600,
+  "data": [
+    {
+      "softwareId": "qvet-v1.0",
+      "config": {
+        "mappingConfig": {
+          "headerRowIndex": 1,
+          "fieldMap": {
+            "section": "SECCION",
+            "family": "FAMILIA",
+            "subfamily": "SUBFAMILIA",
+            "concept": "CONCEPTO",
+            "subjectId": "HISTORIA_ID",
+            "species": "ESPECIE",
+            "date": "FECHA",
+            "time": "HORA"
+          }
+        }
+      }
+    }
+  ]
+}

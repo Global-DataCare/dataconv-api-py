@@ -1,0 +1,285 @@
+{
+  "jti": "ab5e591c-352f-4b40-b503-4833cf6f70df",
+  "thid": "patient-c2e43e099c33032989e43274",
+  "type": "https://didcomm.org/plaintext/2.0/message",
+  "iss": "did:web:globaldatacare.es:employee:preconversion",
+  "aud": "did:web:globaldatacare.es",
+  "iat": 1773380667,
+  "exp": 1773380967,
+  "body": {
+    "resourceType": "Bundle",
+    "type": "batch",
+    "data": [
+      {
+        "resource": {
+          "resourceType": "Patient",
+          "id": "00852c21-7545-55f9-a9af-bc2d21b57f82",
+          "meta": {
+            "claims": {
+              "Patient.identifier": "did:web:globaldatacare.es:animal:subject:zW1dU8yZwD3u3pVPF8obc9ZdfxY8EjSPFrXYWHJeutcopcR",
+              "Patient.active": "true",
+              "Patient.language": "es-ES"
+            }
+          },
+          "contained": [
+            {
+              "resourceType": "Composition",
+              "id": "5edf854d-6715-5e5e-93d1-72f0b4bc4976",
+              "meta": {
+                "claims": {
+                  "Composition.identifier": "5edf854d-6715-5e5e-93d1-72f0b4bc4976",
+                  "Composition.subject": "did:web:globaldatacare.es:animal:subject:zW1dU8yZwD3u3pVPF8obc9ZdfxY8EjSPFrXYWHJeutcopcR",
+                  "Composition.section": "http://loinc.org|10160-0",
+                  "Composition.author": "",
+                  "Composition.date": "2026-03-13T05:44:27.251990+00:00",
+                  "Composition.type": "http://loinc.org|10160-0",
+                  "Composition.title": "clinica:medicamentos index",
+                  "Composition.entry": "urn:uuid:47314d5b-3b0a-5bc7-8c22-f7aba855fb08,urn:uuid:61fa016a-e572-5f4d-95d9-3bda533230bc,urn:uuid:a1efbe97-53d9-5a5d-98b3-8fdb45f31b2f,urn:uuid:e0a5fc61-5258-5e66-bf84-6bf58ab0bed3"
+                }
+              }
+            },
+            {
+              "resourceType": "Encounter",
+              "id": "47314d5b-3b0a-5bc7-8c22-f7aba855fb08",
+              "meta": {
+                "claims": {
+                  "Encounter.identifier": "47314d5b-3b0a-5bc7-8c22-f7aba855fb08",
+                  "Encounter.subject": "did:web:globaldatacare.es:animal:subject:zW1dU8yZwD3u3pVPF8obc9ZdfxY8EjSPFrXYWHJeutcopcR",
+                  "Encounter.date": "2026-01-27T15:08:12Z",
+                  "Encounter.status": "finished",
+                  "Encounter.class": "http://terminology.hl7.org/CodeSystem/v3-ActCode|AMB"
+                }
+              }
+            },
+            {
+              "resourceType": "Encounter",
+              "id": "61fa016a-e572-5f4d-95d9-3bda533230bc",
+              "meta": {
+                "claims": {
+                  "Encounter.identifier": "61fa016a-e572-5f4d-95d9-3bda533230bc",
+                  "Encounter.subject": "did:web:globaldatacare.es:animal:subject:zW1dU8yZwD3u3pVPF8obc9ZdfxY8EjSPFrXYWHJeutcopcR",
+                  "Encounter.date": "2026-01-27T15:08:12Z",
+                  "Encounter.status": "finished",
+                  "Encounter.class": "http://terminology.hl7.org/CodeSystem/v3-ActCode|AMB"
+                }
+              }
+            },
+            {
+              "resourceType": "DocumentReference",
+              "id": "a1efbe97-53d9-5a5d-98b3-8fdb45f31b2f",
+              "meta": {
+                "claims": {
+                  "DocumentReference.identifier": "a1efbe97-53d9-5a5d-98b3-8fdb45f31b2f",
+                  "DocumentReference.subject": "did:web:globaldatacare.es:animal:subject:zW1dU8yZwD3u3pVPF8obc9ZdfxY8EjSPFrXYWHJeutcopcR",
+                  "DocumentReference.author": "",
+                  "DocumentReference.date": "2026-01-27T15:08:12Z",
+                  "DocumentReference.type": "urn:gdc:qvet:clinica:medicamentos:medicamentos",
+                  "DocumentReference.category": "http://loinc.org|10160-0",
+                  "DocumentReference.description": "TRATAMIENTO PREDNICORTONE 5 MG 1 COMP",
+                  "DocumentReference.language": "es-ES"
+                }
+              }
+            },
+            {
+              "resourceType": "DocumentReference",
+              "id": "e0a5fc61-5258-5e66-bf84-6bf58ab0bed3",
+              "meta": {
+                "claims": {
+                  "DocumentReference.identifier": "e0a5fc61-5258-5e66-bf84-6bf58ab0bed3",
+                  "DocumentReference.subject": "did:web:globaldatacare.es:animal:subject:zW1dU8yZwD3u3pVPF8obc9ZdfxY8EjSPFrXYWHJeutcopcR",
+                  "DocumentReference.author": "",
+                  "DocumentReference.date": "2026-01-27T15:08:12Z",
+                  "DocumentReference.type": "urn:gdc:qvet:clinica:medicamentos:medicamentos",
+                  "DocumentReference.category": "http://loinc.org|10160-0",
+                  "DocumentReference.description": "TRATAMIENTO DOXYBACTIN 50MG 1 COMP",
+                  "DocumentReference.language": "es-ES"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "resource": {
+          "resourceType": "Patient",
+          "id": "7db523a8-7bd0-517f-a59b-16b8f61da98f",
+          "meta": {
+            "claims": {
+              "Patient.identifier": "did:web:globaldatacare.es:animal:subject:zW1jdGSUFXL6ATRfrhFTu1FZgM9DXBnFtbvg2pgBniri3Qd",
+              "Patient.active": "true",
+              "Patient.language": "es-ES"
+            }
+          },
+          "contained": [
+            {
+              "resourceType": "Composition",
+              "id": "3a543dac-1caa-5768-9288-1a4a8c6787e5",
+              "meta": {
+                "claims": {
+                  "Composition.identifier": "3a543dac-1caa-5768-9288-1a4a8c6787e5",
+                  "Composition.subject": "did:web:globaldatacare.es:animal:subject:zW1jdGSUFXL6ATRfrhFTu1FZgM9DXBnFtbvg2pgBniri3Qd",
+                  "Composition.section": "http://loinc.org|30954-2",
+                  "Composition.author": "",
+                  "Composition.date": "2026-03-13T05:44:27.252070+00:00",
+                  "Composition.type": "http://loinc.org|30954-2",
+                  "Composition.title": "clinica:laboratorio index",
+                  "Composition.entry": "urn:uuid:bc0f37cb-f761-51db-a425-b82cce1612fb,urn:uuid:0e418c3c-2a96-5e28-8571-2dd92c0b62d1"
+                }
+              }
+            },
+            {
+              "resourceType": "Encounter",
+              "id": "bc0f37cb-f761-51db-a425-b82cce1612fb",
+              "meta": {
+                "claims": {
+                  "Encounter.identifier": "bc0f37cb-f761-51db-a425-b82cce1612fb",
+                  "Encounter.subject": "did:web:globaldatacare.es:animal:subject:zW1jdGSUFXL6ATRfrhFTu1FZgM9DXBnFtbvg2pgBniri3Qd",
+                  "Encounter.date": "2026-01-13T13:18:25Z",
+                  "Encounter.status": "finished",
+                  "Encounter.class": "http://terminology.hl7.org/CodeSystem/v3-ActCode|AMB"
+                }
+              }
+            },
+            {
+              "resourceType": "DocumentReference",
+              "id": "0e418c3c-2a96-5e28-8571-2dd92c0b62d1",
+              "meta": {
+                "claims": {
+                  "DocumentReference.identifier": "0e418c3c-2a96-5e28-8571-2dd92c0b62d1",
+                  "DocumentReference.subject": "did:web:globaldatacare.es:animal:subject:zW1jdGSUFXL6ATRfrhFTu1FZgM9DXBnFtbvg2pgBniri3Qd",
+                  "DocumentReference.author": "",
+                  "DocumentReference.date": "2026-01-13T13:18:25Z",
+                  "DocumentReference.type": "urn:gdc:qvet:clinica:laboratorio:test-rapidos",
+                  "DocumentReference.category": "http://loinc.org|30954-2",
+                  "DocumentReference.description": "ANALISIS TEST 2 LEUCE/ INMUNODEF TEST URANO",
+                  "DocumentReference.language": "es-ES"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "resource": {
+          "resourceType": "Patient",
+          "id": "543ceec5-b1f4-59d4-b6b6-725cafc3ad66",
+          "meta": {
+            "claims": {
+              "Patient.identifier": "did:web:globaldatacare.es:animal:subject:zW1ngST945akH1xuKT3ivD5KKP8qf9quTaUkGtDw9bJ85cu",
+              "Patient.active": "true",
+              "Patient.language": "es-ES"
+            }
+          },
+          "contained": [
+            {
+              "resourceType": "Composition",
+              "id": "cb28ef04-1f89-508a-8317-ebfd044b3a0b",
+              "meta": {
+                "claims": {
+                  "Composition.identifier": "cb28ef04-1f89-508a-8317-ebfd044b3a0b",
+                  "Composition.subject": "did:web:globaldatacare.es:animal:subject:zW1ngST945akH1xuKT3ivD5KKP8qf9quTaUkGtDw9bJ85cu",
+                  "Composition.section": "http://loinc.org|11369-6",
+                  "Composition.author": "",
+                  "Composition.date": "2026-03-13T05:44:27.252116+00:00",
+                  "Composition.type": "http://loinc.org|11369-6",
+                  "Composition.title": "clinica:vacunas index",
+                  "Composition.entry": "urn:uuid:6493fb6a-b037-5dba-90d0-edeebd4015e1,urn:uuid:53b9f349-57d9-5178-9c4b-7a02512eff63"
+                }
+              }
+            },
+            {
+              "resourceType": "Encounter",
+              "id": "6493fb6a-b037-5dba-90d0-edeebd4015e1",
+              "meta": {
+                "claims": {
+                  "Encounter.identifier": "6493fb6a-b037-5dba-90d0-edeebd4015e1",
+                  "Encounter.subject": "did:web:globaldatacare.es:animal:subject:zW1ngST945akH1xuKT3ivD5KKP8qf9quTaUkGtDw9bJ85cu",
+                  "Encounter.date": "2026-01-15T10:59:50Z",
+                  "Encounter.status": "finished",
+                  "Encounter.class": "http://terminology.hl7.org/CodeSystem/v3-ActCode|AMB"
+                }
+              }
+            },
+            {
+              "resourceType": "DocumentReference",
+              "id": "53b9f349-57d9-5178-9c4b-7a02512eff63",
+              "meta": {
+                "claims": {
+                  "DocumentReference.identifier": "53b9f349-57d9-5178-9c4b-7a02512eff63",
+                  "DocumentReference.subject": "did:web:globaldatacare.es:animal:subject:zW1ngST945akH1xuKT3ivD5KKP8qf9quTaUkGtDw9bJ85cu",
+                  "DocumentReference.author": "",
+                  "DocumentReference.date": "2026-01-15T10:59:50Z",
+                  "DocumentReference.type": "urn:gdc:qvet:clinica:vacunas:vacuna-gato",
+                  "DocumentReference.category": "http://loinc.org|11369-6",
+                  "DocumentReference.description": "VACUNA 2 POLIVALENTE GATO RCP TRIVALENTE FEL + LEUCEMIA",
+                  "DocumentReference.language": "es-ES"
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "resource": {
+          "resourceType": "Patient",
+          "id": "5a9259f9-8505-51ad-bd54-9b63dc70bb76",
+          "meta": {
+            "claims": {
+              "Patient.identifier": "did:web:globaldatacare.es:animal:subject:zW1o8E5RrFoKsKyQpJgrxLz4ofSnNdj1Nn2TmSqUmAD3BJD",
+              "Patient.active": "true",
+              "Patient.language": "es-ES"
+            }
+          },
+          "contained": [
+            {
+              "resourceType": "Composition",
+              "id": "a91e4f2f-baba-554e-9ce3-86e1f08c5df7",
+              "meta": {
+                "claims": {
+                  "Composition.identifier": "a91e4f2f-baba-554e-9ce3-86e1f08c5df7",
+                  "Composition.subject": "did:web:globaldatacare.es:animal:subject:zW1o8E5RrFoKsKyQpJgrxLz4ofSnNdj1Nn2TmSqUmAD3BJD",
+                  "Composition.section": "http://loinc.org|30954-2",
+                  "Composition.author": "",
+                  "Composition.date": "2026-03-13T05:44:27.252159+00:00",
+                  "Composition.type": "http://loinc.org|30954-2",
+                  "Composition.title": "clinica:laboratorio index",
+                  "Composition.entry": "urn:uuid:642fe117-806a-59de-9140-97ab70923eae,urn:uuid:d60e93dd-df54-5215-90bd-d0db9ab51b65"
+                }
+              }
+            },
+            {
+              "resourceType": "Encounter",
+              "id": "642fe117-806a-59de-9140-97ab70923eae",
+              "meta": {
+                "claims": {
+                  "Encounter.identifier": "642fe117-806a-59de-9140-97ab70923eae",
+                  "Encounter.subject": "did:web:globaldatacare.es:animal:subject:zW1o8E5RrFoKsKyQpJgrxLz4ofSnNdj1Nn2TmSqUmAD3BJD",
+                  "Encounter.date": "2026-01-10T13:41:05Z",
+                  "Encounter.status": "finished",
+                  "Encounter.class": "http://terminology.hl7.org/CodeSystem/v3-ActCode|AMB"
+                }
+              }
+            },
+            {
+              "resourceType": "DocumentReference",
+              "id": "d60e93dd-df54-5215-90bd-d0db9ab51b65",
+              "meta": {
+                "claims": {
+                  "DocumentReference.identifier": "d60e93dd-df54-5215-90bd-d0db9ab51b65",
+                  "DocumentReference.subject": "did:web:globaldatacare.es:animal:subject:zW1o8E5RrFoKsKyQpJgrxLz4ofSnNdj1Nn2TmSqUmAD3BJD",
+                  "DocumentReference.author": "",
+                  "DocumentReference.date": "2026-01-10T13:41:05Z",
+                  "DocumentReference.type": "urn:gdc:qvet:clinica:laboratorio:test-rapidos",
+                  "DocumentReference.category": "http://loinc.org|30954-2",
+                  "DocumentReference.description": "ANALISIS TEST 4DX VARIOS LABS- LEISH,ERLICHIA,ANAP Y FILARIA",
+                  "DocumentReference.language": "es-ES"
+                }
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "total": 4
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "jti": "51658b07-491b-4a4f-a0a0-400c414aecc2",
+  "thid": "patient-aa74244bacaa83a3838b13ea",
+  "type": "https://didcomm.org/plaintext/2.0/message",
+  "iss": "did:web:globaldatacare.es:employee:preconversion",
+  "aud": "did:web:globaldatacare.es",
+  "iat": 1773298552,
+  "exp": 1773298852,
+  "body": {
+    "resourceType": "Bundle",
+    "type": "batch",
+    "data": [],
+    "total": 0
+  }
+}

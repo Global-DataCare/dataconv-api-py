@@ -1,0 +1,51 @@
+{
+  "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+  "valueSet": "http://hl7.org/fhir/ValueSet/encounter-class",
+  "profile": "r4-encounter-class",
+  "codes": {
+    "AMB": {
+      "display": "ambulatory",
+      "definition": "Healthcare provided on a nonresident basis (outpatient)."
+    },
+    "EMER": {
+      "display": "emergency",
+      "definition": "Immediate evaluation and treatment in an emergency setting."
+    },
+    "FLD": {
+      "display": "field",
+      "definition": "Encounter outside facilities and outside the patient residence."
+    },
+    "HH": {
+      "display": "home health",
+      "definition": "Encounter in the patient residence."
+    },
+    "IMP": {
+      "display": "inpatient encounter",
+      "definition": "Admitted encounter with overnight stay and continuous nursing service."
+    },
+    "ACUTE": {
+      "display": "inpatient acute",
+      "definition": "An acute inpatient encounter."
+    },
+    "NONAC": {
+      "display": "inpatient non-acute",
+      "definition": "Inpatient encounter except acute."
+    },
+    "OBSENC": {
+      "display": "observation encounter",
+      "definition": "Observation period to decide admission or discharge."
+    },
+    "PRENC": {
+      "display": "pre-admission",
+      "definition": "Scheduled/planned pre-admission encounter."
+    },
+    "SS": {
+      "display": "short stay",
+      "definition": "Predetermined short admission, usually under 24h."
+    },
+    "VR": {
+      "display": "virtual",
+      "definition": "Patient and practitioner are not in the same physical location."
+    }
+  }
+}

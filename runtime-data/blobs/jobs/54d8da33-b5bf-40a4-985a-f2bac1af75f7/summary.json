@@ -1,0 +1,45 @@
+{
+  "manufacturer": "qvet",
+  "tenantId": "acme",
+  "jurisdiction": "ES",
+  "sector": "veterinary",
+  "recordsTotal": 5,
+  "subjectsTotal": 4,
+  "documentReferenceEntries": 5,
+  "encounterEntries": 5,
+  "relatedPersonEntries": 0,
+  "patientEntries": 4,
+  "compositionEntries": 4,
+  "operationOutcomeEntries": 0,
+  "families": {
+    "MEDICAMENTOS": 2,
+    "laboratorio": 2,
+    "vacunas": 1
+  },
+  "sections": {
+    "clinica:MEDICAMENTOS": 2,
+    "clinica:laboratorio": 2,
+    "clinica:vacunas": 1
+  },
+  "adapterReport": {
+    "rowsRead": 5,
+    "headerRowIndex": 1,
+    "recordsAccepted": 5,
+    "recordsDroppedNoSubjectId": 0,
+    "recordsDroppedSectionFilter": 0,
+    "recordsDroppedSectionFamilyFilter": 0,
+    "recordsDroppedMissingLoincMapping": 0,
+    "recordsWithPublicOwner": 0,
+    "missingLoincBySectionFamily": {},
+    "rowIssues": [],
+    "speciesCounts": {
+      "FELINA": 4,
+      "CANINA": 1
+    },
+    "unmappedSpeciesCounts": {
+      "FELINA": 4,
+      "CANINA": 1
+    },
+    "invalidSpeciesCodeCounts": {}
+  }
+}

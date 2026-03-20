@@ -74,7 +74,7 @@ def create_app():
 
     app = FastAPI(
         title="Preconversion DIDComm API",
-        version="0.2.1",
+        version="0.3.0",
         docs_url=None,
         description=(
             "Public DIDComm/FAPI contract for adapter configuration and conversion jobs.\n\n"

@@ -12,7 +12,7 @@ set -euo pipefail
 PYTHON_BIN="python3"
 
 # --- Datos de carga ---
-MANUFACTURER="wakyma"            # qvet | wakyma
+MANUFACTURER="wakyma"            # qvet | wakyma | api-config
 INPUT_FILE="/Users/fernando/GITS/gdc-workspace/Informes - Explorador de Visitas (Wakyma).xlsx"
 TENANT_ID=""                      # opcional (ruta con segmentos tenant/country/sector)
 JURISDICTION=""                   # opcional (ruta con segmentos tenant/country/sector)
@@ -66,17 +66,17 @@ if [[ ! -f "$INPUT_FILE" ]]; then
   exit 1
 fi
 
-if [[ ! -f "$SPECIES_CATALOG_FILE" ]]; then
+if [[ "$MANUFACTURER" != "api-config" && ! -f "$SPECIES_CATALOG_FILE" ]]; then
   echo "ERROR: no existe SPECIES_CATALOG_FILE: $SPECIES_CATALOG_FILE"
   exit 1
 fi
 
-if [[ ! -f "$SCHEMA_CONFIG_FILE" ]]; then
+if [[ "$MANUFACTURER" != "api-config" && ! -f "$SCHEMA_CONFIG_FILE" ]]; then
   echo "ERROR: no existe SCHEMA_CONFIG_FILE: $SCHEMA_CONFIG_FILE"
   exit 1
 fi
 
-if [[ -n "$SPECIES_LOCAL_MAP_FILE" && ! -f "$SPECIES_LOCAL_MAP_FILE" ]]; then
+if [[ "$MANUFACTURER" != "api-config" && -n "$SPECIES_LOCAL_MAP_FILE" && ! -f "$SPECIES_LOCAL_MAP_FILE" ]]; then
   echo "ERROR: no existe SPECIES_LOCAL_MAP_FILE: $SPECIES_LOCAL_MAP_FILE"
   exit 1
 fi
@@ -87,25 +87,28 @@ if [[ "$MODE" == "send" && -z "$AUTH_TOKEN" ]]; then
 fi
 
 CMD=(
-  "$PYTHON_BIN" -m adapter_ingestion
+  "$PYTHON_BIN" -m adapter_ingestion.cli
   --manufacturer "$MANUFACTURER"
   --input "$INPUT_FILE"
   --issuer-did "$ISSUER_DID"
   --audience-did "$AUDIENCE_DID"
-  --gateway-base-url "$GATEWAY_BASE_URL"
-  --resource-route-prefix "$RESOURCE_ROUTE_PREFIX"
-  --species-catalog-file "$SPECIES_CATALOG_FILE"
-  --schema-config-file "$SCHEMA_CONFIG_FILE"
   --subject-did-prefix "$SUBJECT_DID_PREFIX"
   --subject-kind "$SUBJECT_KIND"
   --output-dir "$OUTPUT_DIR"
 )
 
-if [[ -n "$INCLUDE_FIELDS" ]]; then
+if [[ "$MANUFACTURER" != "api-config" ]]; then
+  CMD+=(--gateway-base-url "$GATEWAY_BASE_URL")
+  CMD+=(--resource-route-prefix "$RESOURCE_ROUTE_PREFIX")
+  CMD+=(--species-catalog-file "$SPECIES_CATALOG_FILE")
+  CMD+=(--schema-config-file "$SCHEMA_CONFIG_FILE")
+fi
+
+if [[ "$MANUFACTURER" != "api-config" && -n "$INCLUDE_FIELDS" ]]; then
   CMD+=(--include-fields "$INCLUDE_FIELDS")
 fi
 
-if [[ -n "$SPECIES_LOCAL_MAP_FILE" ]]; then
+if [[ "$MANUFACTURER" != "api-config" && -n "$SPECIES_LOCAL_MAP_FILE" ]]; then
   CMD+=(--species-local-map-file "$SPECIES_LOCAL_MAP_FILE")
 fi
 
@@ -142,5 +145,37 @@ echo
 
 PYTHONPATH=src "${CMD[@]}"
 
+INPUT_STEM="$(basename "${INPUT_FILE%.*}")"
+SUMMARY_PATH="$(cd "$REPO_DIR" && python3 -c 'from pathlib import Path; import sys; base=Path(sys.argv[1]).expanduser().resolve(); stem=sys.argv[2]; print(base / stem / "summary.json")' "$OUTPUT_DIR" "$INPUT_STEM")"
+
 echo
-echo "OK. Revisa: $OUTPUT_DIR/summary.json"
+echo "Comando ejecutado:"
+printf '%q ' env PYTHONPATH=src "${CMD[@]}"
+echo
+echo
+if [[ -f "$SUMMARY_PATH" ]]; then
+  echo "Resumen:"
+  python3 - "$SUMMARY_PATH" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+keys = (
+    "recordsTotal",
+    "subjectsTotal",
+    "documentReferenceEntries",
+    "encounterEntries",
+    "relatedPersonEntries",
+    "subjectEntries",
+    "patientEntries",
+    "compositionEntries",
+)
+for key in keys:
+    print(f"{key}: {summary.get(key, 0)}")
+PY
+  echo
+  echo "summary.json: $SUMMARY_PATH"
+else
+  echo "WARN: no se encontró summary.json en $SUMMARY_PATH"
+fi

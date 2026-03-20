@@ -6,25 +6,59 @@ from __future__ import annotations
 from typing import Any
 import copy
 import json
+import re
 
 from ..ports import ISearchRepository
 
 
-def _claim_value(resource: dict[str, Any], claim_key: str) -> str:
+def _normalize_search_token(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+
+
+def _search_field_name(resource_type: str, field_name: str) -> str:
+    normalized_resource = _normalize_search_token(resource_type)
+    normalized_field = _normalize_search_token(field_name)
+    if normalized_resource and normalized_field:
+        return f"{normalized_resource}_{normalized_field}"
+    return normalized_resource or normalized_field
+
+
+def _claims(resource: dict[str, Any]) -> dict[str, Any]:
     meta = resource.get("meta", {})
     if not isinstance(meta, dict):
-        return ""
+        return {}
     claims = meta.get("claims", {})
     if not isinstance(claims, dict):
-        return ""
-    direct = claims.get(claim_key, "")
+        return {}
+    return claims
+
+
+def _search_fields(resource: dict[str, Any]) -> dict[str, str]:
+    resource_type = str(resource.get("resourceType", "")).strip()
+    claims = _claims(resource)
+    fields: dict[str, str] = {}
+    for existing_key, existing_value in claims.items():
+        claim_key = str(existing_key or "").strip()
+        if not claim_key:
+            continue
+        claim_value = str(existing_value or "")
+        if "." in claim_key:
+            claim_resource_type, claim_field_name = claim_key.split(".", 1)
+            fields[_search_field_name(claim_resource_type, claim_field_name)] = claim_value
+            if _normalize_search_token(claim_resource_type) == _normalize_search_token(resource_type):
+                fields[_normalize_search_token(claim_field_name)] = claim_value
+            continue
+        fields[_search_field_name(resource_type, claim_key)] = claim_value
+        fields[_normalize_search_token(claim_key)] = claim_value
+    return fields
+
+
+def _search_field_value(resource: dict[str, Any], resource_type: str, field_name: str) -> str:
+    search_fields = _search_fields(resource)
+    direct = search_fields.get(_search_field_name(resource_type, field_name), "")
     if direct:
         return str(direct or "")
-    lowered_claim_key = claim_key.lower()
-    for existing_key, existing_value in claims.items():
-        if str(existing_key or "").strip().lower() == lowered_claim_key:
-            return str(existing_value or "")
-    return ""
+    return str(search_fields.get(_normalize_search_token(field_name), "") or "")
 
 
 def _matches_search(resource: dict[str, Any], resource_type: str, search_params: dict[str, Any]) -> bool:
@@ -32,7 +66,7 @@ def _matches_search(resource: dict[str, Any], resource_type: str, search_params:
         expected = str(value or "").strip()
         if not expected:
             continue
-        actual = _claim_value(resource, f"{resource_type}.{str(key or '').strip()}")
+        actual = _search_field_value(resource, resource_type, str(key or "").strip())
         if expected.startswith(("ge", "le", "gt", "lt")):
             operator = expected[:2]
             target = expected[2:]
@@ -113,15 +147,23 @@ class PostgresSearchRepository(ISearchRepository):
                 resource_type TEXT NOT NULL,
                 resource_id TEXT NOT NULL,
                 claims JSONB NOT NULL,
+                search_fields JSONB NOT NULL DEFAULT '{{}}'::jsonb,
                 resource JSONB NOT NULL,
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 PRIMARY KEY (vault_id, resource_type, resource_id)
             )
             """
         ).format(table_name=self._sql.Identifier(self._table_name))
+        alter_query = self._sql.SQL(
+            """
+            ALTER TABLE {table_name}
+            ADD COLUMN IF NOT EXISTS search_fields JSONB NOT NULL DEFAULT '{{}}'::jsonb
+            """
+        ).format(table_name=self._sql.Identifier(self._table_name))
         with self._connect() as conn:
             with conn.cursor() as cur:
                 cur.execute(query)
+                cur.execute(alter_query)
             conn.commit()
 
     def upsert(self, *, vault_id: str, resource_type: str, resource: dict[str, Any]) -> bool:
@@ -132,17 +174,28 @@ class PostgresSearchRepository(ISearchRepository):
         meta = resource.get("meta", {})
         if isinstance(meta, dict) and isinstance(meta.get("claims"), dict):
             claims = meta.get("claims", {})
+        search_fields = _search_fields(resource)
         query = self._sql.SQL(
             """
-            INSERT INTO {table_name} (vault_id, resource_type, resource_id, claims, resource)
-            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb)
+            INSERT INTO {table_name} (vault_id, resource_type, resource_id, claims, search_fields, resource)
+            VALUES (%s, %s, %s, %s::jsonb, %s::jsonb, %s::jsonb)
             ON CONFLICT (vault_id, resource_type, resource_id)
-            DO UPDATE SET claims = EXCLUDED.claims, resource = EXCLUDED.resource, updated_at = NOW()
+            DO UPDATE SET claims = EXCLUDED.claims, search_fields = EXCLUDED.search_fields, resource = EXCLUDED.resource, updated_at = NOW()
             """
         ).format(table_name=self._sql.Identifier(self._table_name))
         with self._connect() as conn:
             with conn.cursor() as cur:
-                cur.execute(query, (vault_id, resource_type, resource_id, json.dumps(claims), json.dumps(resource)))
+                cur.execute(
+                    query,
+                    (
+                        vault_id,
+                        resource_type,
+                        resource_id,
+                        json.dumps(claims),
+                        json.dumps(search_fields),
+                        json.dumps(resource),
+                    ),
+                )
             conn.commit()
         return True
 
@@ -159,7 +212,7 @@ class PostgresSearchRepository(ISearchRepository):
             expected = str(value or "").strip()
             if not expected:
                 continue
-            claim_key = f"{resource_type}.{str(key or '').strip()}"
+            search_field = _search_field_name(resource_type, str(key or "").strip())
             if expected.startswith(("ge", "le", "gt", "lt")):
                 operator = {"ge": ">=", "le": "<=", "gt": ">", "lt": "<"}[expected[:2]]
                 clauses.append(
@@ -167,26 +220,26 @@ class PostgresSearchRepository(ISearchRepository):
                         """
                         EXISTS (
                             SELECT 1
-                            FROM jsonb_each_text(claims) AS claim(key, value)
-                            WHERE lower(claim.key) = lower(%s) AND claim.value {} %s
+                            FROM jsonb_each_text(search_fields) AS field(key, value)
+                            WHERE lower(field.key) = lower(%s) AND field.value {} %s
                         )
                         """
                     ).format(self._sql.SQL(operator))
                 )
-                values.extend([claim_key, expected[2:]])
+                values.extend([search_field, expected[2:]])
             else:
                 clauses.append(
                     self._sql.SQL(
                         """
                         EXISTS (
                             SELECT 1
-                            FROM jsonb_each_text(claims) AS claim(key, value)
-                            WHERE lower(claim.key) = lower(%s) AND claim.value = %s
+                            FROM jsonb_each_text(search_fields) AS field(key, value)
+                            WHERE lower(field.key) = lower(%s) AND field.value = %s
                         )
                         """
                     )
                 )
-                values.extend([claim_key, expected])
+                values.extend([search_field, expected])
         query = self._sql.SQL("SELECT resource FROM {table_name} WHERE ").format(
             table_name=self._sql.Identifier(self._table_name)
         ) + self._sql.SQL(" AND ").join(clauses)

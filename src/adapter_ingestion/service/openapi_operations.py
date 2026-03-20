@@ -18,7 +18,7 @@ def configure_schema_metadata(schema: dict[str, Any]) -> None:
     info = schema.get("info")
     if isinstance(info, dict):
         info["title"] = "Preconversion DIDComm API"
-        info["version"] = "0.2.1"
+        info["version"] = "0.3.0"
         info["description"] = (
             "Public DIDComm/FAPI contract for tenant configuration and conversion jobs.\n\n"
             "Sections in this OpenAPI:\n"

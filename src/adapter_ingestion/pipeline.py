@@ -10,6 +10,7 @@ from hashlib import sha256
 from html import escape
 from typing import Any
 import uuid
+import re
 
 from .ai.base import CodingAssistant
 from .fhir_claims import (
@@ -22,10 +23,10 @@ from .fhir_claims import (
     EncounterClaims,
     OperationOutcomeClaim,
     OperationOutcomeClaims,
-    PatientClaim,
-    PatientClaims,
     RelatedPersonClaim,
     RelatedPersonClaims,
+    SubjectClaim,
+    SubjectClaims,
 )
 from .models import (
     AdapterContext,
@@ -36,42 +37,110 @@ from .models import (
 )
 
 
+ENCOUNTER_CLASS_SYSTEM = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
+DEFAULT_ENCOUNTER_CLASS_CODE = "AMB"
+DEFAULT_UNCODED_VALUE = "default"
 DEFAULT_DOCUMENT_CATEGORY_BY_COMPOSITION_SECTION: dict[str, str] = {
     "immunizations": "11369-6",
     "laboratory": "26436-6",
     "imaging": "18748-4",
     "encounters": "11488-4",
     "medications": "56445-0",
-    "general": "47045-0",
 }
-
 DEFAULT_COMPOSITION_TYPE_BY_SECTION: dict[str, str] = {
     "immunizations": "11369-6",
     "laboratory": "30954-2",
     "imaging": "18726-0",
     "encounters": "34109-9",
     "medications": "10160-0",
-    "general": "11503-0",
 }
-
-ENCOUNTER_CLASS_SYSTEM = "http://terminology.hl7.org/CodeSystem/v3-ActCode"
-DEFAULT_ENCOUNTER_CLASS_CODE = "AMB"
-
-
-def _default_document_category_code(record: CanonicalRecord) -> str:
-    text = f"{record.family} {record.subfamily} {record.concept}".lower()
-    if "anestes" in text:
-        return "11485-0"
-    return DEFAULT_DOCUMENT_CATEGORY_BY_COMPOSITION_SECTION.get(record.composition_section, "47045-0")
-
-
-def _default_composition_type_code(section: str) -> str:
-    return DEFAULT_COMPOSITION_TYPE_BY_SECTION.get(section, "47045-0")
 
 
 def _loinc_claim_value(code: str) -> str:
     code_text = str(code or "").strip()
     return f"http://loinc.org|{code_text}" if code_text else ""
+
+
+def _sanitize_summary_text(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if text.upper() == "SIN DATO":
+        return ""
+    compact = re.sub(r"[\[\]'\"]+", "", text)
+    compact = re.sub(r"\s+", " ", compact).strip(" ,;-")
+    return compact
+
+
+def _claims_have_meaningful_values(
+    claims: dict[str, Any],
+    *,
+    ignored_claim_keys: set[str] | None = None,
+) -> bool:
+    ignored = {str(key or "").strip() for key in (ignored_claim_keys or set()) if str(key or "").strip()}
+    for key, value in (claims or {}).items():
+        claim_key = str(key or "").strip()
+        if not claim_key or claim_key in ignored:
+            continue
+        if _sanitize_summary_text(str(value or "")):
+            return True
+    return False
+
+
+def _document_description(record: CanonicalRecord) -> str:
+    direct = _sanitize_summary_text(record.concept)
+    if direct:
+        return direct
+
+    candidates = [
+        record.species_local,
+        record.animal_breed_code,
+        record.family if record.family != DEFAULT_UNCODED_VALUE else "",
+        record.subfamily if record.subfamily != DEFAULT_UNCODED_VALUE else "",
+        record.timestamp.split("T", 1)[0] if "T" in str(record.timestamp or "") else record.timestamp,
+    ]
+    cleaned = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        value = _sanitize_summary_text(candidate)
+        normalized = value.lower()
+        if not value or normalized in seen:
+            continue
+        seen.add(normalized)
+        cleaned.append(value)
+    return " | ".join(cleaned) if cleaned else DEFAULT_UNCODED_VALUE
+
+
+def _is_synthetic_document_type(value: str) -> bool:
+    token = str(value or "").strip()
+    return token.startswith("urn:gdc:")
+
+
+def _resolved_document_type(record: CanonicalRecord) -> str:
+    token = str(record.document_type_code or "").strip()
+    if not token or _is_synthetic_document_type(token):
+        return DEFAULT_UNCODED_VALUE
+    return token
+
+
+def _resolved_document_category(record: CanonicalRecord) -> str:
+    token = str(record.document_category_code or "").strip()
+    if token:
+        return _loinc_claim_value(token)
+    fallback = DEFAULT_DOCUMENT_CATEGORY_BY_COMPOSITION_SECTION.get(str(record.composition_section or "").strip(), "")
+    if fallback:
+        return _loinc_claim_value(fallback)
+    return DEFAULT_UNCODED_VALUE
+
+
+def _resolved_composition_type(section: str, composition_type_code: str) -> str:
+    token = str(composition_type_code or "").strip()
+    if token:
+        return _loinc_claim_value(token)
+    fallback = DEFAULT_COMPOSITION_TYPE_BY_SECTION.get(str(section or "").strip(), "")
+    if fallback:
+        return _loinc_claim_value(fallback)
+    return DEFAULT_UNCODED_VALUE
 
 
 def _urn_uuid(value: str) -> str:
@@ -156,7 +225,6 @@ def _doc_claims(
         record.subfamily,
     )
 
-    category_code = record.document_category_code or _default_document_category_code(record)
     suggestions = coding_assistant.suggest_codes(record)
 
     claims: DocumentReferenceClaims = {
@@ -164,9 +232,9 @@ def _doc_claims(
         DocumentReferenceClaim.SUBJECT: record.subject_id,
         DocumentReferenceClaim.AUTHOR: "",
         DocumentReferenceClaim.DATE: record.timestamp or datetime.now(timezone.utc).isoformat(),
-        DocumentReferenceClaim.TYPE: record.document_type_code,
-        DocumentReferenceClaim.CATEGORY: _loinc_claim_value(category_code),
-        DocumentReferenceClaim.DESCRIPTION: record.concept or record.subfamily or record.family,
+        DocumentReferenceClaim.TYPE: _resolved_document_type(record),
+        DocumentReferenceClaim.CATEGORY: _resolved_document_category(record),
+        DocumentReferenceClaim.DESCRIPTION: _document_description(record),
         DocumentReferenceClaim.LANGUAGE: context.language,
     }
     if _should_include_narrative_text(context):
@@ -200,7 +268,7 @@ def _composition_claims(
     identifier = stable_uuid(context.manufacturer, context.tenant_id, subject, section, *stable_entry_ids)
     entries = ",".join(_urn_uuid(resource_id) for resource_id in ordered_entry_ids)
     timestamp = datetime.now(timezone.utc).isoformat()
-    composition_loinc = _loinc_claim_value(composition_type_code or _default_composition_type_code(section))
+    composition_loinc = _resolved_composition_type(section, composition_type_code)
 
     claims: CompositionClaims = {
         CompositionClaim.IDENTIFIER: identifier,
@@ -266,6 +334,12 @@ def _encounter_resource(encounter_id: str, claims: EncounterClaims) -> dict[str,
     }
 
 
+def _record_has_encounter_signal(record: CanonicalRecord) -> bool:
+    section = str(record.section or "").strip().lower()
+    family = str(record.family or "").strip().lower()
+    return any(value and value != DEFAULT_UNCODED_VALUE for value in (section, family))
+
+
 def _related_person_claims(
     *,
     context: AdapterContext,
@@ -305,46 +379,54 @@ def _related_person_resource(related_person_id: str, claims: RelatedPersonClaims
     }
 
 
-def _patient_claims(
+def _subject_claims(
     *,
     context: AdapterContext,
     record: CanonicalRecord,
-    patient_link_identifiers: list[str] | None = None,
-) -> tuple[str, PatientClaims]:
-    patient_id = stable_uuid(
+    subject_link_identifiers: list[str] | None = None,
+) -> tuple[str, SubjectClaims]:
+    subject_resource_id = stable_uuid(
         context.manufacturer,
         context.tenant_id,
         record.subject_id,
-        "patient",
+        "subject",
     )
-    claims: PatientClaims = {
-        PatientClaim.IDENTIFIER: record.subject_id,
-        PatientClaim.ACTIVE: "true",
-        PatientClaim.LANGUAGE: context.language,
+    claims: SubjectClaims = {
+        SubjectClaim.ID: record.subject_id,
+        SubjectClaim.ACTIVE: "true",
+        SubjectClaim.LANGUAGE: context.language,
     }
-    links = sorted({value.strip() for value in (patient_link_identifiers or []) if value and value.strip()})
+    links = sorted({value.strip() for value in (subject_link_identifiers or []) if value and value.strip()})
     if links:
-        claims[PatientClaim.LINK] = ",".join(links)
-    species_code = str(record.species_fhir_code or "").strip()
-    if species_code:
-        claims[AnimalClaim.SPECIES] = f"{context.fhir_species_system}|{species_code}"
-    breed_code = str(record.animal_breed_code or "").strip()
-    if breed_code:
-        claims[AnimalClaim.BREED] = breed_code
-    gender_status_code = str(record.animal_gender_status_code or "").strip()
-    if gender_status_code:
-        claims[AnimalClaim.GENDER_STATUS] = gender_status_code
-    return patient_id, claims
+        claims[SubjectClaim.LINK] = ",".join(links)
+    birthyear = str(record.subject_birthyear or "").strip()
+    if birthyear:
+        claims[SubjectClaim.BIRTHYEAR] = birthyear
+    birthsex = str(record.subject_birthsex or "").strip()
+    if birthsex:
+        claims[SubjectClaim.BIRTHSEX] = birthsex
+    subject_kind = (context.subject_kind or "animal").strip().lower()
+    if subject_kind in {"animal", "species"}:
+        species_code = str(record.species_fhir_code or "").strip()
+        if species_code:
+            claims[AnimalClaim.SPECIES] = f"{context.fhir_species_system}|{species_code}"
+        breed_code = str(record.animal_breed_code or "").strip()
+        if breed_code:
+            claims[AnimalClaim.BREED] = breed_code
+        gender_status_code = str(record.animal_gender_status_code or "").strip()
+        if gender_status_code:
+            claims[AnimalClaim.GENDER_STATUS] = gender_status_code
+    return subject_resource_id, claims
 
 
-def _patient_resource(
-    patient_id: str,
-    claims: PatientClaims,
+def _subject_resource(
+    subject_resource_id: str,
+    claims: SubjectClaims,
     contained: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
-        "resourceType": "Patient",
-        "id": patient_id,
+        "resourceType": "Subject",
+        "id": subject_resource_id,
         "meta": {
             "claims": claims,
         },
@@ -440,12 +522,12 @@ def run_pipeline(
     document_entries_count = 0
     encounter_entries_count = 0
     related_person_entries_count = 0
-    patient_entries_count = 0
+    subject_entries_count = 0
     composition_entries_count = 0
     grouped_doc_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_encounter_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_related_resources: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
-    grouped_patient_link_identifiers: dict[str, set[str]] = defaultdict(set)
+    grouped_subject_link_identifiers: dict[str, set[str]] = defaultdict(set)
     grouped_composition_codes: dict[tuple[str, str], str] = {}
     families: dict[str, int] = defaultdict(int)
     sections: dict[str, int] = defaultdict(int)
@@ -460,9 +542,10 @@ def run_pipeline(
         key = (record.subject_id, record.composition_section)
         grouped_doc_resources[key][doc_id] = _doc_resource(doc_id, doc_claims)
 
-        encounter_id, encounter_claims = _encounter_claims(context=context, record=record)
-        grouped_encounter_resources[key][encounter_id] = _encounter_resource(encounter_id, encounter_claims)
-        encounter_entries_count += 1
+        if _record_has_encounter_signal(record):
+            encounter_id, encounter_claims = _encounter_claims(context=context, record=record)
+            grouped_encounter_resources[key][encounter_id] = _encounter_resource(encounter_id, encounter_claims)
+            encounter_entries_count += 1
 
         if record.owner_public_hash:
             owner_identifier = _owner_public_urn(
@@ -481,7 +564,7 @@ def run_pipeline(
                 related_person_claims,
             )
             if owner_identifier:
-                grouped_patient_link_identifiers[record.subject_id].add(owner_identifier)
+                grouped_subject_link_identifiers[record.subject_id].add(owner_identifier)
             all_related_person_ids.add(related_person_id)
         if key not in grouped_composition_codes and record.composition_type_code:
             grouped_composition_codes[key] = record.composition_type_code
@@ -495,7 +578,7 @@ def run_pipeline(
 
     related_person_entries_count = len(all_related_person_ids)
 
-    patient_entries: list[dict[str, Any]] = []
+    subject_entries: list[dict[str, Any]] = []
     for subject in sorted(subjects):
         contained_resources: list[dict[str, Any]] = []
         related_ids = sorted(grouped_related_resources[subject].keys())
@@ -525,28 +608,28 @@ def run_pipeline(
         for related_id in related_ids:
             contained_resources.append(grouped_related_resources[subject][related_id])
 
-        patient_record = latest_record_by_subject[subject]
-        patient_id, patient_claims = _patient_claims(
+        subject_record = latest_record_by_subject[subject]
+        subject_resource_id, subject_claims = _subject_claims(
             context=context,
-            record=patient_record,
-            patient_link_identifiers=sorted(grouped_patient_link_identifiers[subject]),
+            record=subject_record,
+            subject_link_identifiers=sorted(grouped_subject_link_identifiers[subject]),
         )
-        patient_entries.append(
+        subject_entries.append(
             jsonapi_resource_entry(
-                _patient_resource(
-                    patient_id=patient_id,
-                    claims=patient_claims,
+                _subject_resource(
+                    subject_resource_id=subject_resource_id,
+                    claims=subject_claims,
                     contained=contained_resources,
                 )
             )
         )
-        patient_entries_count += 1
+        subject_entries_count += 1
 
     outcome_entries = _operation_outcome_entries(
         context=context,
         row_issues=[item for item in (row_issues or []) if isinstance(item, dict)],
     )
-    bundle_entries = patient_entries + outcome_entries
+    bundle_entries = subject_entries + outcome_entries
 
     composition_message = didcomm_plaintext_message(
         thid=_thid("patient"),
@@ -565,7 +648,8 @@ def run_pipeline(
         "documentReferenceEntries": document_entries_count,
         "encounterEntries": encounter_entries_count,
         "relatedPersonEntries": related_person_entries_count,
-        "patientEntries": patient_entries_count,
+        "subjectEntries": subject_entries_count,
+        "patientEntries": subject_entries_count,
         "compositionEntries": composition_entries_count,
         "operationOutcomeEntries": len(outcome_entries),
         "families": dict(sorted(families.items(), key=lambda item: (-item[1], item[0]))),

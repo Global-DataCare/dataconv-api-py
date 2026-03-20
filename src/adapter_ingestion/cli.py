@@ -14,6 +14,7 @@ from .models import AdapterContext
 from .gateway_client import post_didcomm_plaintext
 from .manufacturers import get_adapter, list_adapters
 from .pipeline import run_pipeline
+from .service.api_config import deep_merge_dicts, extract_embedded_api_config
 
 
 def _write_json(path: Path, data: dict[str, Any]) -> None:
@@ -100,6 +101,14 @@ def _export_species_template(path_value: str, context: AdapterContext, adapter_r
         "unmappedSpeciesCounts": unmapped_counts,
     }
     _write_json(output_path, payload)
+
+
+def _artifact_output_dir(base_dir: str, input_path: Path) -> Path:
+    base_path = Path(base_dir).expanduser().resolve()
+    stem = input_path.stem.strip() or "conversion"
+    if base_path.name == stem:
+        return base_path
+    return base_path / stem
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -225,7 +234,14 @@ def main() -> int:
         for field in str(args.include_fields or "").split(",")
         if field.strip()
     )
-    schema_config = _load_json_file(args.schema_config_file)
+    loaded_schema_payload = _load_json_file(args.schema_config_file)
+    embedded_config = extract_embedded_api_config(Path(args.input).expanduser().resolve())
+    effective_config_payload = (
+        deep_merge_dicts(embedded_config, loaded_schema_payload)
+        if embedded_config
+        else loaded_schema_payload
+    )
+    schema_config = effective_config_payload.get("schemaConfig", {}) if isinstance(effective_config_payload, dict) else {}
     species_system, species_catalog = _load_species_catalog(args.species_catalog_file)
     species_local_map = _load_species_local_map(args.species_local_map_file)
 
@@ -247,7 +263,10 @@ def main() -> int:
         sector=args.sector,
         issuer_did=args.issuer_did,
         audience_did=args.audience_did,
-        language=args.language,
+        language=(
+            str((effective_config_payload.get("runtimeDefaults", {}) if isinstance(effective_config_payload, dict) else {}).get("language", "")).strip()
+            or args.language
+        ),
         gateway_base_url=args.gateway_base_url,
         subject_did_prefix=args.subject_did_prefix,
         subject_kind=args.subject_kind,
@@ -280,7 +299,7 @@ def main() -> int:
         result.summary["adapterReport"] = adapter_report
     _export_species_template(args.export_species_template, context, adapter_report)
 
-    output_dir = Path(args.output_dir).expanduser().resolve()
+    output_dir = _artifact_output_dir(args.output_dir, input_path)
     _write_json(output_dir / "composition-message.json", result.composition_message)
     _write_json(output_dir / "summary.json", result.summary)
     stale_doc_file = output_dir / "documentreference-message.json"
@@ -290,9 +309,11 @@ def main() -> int:
     print(f"adapter: {args.manufacturer}")
     print(f"records: {result.summary['recordsTotal']}")
     print(f"subjects: {result.summary['subjectsTotal']}")
+    print(f"subject entries: {result.summary.get('subjectEntries', 0)}")
     print(f"patient entries: {result.summary.get('patientEntries', 0)}")
     print(f"documentReference entries: {result.summary['documentReferenceEntries']}")
     print(f"encounter entries: {result.summary.get('encounterEntries', 0)}")
+    print(f"relatedPerson entries: {result.summary.get('relatedPersonEntries', 0)}")
     print(f"composition entries: {result.summary['compositionEntries']}")
     print(f"artifacts: {output_dir}")
 

@@ -13,34 +13,76 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from adapter_ingestion.ai.base import NoopCodingAssistant
+from adapter_ingestion.manufacturers.registry import get_adapter
 from adapter_ingestion.models import AdapterContext, CanonicalRecord
-from adapter_ingestion.pipeline import run_pipeline
+from adapter_ingestion.pipeline import _claims_have_meaningful_values, run_pipeline
+from adapter_ingestion.service.api_config import extract_embedded_api_config
 
 
 class PipelineTests(unittest.TestCase):
+    APPMYPETS_EXAMPLE = ROOT.parent / "examples" / "AppMyPets-api-config.xlsx"
+
     @staticmethod
-    def _patient_entries(result: object) -> list[dict]:
+    def _subject_entries(result: object) -> list[dict]:
         return [
             entry
             for entry in result.composition_message["body"]["data"]
             if isinstance(entry, dict)
             and isinstance(entry.get("resource"), dict)
-            and entry["resource"].get("resourceType") == "Patient"
+            and entry["resource"].get("resourceType") == "Subject"
         ]
 
     @staticmethod
-    def _contained_by_type(patient_resource: dict, resource_type: str) -> list[dict]:
-        contained = patient_resource.get("contained", [])
+    def _contained_by_type(subject_resource: dict, resource_type: str) -> list[dict]:
+        contained = subject_resource.get("contained", [])
         return [item for item in contained if isinstance(item, dict) and item.get("resourceType") == resource_type]
 
     @staticmethod
-    def _patient_for_subject(result: object, subject_id: str) -> dict:
-        for entry in PipelineTests._patient_entries(result):
+    def _subject_for_subject_id(result: object, subject_id: str) -> dict:
+        for entry in PipelineTests._subject_entries(result):
             resource = entry["resource"]
             claims = resource.get("meta", {}).get("claims", {})
-            if claims.get("Patient.identifier") == subject_id:
+            if claims.get("Subject.id") == subject_id:
                 return resource
-        raise AssertionError(f"Patient entry not found for subject '{subject_id}'")
+        raise AssertionError(f"Subject entry not found for subject '{subject_id}'")
+
+    def test_does_not_include_animal_claims_for_person_subject_kind(self) -> None:
+        context = AdapterContext(
+            manufacturer="qvet",
+            tenant_id="acme",
+            jurisdiction="es",
+            sector="health-care",
+            issuer_did="did:web:acme.example.com:employee:loader",
+            audience_did="did:web:acme.example.com",
+            subject_kind="person",
+            data_use="individual",
+        )
+        record = CanonicalRecord(
+            source_row_number=2,
+            source_id="a1",
+            timestamp="2026-01-01T10:00:00Z",
+            subject_id="urn:gdc:acme:patient:subject:001",
+            section="clinica",
+            family="vacunas",
+            subfamily="VACUNA", 
+            concept="Consulta", 
+            composition_section="immunizations",
+            document_type_code="urn:gdc:qvet:clinica:vacunas:vacuna-perro",
+            attributes={"SECCION": "clinica", "FAMILIA": "vacunas"},
+            species_local="Perro",
+            species_fhir_code="100000108988",
+            subject_birthyear="2020",
+            subject_birthsex="M",
+            animal_breed_code="westie",
+            animal_gender_status_code="intact",
+        )
+        result = run_pipeline(records=[record], context=context, coding_assistant=NoopCodingAssistant())
+        subject = self._subject_entries(result)[0]["resource"]
+        claims = subject["meta"]["claims"]
+        self.assertIn("Subject.id", claims)
+        self.assertNotIn("Subject.animal-species", claims)
+        self.assertNotIn("Subject.animal-breed", claims)
+        self.assertNotIn("Subject.animal-genderstatus", claims)
 
     def test_groups_compositions_by_subject_and_section(self) -> None:
         context = AdapterContext(
@@ -115,15 +157,15 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(result.summary["documentReferenceEntries"], 4)
         self.assertEqual(result.summary["encounterEntries"], 4)
         self.assertEqual(result.summary["compositionEntries"], 3)
-        self.assertEqual(result.summary["patientEntries"], 2)
+        self.assertEqual(result.summary["subjectEntries"], 2)
 
-        patient_entries = self._patient_entries(result)
-        self.assertEqual(len(patient_entries), 2)
+        subject_entries = self._subject_entries(result)
+        self.assertEqual(len(subject_entries), 2)
 
-        patient_subject_1 = self._patient_for_subject(result, "urn:gdc:acme:patient:subject:001")
-        contained_subject_1 = patient_subject_1["contained"]
+        subject_1 = self._subject_for_subject_id(result, "urn:gdc:acme:patient:subject:001")
+        contained_subject_1 = subject_1["contained"]
 
-        docrefs_subject_1 = self._contained_by_type(patient_subject_1, "DocumentReference")
+        docrefs_subject_1 = self._contained_by_type(subject_1, "DocumentReference")
         self.assertEqual(len(docrefs_subject_1), 3)
         first_claims = docrefs_subject_1[0]["meta"]["claims"]
         self.assertIn("DocumentReference.text", first_claims)
@@ -135,7 +177,7 @@ class PipelineTests(unittest.TestCase):
         self.assertNotIn("DocumentReference.contentdata", first_claims)
         self.assertRegex(first_claims["DocumentReference.identifier"], r"^[0-9a-fA-F-]{36}$")
 
-        compositions_subject_1 = self._contained_by_type(patient_subject_1, "Composition")
+        compositions_subject_1 = self._contained_by_type(subject_1, "Composition")
         self.assertEqual(len(compositions_subject_1), 2)
         first_comp_claims = compositions_subject_1[0]["meta"]["claims"]
         self.assertEqual(first_comp_claims["Composition.author"], "")
@@ -158,7 +200,7 @@ class PipelineTests(unittest.TestCase):
         contained_ids = {contained["id"] for contained in contained_subject_1}
         self.assertTrue({item.replace("urn:uuid:", "") for item in entry_refs}.issubset(contained_ids))
 
-        encounter_subject_1 = self._contained_by_type(patient_subject_1, "Encounter")
+        encounter_subject_1 = self._contained_by_type(subject_1, "Encounter")
         self.assertEqual(len(encounter_subject_1), 3)
         self.assertTrue(
             all(
@@ -202,8 +244,8 @@ class PipelineTests(unittest.TestCase):
         )
 
         result = run_pipeline(records=[record], context=context, coding_assistant=NoopCodingAssistant())
-        patient = self._patient_entries(result)[0]["resource"]
-        docref = self._contained_by_type(patient, "DocumentReference")[0]
+        subject = self._subject_entries(result)[0]["resource"]
+        docref = self._contained_by_type(subject, "DocumentReference")[0]
         claims = docref["meta"]["claims"]
         self.assertIn("DocumentReference.text", claims)
         self.assertNotIn("DocumentReference.contenttype", claims)
@@ -233,8 +275,8 @@ class PipelineTests(unittest.TestCase):
             attributes={"SECCION": "clinica", "FAMILIA": "vacunas"},
         )
         result = run_pipeline(records=[record], context=context, coding_assistant=NoopCodingAssistant())
-        patient = self._patient_entries(result)[0]["resource"]
-        docref = self._contained_by_type(patient, "DocumentReference")[0]
+        subject = self._subject_entries(result)[0]["resource"]
+        docref = self._contained_by_type(subject, "DocumentReference")[0]
         claims = docref["meta"]["claims"]
         self.assertNotIn("DocumentReference.text", claims)
 
@@ -342,25 +384,25 @@ class PipelineTests(unittest.TestCase):
 
         result = run_pipeline(records=records, context=context, coding_assistant=NoopCodingAssistant())
         self.assertEqual(result.summary["relatedPersonEntries"], 1)
-        self.assertEqual(result.summary["patientEntries"], 1)
+        self.assertEqual(result.summary["subjectEntries"], 1)
 
-        patient = self._patient_entries(result)[0]["resource"]
-        patient_claims = patient["meta"]["claims"]
-        patient_link_values = patient_claims["Patient.link"].split(",")
-        self.assertEqual(len(patient_link_values), 1)
+        subject = self._subject_entries(result)[0]["resource"]
+        subject_claims = subject["meta"]["claims"]
+        subject_link_values = subject_claims["Subject.link"].split(",")
+        self.assertEqual(len(subject_link_values), 1)
         self.assertEqual(
-            patient_link_values[0],
+            subject_link_values[0],
             "urn:cds:ES:v1:organization:multibase:zownerhash001",
         )
 
-        compositions = self._contained_by_type(patient, "Composition")
+        compositions = self._contained_by_type(subject, "Composition")
         self.assertEqual(len(compositions), 1)
         composition = compositions[0]
         claims = composition["meta"]["claims"]
         self.assertNotIn("Composition.relatedPerson", claims)
         self.assertNotIn("Composition.relatedPerson.identifier", claims)
 
-        contained = patient["contained"]
+        contained = subject["contained"]
         related_persons = [item for item in contained if item.get("resourceType") == "RelatedPerson"]
         self.assertEqual(len(related_persons), 1)
         rp_claims = related_persons[0]["meta"]["claims"]
@@ -402,6 +444,8 @@ class PipelineTests(unittest.TestCase):
                 attributes={"SECCION": "clinica", "FAMILIA": "laboratorio"},
                 species_local="Canina",
                 species_fhir_code="100000108988",
+                subject_birthyear="2015",
+                subject_birthsex="male",
                 animal_breed_code="http://snomed.info/sct|58108001",
                 animal_gender_status_code="http://hl7.org/fhir/animal-genderstatus|neutered",
                 owner_public_hash="zownerhash001",
@@ -411,39 +455,155 @@ class PipelineTests(unittest.TestCase):
         ]
 
         result = run_pipeline(records=records, context=context, coding_assistant=NoopCodingAssistant())
-        self.assertEqual(result.summary["patientEntries"], 1)
+        self.assertEqual(result.summary["subjectEntries"], 1)
 
-        patient = self._patient_entries(result)[0]["resource"]
-        patient_claims = patient["meta"]["claims"]
+        subject = self._subject_entries(result)[0]["resource"]
+        subject_claims = subject["meta"]["claims"]
         self.assertEqual(
-            patient_claims["Patient.identifier"],
+            subject_claims["Subject.id"],
             "did:web:acme.example.com:animal:subject:zabc",
         )
         self.assertEqual(
-            patient_claims["Patient.link"],
+            subject_claims["Subject.link"],
             "urn:cds:ES:v1:organization:multibase:zownerhash001",
         )
-        self.assertNotIn("Patient.link.display", patient_claims)
-        self.assertEqual(patient_claims["Patient.animal-species"], "http://hl7.org/fhir/target-species|100000108988")
-        self.assertEqual(patient_claims["Patient.animal-breed"], "http://snomed.info/sct|58108001")
+        self.assertNotIn("Subject.link.display", subject_claims)
+        self.assertEqual(subject_claims["Subject.birthyear"], "2015")
+        self.assertEqual(subject_claims["Subject.birthsex"], "male")
+        self.assertEqual(subject_claims["Subject.animal-species"], "http://hl7.org/fhir/target-species|100000108988")
+        self.assertEqual(subject_claims["Subject.animal-breed"], "http://snomed.info/sct|58108001")
         self.assertEqual(
-            patient_claims["Patient.animal-genderstatus"],
+            subject_claims["Subject.animal-genderstatus"],
             "http://hl7.org/fhir/animal-genderstatus|neutered",
         )
-        self.assertNotIn("Patient.contact.organization.identifier", patient_claims)
+        self.assertNotIn("Subject.contact.organization.identifier", subject_claims)
 
-        compositions = self._contained_by_type(patient, "Composition")
+        compositions = self._contained_by_type(subject, "Composition")
         self.assertEqual(len(compositions), 1)
         entries = compositions[0]["meta"]["claims"]["Composition.entry"].split(",")
         self.assertEqual(len(entries), 2)
         self.assertTrue(all(item.startswith("urn:uuid:") for item in entries))
 
-        related_persons = self._contained_by_type(patient, "RelatedPerson")
+        related_persons = self._contained_by_type(subject, "RelatedPerson")
         self.assertEqual(len(related_persons), 1)
         self.assertEqual(
             related_persons[0]["meta"]["claims"]["RelatedPerson.identifier"],
-            patient_claims["Patient.link"],
+            subject_claims["Subject.link"],
         )
+
+    @unittest.skipUnless(APPMYPETS_EXAMPLE.exists(), "Local AppMyPets example not available")
+    def test_appmypets_example_marks_empty_optional_resources_as_discardable(self) -> None:
+        extracted = extract_embedded_api_config(self.APPMYPETS_EXAMPLE)
+        self.assertIsNotNone(extracted)
+
+        adapter = get_adapter("api-config")
+        context = AdapterContext(
+            manufacturer="api-config",
+            tenant_id="acme",
+            jurisdiction="es",
+            sector="onehealth-research",
+            issuer_did="did:web:acme.example.com:employee:loader",
+            audience_did="did:web:acme.example.com",
+            language=extracted.get("runtimeDefaults", {}).get("language", "es"),
+            subject_did_prefix="did:web:acme.example.com",
+            strict_species_mapping=False,
+            schema_config=extracted["schemaConfig"],
+        )
+
+        records = adapter.read_records(self.APPMYPETS_EXAMPLE, context)
+        self.assertGreater(len(records), 0)
+
+        first_record = records[0]
+        self.assertEqual(first_record.attributes.get("weight"), "SIN DATO")
+        self.assertEqual(first_record.attributes.get("petidvaccinestatus"), "SIN DATO")
+        self.assertEqual(first_record.attributes.get("vaccineexpirationdate"), "SIN DATO")
+        self.assertEqual(first_record.attributes.get("insurancecompany"), "SIN DATO")
+        self.assertEqual(first_record.attributes.get("insuranceexpirationdate"), "SIN DATO")
+
+        observation_claims = {
+            "Observation.identifier": "urn:uuid:test-observation",
+            "Observation.subject": first_record.subject_id,
+            "Observation.code": "http://loinc.org|29463-7",
+            "Observation.value": first_record.attributes.get("weight", ""),
+        }
+        self.assertFalse(
+            _claims_have_meaningful_values(
+                observation_claims,
+                ignored_claim_keys={
+                    "Observation.identifier",
+                    "Observation.subject",
+                    "Observation.code",
+                },
+            )
+        )
+
+        procedure_claims = {
+            "Procedure.identifier": "urn:uuid:test-procedure",
+            "Procedure.subject": first_record.subject_id,
+            "Procedure.code-display": first_record.attributes.get("petidvaccinestatus", ""),
+            "Procedure.performed": first_record.attributes.get("vaccineexpirationdate", ""),
+        }
+        self.assertFalse(
+            _claims_have_meaningful_values(
+                procedure_claims,
+                ignored_claim_keys={
+                    "Procedure.identifier",
+                    "Procedure.subject",
+                },
+            )
+        )
+
+        coverage_claims = {
+            "Coverage.identifier": "urn:uuid:test-coverage",
+            "Coverage.beneficiary": first_record.subject_id,
+            "Coverage.insurer": first_record.attributes.get("insurancecompany", ""),
+            "Coverage.period.end": first_record.attributes.get("insuranceexpirationdate", ""),
+        }
+        self.assertFalse(
+            _claims_have_meaningful_values(
+                coverage_claims,
+                ignored_claim_keys={
+                    "Coverage.identifier",
+                    "Coverage.beneficiary",
+                },
+            )
+        )
+
+    @unittest.skipUnless(APPMYPETS_EXAMPLE.exists(), "Local AppMyPets example not available")
+    def test_appmypets_customer_master_does_not_create_encounters_without_service_signals(self) -> None:
+        extracted = extract_embedded_api_config(self.APPMYPETS_EXAMPLE)
+        self.assertIsNotNone(extracted)
+
+        adapter = get_adapter("api-config")
+        context = AdapterContext(
+            manufacturer="api-config",
+            tenant_id="acme",
+            jurisdiction="es",
+            sector="onehealth-research",
+            issuer_did="did:web:acme.example.com:employee:loader",
+            audience_did="did:web:acme.example.com",
+            language=extracted.get("runtimeDefaults", {}).get("language", "es"),
+            subject_did_prefix="did:web:acme.example.com",
+            strict_species_mapping=False,
+            schema_config=extracted["schemaConfig"],
+        )
+
+        records = adapter.read_records(self.APPMYPETS_EXAMPLE, context)
+        self.assertGreater(len(records), 0)
+        self.assertTrue(all(str(record.section or "").strip().lower() == "default" for record in records))
+        self.assertTrue(all(str(record.family or "").strip().lower() == "default" for record in records))
+
+        result = run_pipeline(records=records, context=context, coding_assistant=NoopCodingAssistant())
+
+        self.assertEqual(result.summary["recordsTotal"], 500)
+        self.assertEqual(result.summary["encounterEntries"], 0)
+        self.assertEqual(result.summary["documentReferenceEntries"], 500)
+        self.assertEqual(result.summary["subjectEntries"], 500)
+        self.assertEqual(result.summary["patientEntries"], 500)
+        self.assertEqual(result.summary["compositionEntries"], 500)
+
+        subject = self._subject_entries(result)[0]["resource"]
+        self.assertEqual(self._contained_by_type(subject, "Encounter"), [])
 
 if __name__ == "__main__":
     unittest.main()

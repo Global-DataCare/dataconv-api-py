@@ -30,7 +30,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_upload",
         status_code=202,
-        tags=["2.1 V1 Publisher Upload Request"],
+        tags=["2.1 Publisher Upload Request"],
         summary="Submit conversion upload",
         description=(
             "Accepts conversion input and enqueues an asynchronous job.\n\n"
@@ -44,7 +44,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload",
         status_code=202,
-        tags=["2.1 V1 Publisher Upload Request"],
+        tags=["2.1 Publisher Upload Request"],
         summary="Submit conversion upload",
         description=(
             "Accepts conversion input and enqueues an asynchronous job.\n\n"
@@ -107,7 +107,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
 
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_upload-response",
-        tags=["2.2 V1 Publisher Upload Response"],
+        tags=["2.2 Publisher Upload Response"],
         summary="Poll conversion result by thread id",
         response_class=DidcommJSONResponse,
         description=(
@@ -119,7 +119,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     )
     @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload-response",
-        tags=["2.2 V1 Publisher Upload Response"],
+        tags=["2.2 Publisher Upload Response"],
         summary="Poll conversion result by thread id",
         response_class=DidcommJSONResponse,
         description=(
@@ -161,7 +161,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
 
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_patch",
-        tags=["2.3 V1 Publisher Patch"],
+        tags=["2.3 Publisher Patch"],
         summary="Apply draft promotion via patch",
         response_class=DidcommJSONResponse,
         description=(
@@ -172,7 +172,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     )
     @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_patch",
-        tags=["2.3 V1 Publisher Patch"],
+        tags=["2.3 Publisher Patch"],
         summary="Apply draft promotion via patch",
         response_class=DidcommJSONResponse,
         description=(
@@ -210,7 +210,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
 
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_batch",
-        tags=["2.5 V1 Publisher Batch"],
+        tags=["2.5 Publisher Batch"],
         summary="Promote reviewed resources in batch",
         response_class=DidcommJSONResponse,
         description=(
@@ -221,7 +221,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     )
     @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_batch",
-        tags=["2.5 V1 Publisher Batch"],
+        tags=["2.5 Publisher Batch"],
         summary="Promote reviewed resources in batch",
         response_class=DidcommJSONResponse,
         description=(
@@ -259,7 +259,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
 
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{resource_type}/_search",
-        tags=["2.4 V1 Publisher Dataset Search"],
+        tags=["2.4 Publisher Dataset Search"],
         summary="Tenant-scoped FHIR API search",
         response_class=JSONResponse,
         description=(
@@ -271,7 +271,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     )
     @app.post(
         "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/org.hl7.fhir.api/{resource_type}/_search",
-        tags=["2.4 V1 Publisher Dataset Search"],
+        tags=["2.4 Publisher Dataset Search"],
         summary="Tenant-scoped FHIR API search",
         response_class=JSONResponse,
         description=(

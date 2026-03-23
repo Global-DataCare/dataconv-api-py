@@ -63,6 +63,15 @@ def register_system_routes(app, settings) -> None:  # type: ignore[no-untyped-de
         payload = {
             "language": settings.iclaims_locale,
             "supportedFields": supported_fields,
+            "allowedJurisdictions": list(getattr(settings, "supported_jurisdictions", ("*",))),
+            "allowedSectors": list(getattr(settings, "supported_sectors", ("*",))),
+            "auth": {
+                "exchangeEndpoint": "/exchange",
+                "oauthTokenEndpoint": "/oauth/token",
+                "subjectTokenType": "urn:ietf:params:oauth:token-type:id_token",
+                "clientAssertionType": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+                "apiKeySupported": bool(getattr(settings, "exchange_allow_api_key", False)),
+            },
             "endpoints": {
                 "create": "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create",
                 "createResponse": "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create-response",
@@ -78,6 +87,10 @@ def register_system_routes(app, settings) -> None:  # type: ignore[no-untyped-de
         except Exception:
             pass
         return payload
+
+    @app.get("/.wellknown/api-docs", include_in_schema=False)
+    def api_docs_wellknown_alias() -> dict[str, object]:
+        return api_config_well_known()
 
     @app.get("/api-docs", include_in_schema=False, response_class=HTMLResponse)
     def api_docs() -> str:

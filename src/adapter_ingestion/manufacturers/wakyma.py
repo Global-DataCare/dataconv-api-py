@@ -17,7 +17,7 @@ class WakymaAdapter(TabularXlsxAdapter):
         "family": "Tipo",
         "subfamily": "Tipo",
         "concept": "Motivo",
-        "subjectId": "ID Interno Paciente",
+        "subject_id": "ID Interno Paciente",
         "owner": "",
         "ownerId": "",
         "species": "Mascota",

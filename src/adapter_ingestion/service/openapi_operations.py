@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .openapi_constants import BATCH_PATH, CREATE_PATH, CREATE_RESPONSE_PATH, PATCH_PATH, SEARCH_PATH, UPLOAD_PATH, UPLOAD_RESPONSE_PATH
+from .openapi_constants import API_KEY_CREATE_PATH, API_KEY_DISABLE_PATH, API_KEY_REMOVE_PATH, BATCH_PATH, CREATE_PATH, CREATE_RESPONSE_PATH, EXCHANGE_PATH, OAUTH_TOKEN_PATH, PATCH_PATH, SEARCH_PATH, UPLOAD_PATH, UPLOAD_RESPONSE_PATH
 from .openapi_paths import (
     append_optional_query_thid_parameter,
     drop_422_validation_response,
@@ -18,51 +18,77 @@ def configure_schema_metadata(schema: dict[str, Any]) -> None:
     info = schema.get("info")
     if isinstance(info, dict):
         info["title"] = "Preconversion DIDComm API"
-        info["version"] = "0.3.0"
+        info["version"] = "0.6.0"
         info["description"] = (
             "Public DIDComm/FAPI contract for tenant configuration and conversion jobs.\n\n"
-            "Sections in this OpenAPI:\n"
-            "1.1) Tenant Configuration Request (_create)\n"
-            "1.2) Tenant Configuration Response (_create-response)\n"
-            "2.1) Conversion Upload Request (_upload)\n"
-            "2.2) Conversion Upload Response (_upload-response)\n"
-            "2.3) Conversion Patch (_patch)\n"
-            "2.4) Tenant-scoped FHIR API Search (_search)\n"
-            "2.5) Conversion Batch (_batch)\n\n"
-            "Requester identity is extracted from DIDComm `iss`.\n"
-            "Token enforcement profile is configured with `PRECONV_AUTH_MODE` (`parse-only` is demo/internal-only).\n"
-            "Terminal job responses expire after `PRECONV_JOB_RESULT_TTL_SECONDS`.\n"
-            "Deployment probe endpoint `/healthz` is intentionally excluded from this contract."
+            "**Functional groups**\n\n"
+            "- 1.1 Publisher Config Request: `_create`\n"
+            "- 1.2 Publisher Config Response: `_create-response`\n"
+            "- 2.1 Publisher Upload Request: `_upload`\n"
+            "- 2.2 Publisher Upload Response: `_upload-response`\n"
+            "- 2.3 Publisher Patch: `_patch`\n"
+            "- 2.4 Publisher Dataset Search: `_search`\n"
+            "- 2.5 Publisher Batch: `_batch`\n"
+            "- 1.3 Tenant Auth API Keys: `_create`, `_disable`, `_remove`\n"
+            "- 9.x Legacy aliases: deprecated compatibility routes\n\n"
+            "**Identity model**\n\n"
+            "Requester identity is extracted from DIDComm `iss`.\n\n"
+            "**Authentication**\n\n"
+            "- `DEMO_MODE=true`: no auth required\n"
+            "- `DEMO_MODE=false`: Bearer token from `/exchange` required\n\n"
+            "**Operational notes**\n\n"
+            "- Terminal job responses expire after `PRECONV_JOB_RESULT_TTL_SECONDS`\n"
+            "- Deployment probe endpoint `/healthz` is intentionally excluded from this contract"
         )
 
     schema["tags"] = [
         {
-            "name": "1.1 Tenant Configuration Request",
+            "name": "1.1 Publisher Config Request",
             "description": "Create or update tenant configuration entries through DIDComm plaintext JSON.",
         },
         {
-            "name": "1.2 Tenant Configuration Response",
+            "name": "1.2 Publisher Config Response",
             "description": "Retrieve terminal tenant configuration result by correlation id (`thid`).",
         },
         {
-            "name": "2.1 Conversion Upload Request",
+            "name": "2.1 Publisher Upload Request",
             "description": "Submit conversion jobs with multipart upload or JSON references.",
         },
         {
-            "name": "2.2 Conversion Upload Response",
+            "name": "2.2 Publisher Upload Response",
             "description": "Poll asynchronous conversion status using the same thread id (thid).",
         },
         {
-            "name": "2.3 Conversion Patch",
+            "name": "2.3 Publisher Patch",
             "description": "Promote a reviewed conversion thread. Public examples use `Composition/_patch`.",
         },
         {
-            "name": "2.4 FHIR-like Search API",
-            "description": "Tenant-scoped host search under `org.hl7.fhir.api`, backed by the SQL projection.",
+            "name": "2.4 Publisher Dataset Search",
+            "description": "Tenant-scoped dataset search endpoint (FHIR-backed implementation).",
         },
         {
-            "name": "2.5 Conversion Batch",
+            "name": "2.5 Publisher Batch",
             "description": "Promote reviewed resources in bulk. Public examples use `Patient/_batch`.",
+        },
+        {
+            "name": "9. Legacy Endpoints",
+            "description": "Deprecated aliases from previous route conventions, kept temporarily for compatibility.",
+        },
+        {
+            "name": "OAuth Token Exchange",
+            "description": (
+                "Issue a short-lived DataConv access token (Bearer) by presenting an OIDC `id_token` "
+                "(and optionally a `vp_token` or an API key).\n\n"
+                "The resulting `access_token` must be passed as `Authorization: Bearer <token>` on all "
+                "DIDComm endpoints when `DEMO_MODE=false`.\n\n"
+                "Alias `/oauth/token` accepts the same body for OAuth 2.0 client compatibility.\n\n"
+                "**ICA clearing-house**: pre-validation via ICA `/clearinghouse/verify` is not yet "
+                "implemented — see TODO in `TokenExchangeManager.exchange()`."
+            ),
+        },
+        {
+            "name": "1.3 Tenant Auth API Keys",
+            "description": "Tenant controller API for creating, disabling and removing per-email API keys with granular scopes.",
         },
     ]
 
@@ -82,6 +108,11 @@ def configure_operations(
     patch_operation = rewritten_paths.get(PATCH_PATH, {}).get("post")
     batch_operation = rewritten_paths.get(BATCH_PATH, {}).get("post")
     search_operation = rewritten_paths.get(SEARCH_PATH, {}).get("post")
+    exchange_operation = rewritten_paths.get(EXCHANGE_PATH, {}).get("post")
+    oauth_token_operation = rewritten_paths.get(OAUTH_TOKEN_PATH, {}).get("post")
+    api_key_create_operation = rewritten_paths.get(API_KEY_CREATE_PATH, {}).get("post")
+    api_key_disable_operation = rewritten_paths.get(API_KEY_DISABLE_PATH, {}).get("post")
+    api_key_remove_operation = rewritten_paths.get(API_KEY_REMOVE_PATH, {}).get("post")
 
     if isinstance(create_operation, dict):
         create_operation["security"] = [{"BearerAuth": []}]
@@ -262,7 +293,6 @@ def configure_operations(
                     "schema": {"$ref": "#/components/schemas/DidcommPromotionRequest"},
                     "example": {
                         "iss": "did:web:clinic.example:employee:it:loader",
-                        "id_token": "demo-token",
                         "thid": "up-qvet-20260315-001",
                         "type": "https://didcomm.org/plaintext/2.0/message",
                         "iat": 1760000000,
@@ -290,7 +320,6 @@ def configure_operations(
                     "schema": {"$ref": "#/components/schemas/DidcommPromotionRequest"},
                     "example": {
                         "iss": "did:web:clinic.example:employee:it:loader",
-                        "id_token": "demo-token",
                         "thid": "up-qvet-20260315-001",
                         "type": "https://didcomm.org/plaintext/2.0/message",
                         "iat": 1760000000,
@@ -343,6 +372,115 @@ def configure_operations(
         }
         set_operation_outcome_error_responses(search_operation, include_404=False)
 
+    _configure_exchange_operation(exchange_operation)
+    _configure_exchange_operation(oauth_token_operation)
+
+    _configure_tenant_api_key_operation(
+        api_key_create_operation,
+        summary="Create tenant-scoped API key policy",
+        request_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "UpdateAction",
+                        "agent": {"email": "alice@example.com"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {"permission": [{"action": "update"}]},
+                        "actionStatus": "active",
+                    }
+                }
+            ]
+        },
+        response_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "Person",
+                        "identifier": "api-key-uuid-1",
+                        "actionStatus": "active",
+                        "agent": {"sameAs": "zMockedSameAsHash"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {"permission": [{"action": "update"}]},
+                        "tenantId": "vates-a00000001",
+                        "expiresAt": "",
+                        "apiKey": "dck_abc",
+                    }
+                }
+            ]
+        },
+    )
+    _configure_tenant_api_key_operation(
+        api_key_disable_operation,
+        summary="Disable tenant-scoped API key policy",
+        request_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "UpdateAction",
+                        "identifier": "api-key-uuid-1",
+                    }
+                }
+            ]
+        },
+        response_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "Person",
+                        "identifier": "api-key-uuid-1",
+                        "actionStatus": "disabled",
+                        "agent": {"sameAs": "zMockedSameAsHash"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {},
+                        "tenantId": "vates-a00000001",
+                        "expiresAt": "",
+                    }
+                }
+            ]
+        },
+    )
+    _configure_tenant_api_key_operation(
+        api_key_remove_operation,
+        summary="Remove tenant-scoped API key policy",
+        request_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "UpdateAction",
+                        "identifier": "api-key-uuid-1",
+                    }
+                }
+            ]
+        },
+        response_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "Person",
+                        "identifier": "api-key-uuid-1",
+                        "actionStatus": "disabled",
+                        "agent": {"sameAs": "zMockedSameAsHash"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {},
+                        "tenantId": "vates-a00000001",
+                        "expiresAt": "",
+                        "removed": True,
+                    }
+                }
+            ]
+        },
+    )
+
     for operation in (
         create_operation,
         create_response_operation,
@@ -351,6 +489,106 @@ def configure_operations(
         patch_operation,
         batch_operation,
         search_operation,
+        api_key_create_operation,
+        api_key_disable_operation,
+        api_key_remove_operation,
     ):
         if isinstance(operation, dict):
             drop_422_validation_response(operation)
+
+
+def _configure_exchange_operation(operation: dict[str, Any] | None) -> None:
+    if not isinstance(operation, dict):
+        return
+    # Exchange endpoint is public — no Bearer required to call it (it issues the token)
+    operation["security"] = []
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/TokenExchangeRequest"},
+                "examples": {
+                    "idTokenExchange": {
+                        "summary": "Exchange OIDC id_token for DataConv access token",
+                        "value": {
+                            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                            "subject_token": "<OIDC id_token JWT>",
+                            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+                            "scope": "dataconv.upload dataconv.search",
+                        },
+                    },
+                    "apiKeyExchange": {
+                        "summary": "Exchange OIDC id_token + API key for DataConv access token",
+                        "value": {
+                            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                            "subject_token": "<OIDC id_token JWT>",
+                            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+                            "api_key": "<tenant-api-key>",
+                            "organization": "<tenant-id>",
+                            "scope": "dataconv.upload dataconv.search",
+                        },
+                    },
+                },
+            },
+            "application/x-www-form-urlencoded": {
+                "schema": {"$ref": "#/components/schemas/TokenExchangeRequest"},
+            },
+        },
+    }
+    operation.setdefault("responses", {})["200"] = {
+        "description": "Access token issued. Pass as `Authorization: Bearer <access_token>` on all DIDComm endpoints.",
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/TokenExchangeResponse"},
+                "example": {
+                    "access_token": "<JWT>",
+                    "token_type": "Bearer",
+                    "expires_in": 900,
+                    "scope": "dataconv.upload dataconv.search",
+                },
+            }
+        },
+    }
+    drop_422_validation_response(operation)
+    responses = operation.setdefault("responses", {})
+    responses["400"] = {"description": "Invalid request or unsupported grant type."}
+    responses["401"] = {"description": "subject_token invalid, expired, or issuer not trusted."}
+
+
+def _configure_tenant_api_key_operation(
+    operation: dict[str, Any] | None,
+    *,
+    summary: str,
+    request_example: dict[str, Any],
+    response_example: dict[str, Any],
+) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["security"] = [{"BearerAuth": []}]
+    operation["summary"] = summary
+    set_path_param_description(
+        operation,
+        "tenant-id",
+        "Stable organization identifier (`taxId` / `VAT`) used as tenant id.",
+    )
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/TenantApiKeyActionRequest"},
+                "example": request_example,
+            }
+        },
+    }
+    operation.setdefault("responses", {})["200"] = {
+        "description": "Tenant API key registry updated.",
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/TenantApiKeyActionResponse"},
+                "example": response_example,
+            }
+        },
+    }
+    operation.setdefault("responses", {})["401"] = {"description": "Missing or invalid Bearer token."}
+    operation.setdefault("responses", {})["403"] = {"description": "Missing `dataconv.tenant.keys.manage` scope or tenant mismatch."}
+    operation.setdefault("responses", {})["404"] = {"description": "API key entry not found."}

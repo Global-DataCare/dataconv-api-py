@@ -27,6 +27,115 @@ source .venv/bin/activate
 preconversion-worker
 ```
 
+## Quick CLI runbook (capturas rápidas)
+
+Este flujo es el recomendado para demos/capturas con CLI:
+
+- El integrador (frontend tercero) autentica al usuario en Google/Microsoft.
+- Obtiene un `id_token` OIDC.
+- La API solo valida `id_token` (firma/iss/aud/exp) y extrae email.
+
+### 1) Preparar entorno CLI
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/dataconv-client-sdk-ts
+
+export DATACONV_BASE_URL="http://127.0.0.1:8080"
+export DATACONV_TENANT_ID="VATES-A00000001"
+export DATACONV_JURISDICTION="ES"
+export DATACONV_SECTOR="animal-care"
+export DATACONV_SOFTWARE_ID="qvet"
+export DATACONV_RESOURCE_TYPE="Composition"
+
+# token emitido por Google/Microsoft en el frontend del integrador
+export DATACONV_ID_TOKEN="<ID_TOKEN_OIDC_REAL>"
+```
+
+### 2) Login local (solo guarda estado CLI)
+
+```bash
+npx tsx src/cli.ts login --id-token "$DATACONV_ID_TOKEN"
+```
+
+### 3) Obtener token de sesión para administrar API keys
+
+```bash
+npx tsx src/cli.ts exchange --scope "dataconv.tenant.keys.manage"
+```
+
+### 4) Crear API key granular (schema Action)
+
+```bash
+npx tsx src/cli.ts api-key-create \
+  --email "operador@integrador.example" \
+  --target "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload" \
+  --scope "excel/_upload,DocumentReference/_search,Subject/_search" \
+  --instrument '{"permission":[{"action":"update"}]}'
+```
+
+### 5) Obtener token de sesión para upload
+
+```bash
+npx tsx src/cli.ts exchange --scope "dataconv.upload"
+```
+
+### 6) Crear mapping antes del upload (recomendado)
+
+Guarda un mapping JSON (ejemplo rápido):
+
+```bash
+cat > ./artifacts/mapping-qvet.json <<'JSON'
+{
+  "mappingConfig": {
+    "headerRowIndex": 3,
+    "fieldMap": {
+      "section": "SECCION",
+      "family": "FAMILIA",
+      "concept": "CONCEPTO",
+      "subject_id": "HISTORIA_ID",
+      "date": "FECHA"
+    }
+  }
+}
+JSON
+```
+
+### 7) Upload + poll para captura final
+
+```bash
+npx tsx src/cli.ts upload ../examples/exampleQvetES.xlsx \
+  --mapping-json ./artifacts/mapping-qvet.json \
+  --output-json ./artifacts/appmypets-upload-response-cli.json
+
+npx tsx src/cli.ts whoami
+```
+
+Notas rápidas para no bloquear capturas:
+
+- Si `DEMO_MODE=false`, el backend exige Bearer de `/exchange` en operaciones protegidas.
+- Si falla `exchange` por `audience` o `issuer`, revisa `EXCHANGE_OIDC_ALLOWED_ISSUERS` y `EXCHANGE_OIDC_ALLOWED_AUDIENCES`.
+- La CLI no hace login Google/Microsoft; solo consume `id_token` ya emitido por el IdP del integrador.
+- Cuando usas `--mapping-json`, la CLI crea y hace polling de `config/_create-response` antes del upload.
+- El resumen final de CLI prioriza `OperationOutcome.issue[0].description` (si existe).
+
+### Scope y auth de la instancia (recomendado)
+
+Antes de ejecutar el flujo, configura estas variables en `.env.local` (sin prefijo ICA):
+
+```bash
+# true  -> demo/interno (no exige Bearer de /exchange)
+# false -> producción (exige Bearer emitido por /exchange)
+DEMO_MODE=true
+
+# CSV de jurisdicciones soportadas por esta instancia. Usa '*' para permitir cualquiera.
+SUPPORTED_JURISDICTIONS=ES
+
+# CSV de sectores soportados por esta instancia. Usa '*' para permitir cualquiera.
+SUPPORTED_SECTORS=health-care,animal-care,onehealth-care,onehealth-research,onehealth-insurance
+```
+
+Si la jurisdicción o el sector del path no están permitidos por la instancia, la API responde `404`.
+
 ## Flujo copy/paste para `acme` (`animal-care`, `ES`)
 
 Ejecuta esto en una tercera terminal:
@@ -40,7 +149,7 @@ JUR="ES"
 SOFTWARE_ID="qvet-v1.0"
 ISS="did:web:clinic.example:employee:it:loader"
 DROPBOX_URL="https://www.dropbox.com/scl/fi/gkc57co2y9litpm7t81vt/exampleQvetES.xlsx?rlkey=5cnesxdtop8hfdryhrrlmo89w&st=1rsqrcqp&dl=1"
-FILE_PATH="examples/input/exampleQvetES.xlsx"
+FILE_PATH="../examples/exampleQvetES.xlsx"
 
 NOW="$(date -u +%s)"
 EXP="$((NOW + 3600))"
@@ -65,7 +174,7 @@ cat > /tmp/preconv-acme-create.json <<JSON
 }
 JSON
 
-curl -i -sS -X POST "$BASE_URL/host/cds-$JUR/v1/animal-care/$ALT/config/didcomm/_create" \
+curl -i -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/$SOFTWARE_ID/config/_create" \
   -H "Content-Type: application/didcomm-plain+json" \
   --data @/tmp/preconv-acme-create.json | tee /tmp/preconv-acme-create.http
 
@@ -115,7 +224,7 @@ cat > /tmp/preconv-acme-upload.json <<JSON
 }
 JSON
 
-curl -i -sS -X POST "$BASE_URL/$ALT/cds-$JUR/v1/animal-care/conversion/$SOFTWARE_ID/excel/_upload" \
+curl -i -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/dataset/$SOFTWARE_ID/excel/_upload" \
   -H "Content-Type: application/didcomm-plain+json" \
   --data @/tmp/preconv-acme-upload.json | tee /tmp/preconv-acme-upload.http
 
@@ -149,14 +258,14 @@ curl -sS -X POST "$BASE_URL$UP_LOCATION" \
 
 Qué debes ver:
 
-- `_create` devuelve `202` con `Location: /host/cds-ES/v1/animal-care/acme/config/didcomm/_create-response?thid=...`
+- `_create` devuelve `202` con `Location: /publisher/cds-ES/v1/animal-care/acme/qvet-v1.0/config/_create-response?thid=...`
 - `_create-response` devuelve un `Bundle` `batch-response` con `body.data[0].response.status = "200"`
-- `_upload` devuelve `202` con `Location: /acme/cds-ES/v1/animal-care/conversion/qvet-v1.0/excel/_upload-response?thid=...`
+- `_upload` devuelve `202` con `Location: /publisher/cds-ES/v1/animal-care/acme/dataset/qvet-v1.0/excel/_upload-response?thid=...`
 - `_upload-response` termina devolviendo `200` con `body.issues` y `body.data[0].resource`
 
 Importante para local:
 
-- El fichero [examples/input/exampleQvetES.xlsx](/Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/examples/input/exampleQvetES.xlsx) usa `HISTORIA_ID`.
+- El fichero `../examples/exampleQvetES.xlsx` usa `HISTORIA_ID`.
 - Si envías un `mappingConfig.fieldMap.subjectId = "ID_HISTORIA"`, el job puede terminar en `succeeded` pero con `body.data[0].resource.body.data = []`, porque todas las filas quedan sin `subjectId`.
 
 ## Script de smoke

@@ -80,8 +80,9 @@ if ! docker image inspect "${IMAGE_NAME}" >/dev/null 2>&1; then
   exit 1
 fi
 
-APP_PORT="$(extract_env_value "${ENV_FILE}" "PORT")"
+APP_PORT="$(extract_env_value "${ENV_FILE}" "LOCAL_PORT")"
 APP_PORT="${APP_PORT:-8080}"
+HOST_PORT="$(extract_env_value "${ENV_FILE}" "DOCKER_PORT")"
 HOST_PORT="${HOST_PORT:-${APP_PORT}}"
 
 COMMAND=()

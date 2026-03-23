@@ -3,9 +3,10 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
-from .openapi_constants import PUBLIC_PATH_PARAMS
+from .openapi_constants import LEGACY_TO_CANONICAL_PATHS, PUBLIC_PATH_PARAMS
 
 
 def rewrite_paths(schema: dict[str, Any]) -> dict[str, Any]:
@@ -14,20 +15,42 @@ def rewrite_paths(schema: dict[str, Any]) -> dict[str, Any]:
         return {}
 
     rewritten_paths: dict[str, Any] = {}
+    legacy_paths: dict[str, Any] = {}
     for raw_path, methods in paths.items():
-        public_path = str(raw_path)
+        public_legacy_path = str(raw_path)
         for internal_name, public_name in PUBLIC_PATH_PARAMS.items():
-            public_path = public_path.replace(f"{{{internal_name}}}", f"{{{public_name}}}")
+            public_legacy_path = public_legacy_path.replace(f"{{{internal_name}}}", f"{{{public_name}}}")
 
         if isinstance(methods, dict):
             for operation in methods.values():
                 if not isinstance(operation, dict):
                     continue
                 _rewrite_operation_path_params(operation)
-        rewritten_paths[public_path] = methods
 
+        canonical_path = LEGACY_TO_CANONICAL_PATHS.get(public_legacy_path, public_legacy_path)
+        rewritten_paths[canonical_path] = methods
+
+        if canonical_path != public_legacy_path:
+            legacy_methods = deepcopy(methods)
+            _mark_legacy_operations(legacy_methods)
+            legacy_paths[public_legacy_path] = legacy_methods
+
+    rewritten_paths.update(legacy_paths)
     schema["paths"] = rewritten_paths
     return rewritten_paths
+
+
+def _mark_legacy_operations(methods: dict[str, Any]) -> None:
+    for operation in methods.values():
+        if not isinstance(operation, dict):
+            continue
+        operation["deprecated"] = True
+        tags = operation.get("tags")
+        if not isinstance(tags, list):
+            tags = []
+        tags = [tag for tag in tags if isinstance(tag, str)]
+        tags.append("9. Legacy Endpoints")
+        operation["tags"] = tags
 
 
 def set_path_param_description(operation: dict[str, Any], param_name: str, description: str) -> None:

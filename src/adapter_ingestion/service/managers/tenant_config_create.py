@@ -22,6 +22,7 @@ from ..api_support import (
     _extract_payload_value,
     _extract_requested_by,
     _extract_required_type,
+    _enforce_supported_scope,
     _normalize_country_code,
     _op_outcome,
     _require_epoch_seconds,
@@ -31,6 +32,7 @@ from ..api_support import (
 )
 from ..api_config import is_reserved_api_config_software_id
 from ..defaults import default_tenant_config_payload
+from ..defaults import load_software_id_preset
 from ..research import build_config_create_response_path
 from .dependencies import ApiManagerDependencies
 
@@ -77,6 +79,7 @@ class TenantConfigCreateManager:
         body: dict[str, Any],
     ) -> None:
         payload = body if isinstance(body, dict) else {}
+        _enforce_supported_scope(jurisdiction, sector, self._deps.settings)
         thid = str(_extract_payload_value(payload, "thid") or "").strip()
         didcomm_type = str(_extract_payload_value(payload, "type") or "").strip() or DIDCOMM_DEFAULT_MESSAGE_TYPE
         country_code = _normalize_country_code(jurisdiction)
@@ -240,13 +243,17 @@ class TenantConfigCreateManager:
                         )
                     entry_facility = ""
                     entry_payload = _extract_config_entry_payload(entry)
+                    default_payload = default_tenant_config_payload(self._deps.settings)
+                    preset_payload = load_software_id_preset(entry_software_token)
+                    base_payload = (
+                        self._deep_merge_defaults(default_payload, preset_payload)
+                        if isinstance(preset_payload, dict)
+                        else default_payload
+                    )
                     if not entry_payload:
-                        entry_payload = default_tenant_config_payload(self._deps.settings)
+                        entry_payload = base_payload
                     else:
-                        entry_payload = self._deep_merge_defaults(
-                            default_tenant_config_payload(self._deps.settings),
-                            entry_payload,
-                        )
+                        entry_payload = self._deep_merge_defaults(base_payload, entry_payload)
 
                     stored = self._deps.control_plane.upsert_config(
                         key=ConfigKey(

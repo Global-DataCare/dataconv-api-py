@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 import json
+import os
 
 from .settings import ServiceSettings
 
@@ -15,7 +16,7 @@ DEFAULT_SCHEMA_FIELD_MAP = {
     "family": "FAMILY",
     "subfamily": "SUBFAMILY",
     "concept": "CONCEPT",
-    "subjectId": "SUBJECT_ID",
+    "subject_id": "SUBJECT_ID",
     "owner": "OWNER",
     "ownerId": "OWNER_ID",
     "species": "SPECIES",
@@ -80,6 +81,7 @@ def default_tenant_config_payload(settings: ServiceSettings) -> dict[str, Any]:
         "runtimeDefaults": {
             "language": "es-ES",
             "dataUse": "secondary",
+            "logComposition": False,
             "subjectKind": "animal",
             "subjectDidPrefix": settings.default_subject_did_prefix,
             "issuerDid": settings.default_issuer_did,
@@ -87,3 +89,58 @@ def default_tenant_config_payload(settings: ServiceSettings) -> dict[str, Any]:
             "includeFields": list(DEFAULT_INCLUDE_FIELDS),
         },
     }
+
+
+def _software_id_presets_dir_candidates() -> list[Path]:
+    candidates: list[Path] = []
+
+    env_base = str(os.getenv("PRECONV_CONFIGS_DIR", "")).strip()
+    if env_base:
+        candidates.append(Path(env_base) / "software-id-presets")
+
+    candidates.append(Path("/app/configs/software-id-presets"))
+    candidates.append(Path.cwd() / "configs" / "software-id-presets")
+
+    repo_root = Path(__file__).resolve().parents[3]
+    candidates.append(repo_root / "configs" / "software-id-presets")
+
+    deduped: list[Path] = []
+    seen: set[str] = set()
+    for item in candidates:
+        key = str(item)
+        if key not in seen:
+            seen.add(key)
+            deduped.append(item)
+    return deduped
+
+
+def load_software_id_preset(software_id: str) -> dict[str, Any] | None:
+    token = str(software_id or "").strip().lower()
+    if not token:
+        return None
+
+    for base_dir in _software_id_presets_dir_candidates():
+        preset_file = base_dir / f"{token}.json"
+        if not preset_file.exists() or not preset_file.is_file():
+            continue
+        try:
+            payload = json.loads(preset_file.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            return payload
+
+    return None
+
+
+def resolve_software_id_default_template(software_id: str) -> str:
+    token = str(software_id or "").strip().lower()
+    if not token or "-v" in token:
+        return token
+
+    candidate = f"{token}-v1"
+    for base_dir in _software_id_presets_dir_candidates():
+        preset_file = base_dir / f"{candidate}.json"
+        if preset_file.exists() and preset_file.is_file():
+            return candidate
+    return token

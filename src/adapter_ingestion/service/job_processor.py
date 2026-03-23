@@ -154,7 +154,17 @@ def _build_context(
     )
 
     language = str(runtime_defaults.get("language", "")).strip() or _language_from_country(request_country)
+    log_composition = bool(runtime_defaults.get("logComposition", False))
     resolved_sector = str(config_payload.get("targetSector") or settings_target_sector or DEFAULT_SECTOR).strip() or DEFAULT_SECTOR
+    subject_kind = str(runtime_defaults.get("subjectKind", "")).strip().lower()
+    if not subject_kind:
+        normalized_sector = str(resolved_sector or "").strip().lower()
+        if normalized_sector.startswith("animal"):
+            subject_kind = "animal"
+        elif normalized_sector.startswith("species"):
+            subject_kind = "species"
+        else:
+            subject_kind = "person"
     vault_id = build_vault_id(
         sector=resolved_sector,
         tenant_id=request_alternate_name,
@@ -197,7 +207,7 @@ def _build_context(
         gateway_base_url=str(runtime_defaults.get("gatewayBaseUrl", "http://localhost:3000")).strip()
         or "http://localhost:3000",
         subject_did_prefix=subject_did_prefix,
-        subject_kind=str(runtime_defaults.get("subjectKind", "animal")).strip() or "animal",
+        subject_kind=subject_kind,
         include_fields=_include_fields_from_runtime_defaults(runtime_defaults),
         fhir_species_system=species_system,
         fhir_species_catalog=species_catalog,
@@ -207,6 +217,7 @@ def _build_context(
         personal_id_resolver=_personal_id_resolver if vault_repo is not None else None,
         embed_xhtml_content=bool(runtime_defaults.get("embedXhtmlContent", False)),
         data_use=str(runtime_defaults.get("dataUse", "secondary")).strip() or "secondary",
+        log_composition=log_composition,
     )
 
 

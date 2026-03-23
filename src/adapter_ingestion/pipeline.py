@@ -210,6 +210,29 @@ def _to_xhtml_table(attributes: dict[str, str]) -> str:
     )
 
 
+def _collect_resource_type_counts(resource: dict[str, Any], counts: dict[str, int]) -> None:
+    resource_type = str(resource.get("resourceType", "")).strip()
+    if resource_type:
+        counts[resource_type] = int(counts.get(resource_type, 0)) + 1
+
+    contained = resource.get("contained")
+    if isinstance(contained, list):
+        for nested in contained:
+            if isinstance(nested, dict):
+                _collect_resource_type_counts(nested, counts)
+
+
+def _resource_type_counts_from_entries(entries: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        resource = entry.get("resource")
+        if isinstance(resource, dict):
+            _collect_resource_type_counts(resource, counts)
+    return dict(sorted(counts.items(), key=lambda item: item[0]))
+
+
 def _doc_claims(
     record: CanonicalRecord,
     context: AdapterContext,
@@ -652,6 +675,8 @@ def run_pipeline(
         "patientEntries": subject_entries_count,
         "compositionEntries": composition_entries_count,
         "operationOutcomeEntries": len(outcome_entries),
+        "resourceTypeCounts": _resource_type_counts_from_entries(bundle_entries),
+        "logComposition": bool(getattr(context, "log_composition", False)),
         "families": dict(sorted(families.items(), key=lambda item: (-item[1], item[0]))),
         "sections": dict(sorted(sections.items(), key=lambda item: (-item[1], item[0]))),
     }

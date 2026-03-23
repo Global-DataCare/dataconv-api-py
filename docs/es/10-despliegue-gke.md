@@ -47,19 +47,19 @@ Completar:
 
 Resolución automática por entorno:
 
-- El patrón base es `{profile}-preconvert-{sector}-{resource}` con `-`.
+- El patrón base es `{profile}-preconvert-{dataspace}-{resource}` con `-`.
 - `profile` se normaliza a `dev`, `staging` o `prod`.
-- `sector` sale de `PRECONV_SECTOR_SCOPE` (`animal`, `health`, etc.).
-- Ejemplo para `NODE_ENV=staging` y `PRECONV_SECTOR_SCOPE=animal`:
+- `PRECONV_DATASPACE_ID` identifica el dataspace de este deployment (ej. `globaldatacare`, `procuredata`, `animal`). Se usa como slug en nombres de recursos GCP; si no se define, se deduce del vertical por defecto.
+- Ejemplo para `NODE_ENV=staging` y `PRECONV_DATASPACE_ID=animal`:
   - `staging-preconvert-animal-configs`
   - `staging-preconvert-animal-jobs`
   - `staging-preconvert-animal-jobs-worker`
   - `staging-preconvert-animal`
-- Ejemplo para `NODE_ENV=production` y `PRECONV_SECTOR_SCOPE=health`:
-  - `prod-preconvert-health-configs`
-  - `prod-preconvert-health-jobs`
-  - `prod-preconvert-health-jobs-worker`
-  - `prod-preconvert-health`
+- Ejemplo para `NODE_ENV=production` y `PRECONV_DATASPACE_ID=globaldatacare`:
+  - `prod-preconvert-globaldatacare-configs`
+  - `prod-preconvert-globaldatacare-jobs`
+  - `prod-preconvert-globaldatacare-jobs-worker`
+  - `prod-preconvert-globaldatacare`
 - Si defines explícitamente `PRECONV_FIRESTORE_*`, `PRECONV_PUBSUB_*` o `PRECONV_GCS_PREFIX`, esos valores tienen prioridad.
 
 Logging:

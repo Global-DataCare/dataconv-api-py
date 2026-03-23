@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from ..api_support import (
@@ -11,6 +12,7 @@ from ..api_support import (
     _extract_iss,
     _extract_query_value,
     _extract_required_type,
+    _enforce_supported_scope,
     _require_epoch_seconds,
     _validate_public_iss,
 )
@@ -19,10 +21,61 @@ from ..research import build_vault_id
 from .dependencies import ApiManagerDependencies
 
 
+def _build_operation_outcome(*, message: str, diagnostics: str) -> dict[str, Any]:
+    return {
+        "resourceType": "OperationOutcome",
+        "issue": [
+            {
+                "severity": "information",
+                "code": "informational",
+                "details": {"text": message},
+                "diagnostics": diagnostics,
+            }
+        ],
+    }
+
+
+def _build_dcat_dataset(
+    *,
+    tenant_id: str,
+    sector: str,
+    jurisdiction: str,
+    resource_type: str,
+    thid: str,
+    index: int,
+) -> dict[str, Any]:
+    identifier = f"{tenant_id}:{resource_type}:{thid}:{index}"
+    return {
+        "@context": "https://www.w3.org/ns/dcat",
+        "@type": "dcat:Dataset",
+        "dct:identifier": identifier,
+        "dct:title": f"{tenant_id} — {resource_type} actualizado",
+        "dct:description": (
+            f"Dataset actualizado en la fase de confirmación para {resource_type} "
+            f"(thid={thid})."
+        ),
+        "dct:publisher": {
+            "@id": f"urn:org:{tenant_id}",
+            "foaf:name": tenant_id,
+        },
+        "dcat:distribution": [
+            {
+                "@type": "dcat:Distribution",
+                "dct:format": "application/fhir+json",
+                "dcat:accessURL": (
+                    f"https://globaldatacare.es/publisher/cds-{jurisdiction}/v1/"
+                    f"{sector}/{tenant_id}/dataset/{resource_type}/_search"
+                ),
+            }
+        ],
+    }
+
+
 def promote_resources(
     *,
     deps: ApiManagerDependencies,
     tenant_id: str,
+    jurisdiction: str,
     sector: str,
     resource_type: str,
     request: Any,
@@ -30,6 +83,7 @@ def promote_resources(
     source: str,
 ) -> dict[str, Any]:
     payload = body if isinstance(body, dict) else {}
+    _enforce_supported_scope(jurisdiction, sector, deps.settings)
     issuer = _extract_iss(payload)
     if not issuer:
         raise HTTPException(status_code=400, detail="iss is required in DIDComm payload")
@@ -76,6 +130,14 @@ def promote_resources(
         raise HTTPException(status_code=404, detail="no composition found for the given thid")
 
     promoted_count = 0
+    promoted_by_type: dict[str, int] = {}
+
+    def _mark_promoted(resource_type_key: str) -> None:
+        nonlocal promoted_count
+        promoted_count += 1
+        normalized = str(resource_type_key or "").strip() or "Unknown"
+        promoted_by_type[normalized] = int(promoted_by_type.get(normalized, 0) or 0) + 1
+
     for comp in compositions:
         comp_claim_key = f"{governed_resource_type}.userSelected"
         is_draft = str(comp.get("meta", {}).get("claims", {}).get(comp_claim_key, "")).lower()
@@ -83,13 +145,24 @@ def promote_resources(
             comp.setdefault("meta", {}).setdefault("claims", {})[comp_claim_key] = "false"
             deps.vault_repo.put(vault_id, [comp], governed_resource_type)
             deps.search_repo.upsert(vault_id=vault_id, resource_type=governed_resource_type, resource=comp)
-            promoted_count += 1
+            _mark_promoted(governed_resource_type)
 
         subject = str(comp.get("meta", {}).get("claims", {}).get("Composition.subject", "")).strip().split(":")[-1]
         section = str(comp.get("meta", {}).get("claims", {}).get("Composition.section", "")).strip().split("|")[-1]
         if not subject or not section:
             continue
         link_section = f"{subject}_{section}"
+
+        subject_res = deps.vault_repo.get(vault_id, subject, "Subject")
+        if subject_res:
+            subject_claim_key = "Subject.userSelected"
+            is_subject_draft = str(subject_res.get("meta", {}).get("claims", {}).get(subject_claim_key, "")).lower()
+            if is_subject_draft == "true":
+                subject_res.setdefault("meta", {}).setdefault("claims", {})[subject_claim_key] = "false"
+                deps.vault_repo.put(vault_id, [subject_res], "Subject")
+                deps.search_repo.upsert(vault_id=vault_id, resource_type="Subject", resource=subject_res)
+                _mark_promoted("Subject")
+
         raw_entries = str(comp.get("meta", {}).get("claims", {}).get("Composition.entry", "")).strip()
         if not raw_entries:
             continue
@@ -110,7 +183,7 @@ def promote_resources(
                 canon.setdefault("meta", {}).setdefault("claims", {})[res_claim_key] = "false"
                 deps.vault_repo.put(vault_id, [canon], linked_resource_type)
                 deps.search_repo.upsert(vault_id=vault_id, resource_type=linked_resource_type, resource=canon)
-                promoted_count += 1
+                _mark_promoted(linked_resource_type)
 
     log_event(
         "research_drafts_promoted",
@@ -120,6 +193,45 @@ def promote_resources(
         promotedCount=promoted_count,
     )
 
+    confirmed_at = datetime.now(timezone.utc).isoformat()
+    datasets_updated = [
+        {"resourceType": resource_type_name, "updatedCount": count}
+        for resource_type_name, count in sorted(promoted_by_type.items())
+    ]
+    dcat_datasets = [
+        _build_dcat_dataset(
+            tenant_id=tenant_id,
+            sector=sector,
+            jurisdiction=jurisdiction,
+            resource_type=item["resourceType"],
+            thid=thid,
+            index=idx,
+        )
+        for idx, item in enumerate(datasets_updated, start=1)
+    ]
+    diagnostics = (
+        f"Confirmación completada para thid={thid}. "
+        f"Recursos promovidos={promoted_count}. "
+        f"Datasets actualizados={len(datasets_updated)}."
+    )
+    data_entries = [
+        {
+            "response": {
+                "status": "200",
+            },
+            "meta": {
+                "confirmedAt": confirmed_at,
+                "tenantId": tenant_id,
+                "jurisdiction": str(jurisdiction or "").upper(),
+                "sector": sector,
+                "resourceType": item["resourceType"],
+                "updatedCount": item["updatedCount"],
+            },
+            "resource": dataset,
+        }
+        for item, dataset in zip(datasets_updated, dcat_datasets)
+    ]
+
     return {
         "type": "https://didcomm.org/plaintext/2.0/message",
         "thid": thid,
@@ -127,5 +239,10 @@ def promote_resources(
             "status": "success",
             "promotedCount": promoted_count,
             "message": f"Promoted {promoted_count} resources to userSelected=false",
+            "issues": _build_operation_outcome(
+                message="Datasets confirmados y actualizados",
+                diagnostics=diagnostics,
+            ),
+            "data": data_entries,
         },
     }

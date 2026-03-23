@@ -1,0 +1,24 @@
+{
+  "schemaConfig": {
+    "headerRowIndex": 1,
+    "fieldMap": {
+      "date": "FECHA",
+      "concept": "CONCEPTO",
+      "chargeitem_identifier": "CODIGO BARRAS",
+      "personal_id": "CHIP",
+      "section": "SECCION",
+      "family": "FAMILIA",
+      "subfamily": "SUBFAMILIA",
+      "species": "ESPECIE",
+      "appointment_lastoccurrencedate": "ULTIMA VISITA",
+      "location_address-city": "POBLACIÓN",
+      "location_address-district": "PROVINCIA",
+      "encounter_participant-type": "GRUPO PERSONAL",
+      "encounter_service-type": "Descripcion2"
+    }
+  },
+  "runtimeDefaults": {
+    "manufacturer": "qvet",
+    "language": "es"
+  }
+}

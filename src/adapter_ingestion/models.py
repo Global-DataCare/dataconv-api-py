@@ -31,6 +31,7 @@ class AdapterContext:
     personal_id_resolver: Callable[[str], str] | None = None
     embed_xhtml_content: bool = False
     data_use: str = "individual"  # individual | secondary
+    log_composition: bool = False
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,8 @@ class CanonicalRecord:
     attributes: dict[str, str] = field(default_factory=dict)
     species_local: str = ""
     species_fhir_code: str = ""
+    subject_birthyear: str = ""
+    subject_birthsex: str = ""
     animal_breed_code: str = ""
     animal_gender_status_code: str = ""
     document_category_code: str = ""

@@ -15,6 +15,8 @@ import uuid
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
 from urllib.request import Request as UrlRequest, urlopen
 
+from .auth_exchange import validate_session_access_token
+
 try:
     import certifi
 except ImportError:  # pragma: no cover - optional runtime dependency
@@ -125,6 +127,7 @@ def build_api_docs_html(*, openapi_url: str = "/openapi.json") -> str:
         dom_id: '#swagger-ui',
         deepLinking: true,
         docExpansion: 'list',
+                defaultModelsExpandDepth: -1,
         presets: [SwaggerUIBundle.presets.apis],
         requestInterceptor: function (req) {{
           try {{
@@ -502,6 +505,22 @@ def _normalize_country_code(jurisdiction: str) -> str:
     return value.upper()
 
 
+def _enforce_supported_scope(jurisdiction: str, sector: str, settings: Any) -> None:
+    requested_jurisdiction = _normalize_country_code(jurisdiction)
+    requested_sector = str(sector or "").strip().lower()
+
+    supported_jurisdictions = tuple(str(item or "").strip().upper() for item in getattr(settings, "supported_jurisdictions", ("*",)))
+    supported_sectors = tuple(str(item or "").strip().lower() for item in getattr(settings, "supported_sectors", ("*",)))
+
+    if supported_jurisdictions and "*" not in supported_jurisdictions:
+        if requested_jurisdiction not in supported_jurisdictions:
+            raise HTTPException(status_code=404, detail=f"jurisdiction not supported: {requested_jurisdiction}")
+
+    if supported_sectors and "*" not in supported_sectors:
+        if requested_sector not in supported_sectors:
+            raise HTTPException(status_code=404, detail=f"sector not supported: {requested_sector}")
+
+
 def _resolve_upload_source_format(source_format: str) -> tuple[str, str]:
     normalized = str(source_format or "").strip().lower()
     if normalized in {"excel", "xlsx"}:
@@ -652,85 +671,87 @@ def _extract_bearer_token(authorization_header: str) -> str:
     return ""
 
 
+def _scope_is_satisfied(required_scope: str, available_scopes: set[str]) -> bool:
+    required = str(required_scope or "").strip()
+    if not required:
+        return True
+    available = {str(item or "").strip() for item in available_scopes if str(item or "").strip()}
+    if required in available:
+        return True
+
+    if required == "dataconv.upload":
+        return any(item.endswith("/_upload") for item in available)
+    if required == "dataconv.read":
+        return any(item.endswith("/_search") for item in available)
+
+    if required.endswith("/_upload") and "dataconv.upload" in available:
+        return True
+    if required.endswith("/_search") and "dataconv.read" in available:
+        return True
+
+    return any(_scope_pattern_matches(required, item) for item in available)
+
+
 def _enforce_auth_context(
     payload: dict[str, Any],
     settings: Any,
     authorization_header: str = "",
     *,
     require_token: bool = False,
+    required_scopes: set[str] | None = None,
 ) -> None:
-    mode = str(getattr(settings, "auth_mode", "parse-only") or "parse-only").strip().lower()
-    id_token = str(_extract_payload_value(payload, "id_token") or _extract_payload_value(payload, "idToken") or "").strip()
-    if not id_token:
-        id_token = _extract_bearer_token(authorization_header)
-    vp_token = str(_extract_payload_value(payload, "vp_token") or _extract_payload_value(payload, "vpToken") or "").strip()
+    demo_mode = bool(getattr(settings, "demo_mode", True))
+    bearer_token = _extract_bearer_token(authorization_header)
 
-    if require_token and not id_token and not vp_token:
-        raise HTTPException(
-            status_code=401,
-            detail="vp_token or id_token is required for this operation",
-        )
+    if bearer_token:
+        try:
+            session_claims = validate_session_access_token(bearer_token, settings)
+            if required_scopes and not demo_mode:
+                available = {item for item in str(session_claims.get("scope") or "").split(" ") if item}
+                available.update({item for item in session_claims.get("scopes", []) if isinstance(item, str) and item})
+                missing = sorted(scope for scope in required_scopes if not _scope_is_satisfied(scope, available))
+                if missing:
+                    raise HTTPException(status_code=403, detail=f"insufficient scope: missing {missing[0]}")
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            if not demo_mode:
+                raise HTTPException(status_code=401, detail="invalid or expired Bearer token")
 
-    if mode == "verify-id-token" and not id_token:
-        raise HTTPException(status_code=401, detail="id_token is required when PRECONV_AUTH_MODE=verify-id-token")
-    if mode == "verify-vp-token" and not vp_token:
-        raise HTTPException(status_code=401, detail="vp_token is required when PRECONV_AUTH_MODE=verify-vp-token")
-    if mode == "verify-both":
+    if not demo_mode:
+        raise HTTPException(status_code=401, detail="Bearer token required")
+
+    if demo_mode:
+        # TODO(auth-cleanup): reading id_token/vp_token from the DIDComm body is a demo-mode
+        # convenience that pre-dates the /exchange endpoint. In production the Bearer header is
+        # the sole credential carrier — these fields are NOT part of the DIDComm contract.
+        # Once the SDK stops embedding them in the request body, remove this block and rely
+        # exclusively on bearer_token (already extracted above) for subject identity.
+        # Coordinate removal with a SDK minor release bump (breaking change for DEMO_MODE demos).
+        id_token = str(_extract_payload_value(payload, "id_token") or _extract_payload_value(payload, "idToken") or "").strip()
         if not id_token:
-            raise HTTPException(status_code=401, detail="id_token is required when PRECONV_AUTH_MODE=verify-both")
-        if not vp_token:
-            raise HTTPException(status_code=401, detail="vp_token is required when PRECONV_AUTH_MODE=verify-both")
-
-    id_claims = _parse_token_claims(
-        id_token,
-        "id_token",
-        require_jwt=mode in {"verify-id-token", "verify-both"},
-    )
-    vp_claims = _parse_token_claims(
-        vp_token,
-        "vp_token",
-        require_jwt=mode in {"verify-vp-token", "verify-both"},
-    )
-
-    subject_keys = {
-        "sub",
-        "email",
-        "upn",
-        "preferred_username",
-        "did",
-        "iss",
-        "employee_id",
-        "employeeid",
-        "username",
-    }
-    device_keys = {
-        "device_id",
-        "deviceid",
-        "device_did",
-        "did_device",
-    }
-
-    issuer = _extract_iss(payload)
-    subject_candidates: set[str] = set()
-    if issuer:
-        subject_candidates.add(issuer.strip().lower())
-    device_candidates: set[str] = set()
-    device_from_iss = _extract_device_token_from_iss(issuer)
-    if device_from_iss:
-        device_candidates.add(device_from_iss)
-
-    _collect_claim_values(id_claims, subject_keys, subject_candidates)
-    _collect_claim_values(vp_claims, subject_keys, subject_candidates)
-    _collect_claim_values(id_claims, device_keys, device_candidates)
-    _collect_claim_values(vp_claims, device_keys, device_candidates)
-
-    if mode == "verify-both":
-        id_subjects: set[str] = set()
-        vp_subjects: set[str] = set()
-        _collect_claim_values(id_claims, subject_keys, id_subjects)
-        _collect_claim_values(vp_claims, subject_keys, vp_subjects)
-        if id_subjects and vp_subjects and not (id_subjects & vp_subjects):
-            raise HTTPException(status_code=401, detail="id_token and vp_token subjects do not match")
+            id_token = bearer_token
+        vp_token = str(_extract_payload_value(payload, "vp_token") or _extract_payload_value(payload, "vpToken") or "").strip()
+        issuer = _extract_iss(payload)
+        subject_candidates: set[str] = set()
+        if issuer:
+            subject_candidates.add(issuer.strip().lower())
+        device_candidates: set[str] = set()
+        device_from_iss = _extract_device_token_from_iss(issuer)
+        if device_from_iss:
+            device_candidates.add(device_from_iss)
+        id_claims = _parse_token_claims(id_token, "id_token", require_jwt=False)
+        vp_claims = _parse_token_claims(vp_token, "vp_token", require_jwt=False)
+        subject_keys = {"sub", "email", "upn", "preferred_username", "did", "iss", "employee_id", "employeeid", "username"}
+        device_keys = {"device_id", "deviceid", "device_did", "did_device"}
+        _collect_claim_values(id_claims, subject_keys, subject_candidates)
+        _collect_claim_values(vp_claims, subject_keys, subject_candidates)
+        _collect_claim_values(id_claims, device_keys, device_candidates)
+        _collect_claim_values(vp_claims, device_keys, device_candidates)
+    else:
+        subject_candidates = set()
+        device_candidates = set()
 
     disabled_subjects = {_to_lower_token(value) for value in getattr(settings, "auth_disabled_subjects", ()) if _to_lower_token(value)}
     disabled_devices = {_to_lower_token(value) for value in getattr(settings, "auth_disabled_devices", ()) if _to_lower_token(value)}
@@ -887,6 +908,57 @@ def _output_ref_candidates(job: Any, artifact_name: str) -> list[str]:
     return deduped
 
 
+def _summary_diagnostics_es(summary: dict[str, Any], job: Any) -> str:
+    records_total = int(summary.get("recordsTotal") or summary.get("totalRecords") or 0)
+    log_composition = bool(summary.get("logComposition", False))
+
+    resource_type_counts: dict[str, int] = {}
+    raw_counts = summary.get("resourceTypeCounts")
+    if isinstance(raw_counts, dict):
+        for key, value in raw_counts.items():
+            resource_type = str(key or "").strip()
+            if not resource_type:
+                continue
+            try:
+                resource_type_counts[resource_type] = int(value or 0)
+            except (TypeError, ValueError):
+                continue
+
+    if not resource_type_counts:
+        fallback_counts = {
+            "Subject": int(summary.get("subjectsTotal") or 0),
+            "DocumentReference": int(summary.get("documentReferenceEntries") or 0),
+            "Encounter": int(summary.get("encounterEntries") or 0),
+            "Composition": int(summary.get("compositionEntries") or 0),
+            "RelatedPerson": int(summary.get("relatedPersonEntries") or 0),
+            "OperationOutcome": int(summary.get("operationOutcomeEntries") or 0),
+        }
+        resource_type_counts = {
+            key: count for key, count in fallback_counts.items() if int(count) > 0 or key == "Encounter"
+        }
+
+    parts: list[str] = []
+    if records_total > 0:
+        parts.append(f"Se han procesado {records_total} registros.")
+
+    ordered_resource_types = sorted(resource_type_counts.keys(), key=lambda name: (0 if name == "Subject" else 1, name))
+    for resource_type in ordered_resource_types:
+        if resource_type == "Composition" and not log_composition:
+            continue
+        count = int(resource_type_counts.get(resource_type) or 0)
+        parts.append(f"Se han generado {count} {resource_type}.")
+
+    started_at = _parse_iso_utc(str(getattr(job, "started_at", "") or ""))
+    finished_at = _parse_iso_utc(str(getattr(job, "finished_at", "") or ""))
+    created_at = _parse_iso_utc(str(getattr(job, "created_at", "") or ""))
+    started_or_created = started_at or created_at
+    if started_or_created is not None and finished_at is not None:
+        duration_seconds = max(int((finished_at - started_or_created).total_seconds()), 0)
+        parts.append(f"La operación fue procesada en {duration_seconds} segundos.")
+
+    return " ".join(parts).strip()
+
+
 def _job_poll_response(
     job: Any,
     response: Response | None = None,
@@ -916,13 +988,16 @@ def _job_poll_response(
         summary = _load_json_blob(blob_store, _output_ref_candidates(job, "summary.json"))
         composition = _load_json_blob(blob_store, _output_ref_candidates(job, "composition-message.json"))
         if isinstance(summary, dict):
+            summary_diagnostics = _summary_diagnostics_es(summary, job)
+            if summary_diagnostics:
+                diagnostics = f"{diagnostics}. {summary_diagnostics}"
             adapter_report = summary.get("adapterReport")
             if isinstance(adapter_report, dict):
                 dropped_no_subject_id = int(adapter_report.get("recordsDroppedNoSubjectId") or 0)
                 if dropped_no_subject_id > 0:
                     diagnostics = (
                         f"{diagnostics}. Dropped {dropped_no_subject_id} record(s) due to missing "
-                        "subjectId values or an incorrect schemaConfig.fieldMap.subjectId mapping."
+                        "subject_id values or an incorrect schemaConfig.fieldMap.subject_id mapping."
                     )
                 dropped_missing_loinc = int(adapter_report.get("recordsDroppedMissingLoincMapping") or 0)
                 if dropped_missing_loinc > 0:

@@ -12,6 +12,7 @@ from ..api_support import (
     _extract_payload_value,
     _extract_query_value,
     _extract_required_type,
+    _enforce_supported_scope,
     _normalize_country_code,
     _require_epoch_seconds,
     _validate_public_iss,
@@ -34,6 +35,7 @@ class TenantConfigPollManager:
         body: dict[str, Any],
     ) -> dict[str, Any]:
         payload = body if isinstance(body, dict) else {}
+        _enforce_supported_scope(jurisdiction, sector, self._deps.settings)
         issuer = _extract_iss(payload)
         if not issuer:
             raise HTTPException(status_code=400, detail="iss is required in DIDComm payload")

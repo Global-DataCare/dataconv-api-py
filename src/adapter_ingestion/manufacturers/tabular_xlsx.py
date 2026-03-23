@@ -11,12 +11,15 @@ import uuid
 
 from .base import ManufacturerAdapter
 from .xlsx_common import (
+    birth_year,
     composition_section,
+    normalize_gender_status,
     normalize_token,
     parse_fhir_datetime,
     read_csv_rows,
     read_xlsx_rows,
     resolve_species_local_and_code,
+    strip_list_artifacts,
     slug,
 )
 from ..models import AdapterContext, CanonicalRecord, stable_id
@@ -123,11 +126,15 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                 "family",
                 "subfamily",
                 "concept",
+                "subject_id",
                 "subjectId",
                 "subject-id",
+                "personal_id",
                 "personalId",
                 "personal-id",
                 "species",
+                "birthyear",
+                "birthsex",
                 "breed",
                 "genderStatus",
                 "owner",
@@ -142,10 +149,14 @@ class TabularXlsxAdapter(ManufacturerAdapter):
 
     def _canonical_field_name(self, field_name: str) -> str:
         key = str(field_name or "").strip()
-        if key == "subject-id":
-            return "subjectId"
-        if key == "personal-id":
-            return "personalId"
+        if key in {"subject-id", "subjectId", "subject_id"}:
+            return "subject_id"
+        if key in {"personal-id", "personalId", "personal_id"}:
+            return "personal_id"
+        if key in {"subject_birthyear", "birthyear"}:
+            return "birthyear"
+        if key in {"subject_birthsex", "birthsex"}:
+            return "birthsex"
         return key
 
     def _build_field_defaults(self, schema: dict[str, Any]) -> dict[str, str]:
@@ -154,7 +165,7 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         if isinstance(raw_defaults, dict):
             for key, value in raw_defaults.items():
                 if str(key).strip():
-                    merged[str(key).strip()] = str(value).strip()
+                    merged[self._canonical_field_name(str(key).strip())] = str(value).strip()
         return merged
 
     def _normalized_owner_search_text(self, text: str) -> str:
@@ -404,12 +415,25 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         field_defaults: dict[str, str],
         field_name: str,
     ) -> str:
+        canonical_name = self._canonical_field_name(field_name)
         source_column = self._source_column(field_map, field_name)
         if source_column:
             value = str(row.get(source_column, "")).strip()
             if value:
-                return value
-        return str(field_defaults.get(field_name, "")).strip()
+                return self._normalize_field_value(canonical_name, value)
+        return self._normalize_field_value(canonical_name, str(field_defaults.get(canonical_name, "")).strip())
+
+    def _normalize_field_value(self, field_name: str, value: str) -> str:
+        text = str(value or "").strip()
+        if not text:
+            return ""
+        if field_name == "concept":
+            return text
+        if field_name == "birthyear":
+            return birth_year(text)
+        if field_name == "genderStatus":
+            return normalize_gender_status(text)
+        return strip_list_artifacts(text)
 
     def _source_column(
         self,
@@ -417,6 +441,22 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         field_name: str,
     ) -> str:
         return str(field_map.get(self._canonical_field_name(field_name), "")).strip()
+
+    def _resolved_section_family_fields(
+        self,
+        *,
+        row: dict[str, str],
+        field_map: dict[str, str],
+        field_defaults: dict[str, str],
+    ) -> tuple[str, str, str, bool]:
+        raw_section = self._field_value(row, field_map, field_defaults, "section")
+        raw_family = self._field_value(row, field_map, field_defaults, "family")
+        raw_subfamily = self._field_value(row, field_map, field_defaults, "subfamily")
+
+        section = raw_section or "default"
+        family = raw_family or section
+        subfamily = raw_subfamily or raw_family or section
+        return (section, family, subfamily, bool(raw_family))
 
     def _build_attributes(self, row: dict[str, str], include_fields: tuple[str, ...]) -> dict[str, str]:
         non_empty = {k: str(v).strip() for k, v in row.items() if str(v).strip()}
@@ -486,8 +526,10 @@ class TabularXlsxAdapter(ManufacturerAdapter):
             return None
         if subject_kind == "species":
             kind_segment = f"species-{species_code}" if species_code else "species"
-        else:
+        elif subject_kind == "animal":
             kind_segment = "animal"
+        else:
+            kind_segment = "person"
         return f"{prefix}:{kind_segment}:subject:{normalized_token}"
 
     def _resolve_subject_token(
@@ -498,23 +540,23 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         field_map: dict[str, str],
         field_defaults: dict[str, str],
     ) -> str:
-        subject_token = self._field_value(row, field_map, field_defaults, "subjectId")
+        subject_token = self._field_value(row, field_map, field_defaults, "subject_id")
         if subject_token:
             return subject_token
 
-        personal_id_column = self._source_column(field_map, "personalId")
-        has_personal_id_mapping = bool(personal_id_column or str(field_defaults.get("personalId", "")).strip())
+        personal_id_column = self._source_column(field_map, "personal_id")
+        has_personal_id_mapping = bool(personal_id_column or str(field_defaults.get("personal_id", "")).strip())
         if not has_personal_id_mapping:
             return ""
 
-        personal_id_value = self._field_value(row, field_map, field_defaults, "personalId")
+        personal_id_value = self._field_value(row, field_map, field_defaults, "personal_id")
         resolved_token = ""
         if callable(getattr(context, "personal_id_resolver", None)):
             resolved_token = str(context.personal_id_resolver(personal_id_value)).strip()
         if not resolved_token:
             resolved_token = str(uuid.uuid4())
 
-        subject_column = self._source_column(field_map, "subjectId")
+        subject_column = self._source_column(field_map, "subject_id")
         if subject_column:
             row[subject_column] = resolved_token
         if personal_id_column:
@@ -568,11 +610,11 @@ class TabularXlsxAdapter(ManufacturerAdapter):
             row_number = parsed_row.row_number
             row = parsed_row.values
 
-            family = self._field_value(row, field_map, field_defaults, "family")
-            if not family:
-                continue
-
-            section = self._field_value(row, field_map, field_defaults, "section")
+            section, family, subfamily, has_explicit_family = self._resolved_section_family_fields(
+                row=row,
+                field_map=field_map,
+                field_defaults=field_defaults,
+            )
             normalized_section = normalize_token(section)
             if allowed_sections and normalized_section not in allowed_sections:
                 dropped_by_section_filter += 1
@@ -587,7 +629,6 @@ class TabularXlsxAdapter(ManufacturerAdapter):
             ):
                 dropped_by_section_family_filter += 1
                 continue
-            subfamily = self._field_value(row, field_map, field_defaults, "subfamily")
             concept = self._field_value(row, field_map, field_defaults, "concept")
             subject_token = self._resolve_subject_token(
                 context=context,
@@ -601,6 +642,8 @@ class TabularXlsxAdapter(ManufacturerAdapter):
             time_raw = self._field_value(row, field_map, field_defaults, "time")
 
             species_source = self._field_value(row, field_map, field_defaults, "species")
+            birthyear_source = self._field_value(row, field_map, field_defaults, "birthyear")
+            birthsex_source = self._field_value(row, field_map, field_defaults, "birthsex")
             breed_source = self._field_value(row, field_map, field_defaults, "breed")
             gender_status_source = self._field_value(row, field_map, field_defaults, "genderStatus")
             species_raw, species_code_rule = resolve_species_local_and_code(
@@ -637,33 +680,16 @@ class TabularXlsxAdapter(ManufacturerAdapter):
             if owner_public_hash:
                 records_with_public_owner += 1
 
-            comp_section = composition_section(section, family)
+            comp_section = composition_section(section, family if has_explicit_family else "")
             loinc_code = self._resolve_loinc_code_for_record(
                 section=section,
                 family=family,
                 overrides=loinc_overrides,
             )
             if not loinc_code:
-                dropped_missing_loinc_mapping += 1
                 missing_loinc_by_section_family[comp_section] = (
                     missing_loinc_by_section_family.get(comp_section, 0) + 1
                 )
-                row_issues.append(
-                    {
-                        "rowNumber": row_number,
-                        "code": "missing-loinc-mapping",
-                        "section": section,
-                        "family": family,
-                        "subfamily": subfamily,
-                        "concept": concept,
-                        "sectionFamily": comp_section,
-                        "diagnostics": (
-                            "Missing required LOINC mapping for "
-                            f"section:family '{comp_section}'."
-                        ),
-                    }
-                )
-                continue
             doc_type = (
                 f"urn:gdc:{self.source_namespace}:{slug(section)}:{slug(family)}:{slug(subfamily or concept)}"
             )
@@ -690,6 +716,8 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                     attributes=attributes,
                     species_local=species_raw,
                     species_fhir_code=species_code or "",
+                    subject_birthyear=str(birthyear_source or "").strip(),
+                    subject_birthsex=str(birthsex_source or "").strip(),
                     animal_breed_code=str(breed_source or "").strip(),
                     animal_gender_status_code=str(gender_status_source or "").strip(),
                     document_category_code=loinc_code,

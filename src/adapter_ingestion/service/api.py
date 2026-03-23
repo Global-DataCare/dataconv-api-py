@@ -24,17 +24,21 @@ from .managers import (
     ApiManagerDependencies,
     ConversionBatchManager,
     ConversionPatchManager,
+    ConversionSearchManager,
     ConversionUploadManager,
     ConversionUploadPollManager,
+    TenantApiKeyManager,
     TenantConfigCreateManager,
     TenantConfigPollManager,
-    ConversionSearchManager,
+    TokenExchangeManager,
 )
 from .observability import configure_logging
 from .openapi_contract import build_custom_openapi
 from .routes_config import register_config_routes
 from .routes_digital_twin import register_digital_twin_routes
+from .routes_exchange import register_exchange_routes
 from .routes_system import register_system_routes
+from .routes_tenant_auth import register_tenant_auth_routes
 from .settings import load_settings
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,51 +75,69 @@ def create_app():
     batch_manager = ConversionBatchManager(deps)
     patch_manager = ConversionPatchManager(deps)
     search_manager = ConversionSearchManager(deps)
+    tenant_api_key_manager = TenantApiKeyManager(deps)
+    exchange_manager = TokenExchangeManager(settings, tenant_api_key_manager=tenant_api_key_manager)
 
     app = FastAPI(
         title="Preconversion DIDComm API",
-        version="0.3.0",
+        version="0.6.0",
         docs_url=None,
         description=(
             "Public DIDComm/FAPI contract for adapter configuration and conversion jobs.\n\n"
-            "Business endpoints are POST-only and grouped as request/response pairs:\n"
-            "1.1) tenant configuration request (_create), 1.2) tenant configuration response (_create-response),\n"
-            "2.1) conversion upload request (_upload), 2.2) conversion upload response (_upload-response).\n\n"
-            "Requester identity is taken from DIDComm payload field `iss` (query parameter `requestedBy` is not used).\n\n"
-            "Token enforcement profile is controlled by `PRECONV_AUTH_MODE` (`parse-only`, `verify-id-token`, "
-            "`verify-vp-token`, `verify-both`). `parse-only` is demo/internal-only and should not be used in "
-            "production.\n"
-            "Terminal job responses expire after `PRECONV_JOB_RESULT_TTL_SECONDS` and then return not found.\n\n"
-            "`/healthz` is deployment-only (readiness/liveness probe) and intentionally excluded from OpenAPI."
+            "**Functional groups**\n\n"
+            "- 1.1 Tenant Config Request: `_create`\n"
+            "- 1.2 Tenant Config Response: `_create-response`\n"
+            "- 2.1 Dataset Upload Request: `_upload`\n"
+            "- 2.2 Dataset Upload Response: `_upload-response`\n"
+            "- 2.3 Dataset Promotion: `_patch`\n"
+            "- 2.4 Dataset Search: `_search`\n"
+            "- 2.5 Dataset Batch Promotion: `_batch`\n"
+            "- 1.3 Tenant Auth API Keys: `_create`, `_disable`, `_remove`\n\n"
+            "**Identity model**\n\n"
+            "Requester identity is taken from DIDComm payload field `iss`. The query parameter `requestedBy` is not used.\n\n"
+            "**Authentication**\n\n"
+            "- `DEMO_MODE=true`: demo/internal mode, no auth required\n"
+            "- `DEMO_MODE=false`: production mode, Bearer token from `/exchange` is required\n\n"
+            "**Operational notes**\n\n"
+            "- Terminal job responses expire after `PRECONV_JOB_RESULT_TTL_SECONDS` and then return not found\n"
+            "- `/healthz` is deployment-only (readiness/liveness probe) and intentionally excluded from OpenAPI"
         ),
         openapi_tags=[
             {
-                "name": "1.1 Tenant Configuration Request",
+                "name": "1.1 Publisher Config Request",
                 "description": "Create or update tenant configuration entries through DIDComm plaintext JSON.",
             },
             {
-                "name": "1.2 Tenant Configuration Response",
+                "name": "1.2 Publisher Config Response",
                 "description": "Retrieve terminal tenant configuration result by correlation id (`thid`).",
             },
             {
-                "name": "2.1 Conversion Upload Request",
+                "name": "2.1 Publisher Upload Request",
                 "description": "Submit conversion jobs with multipart upload or JSON references.",
             },
             {
-                "name": "2.2 Conversion Upload Response",
+                "name": "2.2 Publisher Upload Response",
                 "description": "Poll asynchronous conversion status using the same thread id (thid).",
             },
             {
-                "name": "2.3 Conversion Patch",
+                "name": "2.3 Publisher Patch",
                 "description": "Promotes internal drafts explicitly flipping the `userSelected` domain.",
             },
             {
-                "name": "2.4 FHIR-like Search API",
-                "description": "Standard POST FHIR-like search via query params and body",
+                "name": "2.4 Publisher Dataset Search",
+                "description": "Standard POST dataset search (FHIR-backed implementation)",
             },
             {
-                "name": "2.5 Conversion Batch",
+                "name": "2.5 Publisher Batch",
                 "description": "Promotes reviewed resources in bulk using the same semantics as `_patch`.",
+            },
+            {
+                "name": "9. Legacy Endpoints",
+                "description": "Deprecated aliases from previous route conventions.",
+            },
+            {
+                "name": "1.3 Tenant Auth API Keys",
+                "description": "Tenant controller API for creating, disabling and removing per-email API keys with granular scopes.",
             },
         ],
     )
@@ -206,6 +228,8 @@ def create_app():
         batch_manager=batch_manager,
         search_manager=search_manager,
     )
+    register_exchange_routes(app, exchange_manager=exchange_manager)
+    register_tenant_auth_routes(app, tenant_api_key_manager=tenant_api_key_manager)
 
     app.openapi = build_custom_openapi(app)
 

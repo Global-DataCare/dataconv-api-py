@@ -28,6 +28,7 @@ class ConversionBatchManager:
         return promote_resources(
             deps=self._deps,
             tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
             sector=sector,
             resource_type=resource_type,
             request=request,

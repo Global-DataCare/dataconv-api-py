@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from .tabular_xlsx import TabularXlsxAdapter
+from .qvet import QvetAdapter
 
 
-class ApiConfigAdapter(TabularXlsxAdapter):
+class ApiConfigAdapter(QvetAdapter):
     name = "api-config"
     source_namespace = "api-config"

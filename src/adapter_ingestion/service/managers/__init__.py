@@ -10,6 +10,8 @@ from .tenant_config_poll import TenantConfigPollManager
 
 from .conversion_patch import ConversionPatchManager
 from .conversion_search import ConversionSearchManager
+from .tenant_api_keys import TenantApiKeyManager
+from .token_exchange import TokenExchangeManager
 
 __all__ = [
     "ApiManagerDependencies",
@@ -18,6 +20,8 @@ __all__ = [
     "ConversionBatchManager",
     "ConversionPatchManager",
     "ConversionSearchManager",
+    "TenantApiKeyManager",
     "TenantConfigCreateManager",
     "TenantConfigPollManager",
+    "TokenExchangeManager",
 ]

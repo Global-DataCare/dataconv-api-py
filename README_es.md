@@ -1,13 +1,13 @@
-# adapter-ingestion-py
+# dataconv-api
 
 Repositorio de pre-conversión clínica con dos modos:
 
 - `API` (modo principal para integradores y clientes).
 - `LEGACY_CLI` (solo pruebas internas/manuales).
 
-## 1) API local (recomendado, 2 terminales)
+## 1) API local
 
-Sí: para ejecutar la API en local debes activar el entorno virtual antes.
+Para ejecutar la API en local debes activar el entorno virtual antes.
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
@@ -16,10 +16,21 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 python -m pip install --upgrade pip
-python -m pip install -e ".[api,excel]"
+python -m pip install -e ".[api,gcp,postgres,excel,ai]"
 
 cp .env.local.example .env.local
 ```
+
+### Modo local `mem` (worker embebido): 1 terminal
+
+Si la ejecución local usa providers en memoria (`mem`), la API inicia worker embebido automáticamente.
+
+```bash
+source .venv/bin/activate
+./scripts/run-api-local.sh
+```
+
+### Modo no embebido (`gcloud`/producción): 2 terminales (solo ejecución manual local)
 
 Arranque en terminales separadas:
 
@@ -38,7 +49,40 @@ Importante:
 
 Swagger local:
 
-- `http://127.0.0.1:8080/api-docs`
+- URL por defecto: `http://127.0.0.1:8080/api-docs`
+- Si ejecutas sin Docker, usa el `LOCAL_PORT` configurado en tu `.env.local`.
+- Si ejecutas con Docker, usa el puerto publicado en host (`DOCKER_PORT`, por defecto igual a `LOCAL_PORT`).
+
+**Nota sobre los nombres del servicio:**
+
+- Internamente el software usa **"preconvert"** como prefijo en recursos GCP (Firestore, PubSub, GCS) por razones históricas.
+- Externamente (Docker, SDK, documentación) usamos **"dataconv"** como nombre público del producto.
+- El binario ejecutable se llama `preconversion-api`, pero es la misma cosa — ambos nombres se refieren al mismo software.
+
+### Configuración mínima recomendada (auth + alcance)
+
+Variables de entorno:
+
+```bash
+# Auth runtime
+# true  -> demo/interno (no exige Bearer de /exchange)
+# false -> producción (exige Bearer emitido por /exchange)
+DEMO_MODE=true
+
+# CSV de jurisdicciones soportadas por esta instancia.
+# Usa '*' para permitir cualquiera.
+SUPPORTED_JURISDICTIONS=ES
+
+# CSV de sectores soportados por esta instancia.
+# Usa '*' para permitir cualquiera.
+SUPPORTED_SECTORS=health-care,animal-care,onehealth-care,onehealth-research,onehealth-insurance
+```
+
+Comportamiento:
+
+- Si `SUPPORTED_JURISDICTIONS` no contiene la jurisdicción pedida, la API responde `404`.
+- Si `SUPPORTED_SECTORS` no contiene el sector pedido, la API responde `404`.
+- Si cualquiera de ambas variables es `*`, no se restringe ese eje.
 
 Si quieres levantar API + worker locales contra Google Cloud real, con Firestore para vault y PostgreSQL para search:
 
@@ -65,6 +109,12 @@ Arranque local contra cloud real:
 ./scripts/run-worker-local-gcp.sh
 ```
 
+Nota:
+
+- Esto aplica a ejecución local manual cuando no se usa worker embebido (`mem`).
+- En Docker local no hace falta abrir dos terminales manuales para API/worker.
+- En Kubernetes/cloud, API y worker se despliegan como workloads gestionados por el orquestador.
+
 Smoke HTTP completo contra la API local:
 
 ```bash
@@ -90,9 +140,9 @@ preconversion-cleanup --dry-run --pretty
 
 ## 2) Guía de uso de API con fichero real
 
-Se copió el ejemplo a:
+El ejemplo se mantiene a nivel workspace en:
 
-- `examples/input/exampleQvetES.xlsx`
+- `../examples/exampleQvetES.xlsx`
 
 Guía paso a paso (create, create-response, upload, upload-response):
 
@@ -144,7 +194,9 @@ PROCESS_MODE=cleanup ./docker_run.sh local
 
 Swagger local:
 
-- `http://127.0.0.1:8080/api-docs`
+- URL por defecto: `http://127.0.0.1:8080/api-docs`
+- Si ejecutas sin Docker, usa el `LOCAL_PORT` configurado en tu `.env.local`.
+- Si ejecutas con Docker, usa el puerto publicado en host (`DOCKER_PORT`, por defecto igual a `LOCAL_PORT`).
 
 ### 3.2 Publicar imagen en Artifact Registry (manual)
 

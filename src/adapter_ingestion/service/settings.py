@@ -59,6 +59,29 @@ def _split_csv(value: str) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def _split_csv_raw(value: str) -> tuple[str, ...]:
+    if not value:
+        return ()
+    items = [item.strip() for item in str(value).split(",")]
+    return tuple(item for item in items if item)
+
+
+def _parse_supported_values(value: str, *, upper: bool = False) -> tuple[str, ...]:
+    raw = str(value or "").strip()
+    if not raw:
+        return ("*",)
+    tokens: list[str] = []
+    for item in raw.split(","):
+        token = str(item or "").strip()
+        if not token:
+            continue
+        if token == "*":
+            return ("*",)
+        normalized = token.upper() if upper else token.lower()
+        tokens.append(normalized)
+    return tuple(tokens) if tokens else ("*",)
+
+
 def _normalize_node_env(value: str) -> str:
     normalized = str(value or "").strip().lower()
     return normalized or "development"
@@ -129,23 +152,50 @@ class ServiceSettings:
     iclaims_locale: str
     iclaims_code_domain: str
     iclaims_inference_domain: str
-    auth_mode: str
     auth_disabled_subjects: tuple[str, ...]
     auth_disabled_devices: tuple[str, ...]
+    demo_mode: bool
+    exchange_session_token_secret: str
+    exchange_session_token_ttl_seconds: int
+    exchange_oidc_issuer: str
+    exchange_oidc_audience: str
+    exchange_oidc_allowed_issuers: tuple[str, ...]
+    exchange_oidc_allowed_audiences: tuple[str, ...]
+    exchange_oidc_jwks_cache_ttl_seconds: int
+    exchange_default_allowed_scopes: str
+    exchange_allow_insecure_assertions: bool
+    exchange_allow_api_key: bool
+    exchange_api_keys: tuple[str, ...]
+    exchange_api_key_subject_default: str
+    exchange_api_key_org_default: str
     job_result_ttl_seconds: int
+    supported_jurisdictions: tuple[str, ...] = ("*",)
+    supported_sectors: tuple[str, ...] = ("*",)
 
 
 def load_settings() -> ServiceSettings:
     _load_default_dotenvs()
     node_env = _normalize_node_env(_getenv("NODE_ENV", "development"))
     iclaims_vertical = _getenv("ICLAIMS_VERTICAL", "vet")
-    sector_scope = _normalize_sector_scope(_getenv("PRECONV_SECTOR_SCOPE", ""), iclaims_vertical)
-    auth_mode = _getenv("PRECONV_AUTH_MODE", "parse-only").lower()
-    if auth_mode not in {"parse-only", "verify-id-token", "verify-vp-token", "verify-both"}:
-        auth_mode = "parse-only"
+    sector_scope = _normalize_sector_scope(
+        _getenv("PRECONV_DATASPACE_ID", "") or _getenv("PRECONV_SECTOR_SCOPE", ""),
+        iclaims_vertical,
+    )
+    exchange_allow_insecure_assertions = _getenv("EXCHANGE_ALLOW_INSECURE_ASSERTIONS", "true").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    exchange_allow_api_key = _getenv("EXCHANGE_ALLOW_API_KEY", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     return ServiceSettings(
         node_env=node_env,
-        port=int(_getenv("PORT", "8080") or "8080"),
+        port=int(_getenv("PORT", "") or _getenv("LOCAL_PORT", "8080") or "8080"),
         host=_getenv("HOST_INTERNAL_IP", "0.0.0.0"),
         db_provider=_getenv("DB_PROVIDER", "mem").lower(),
         search_provider=_getenv("SEARCH_PROVIDER", "mem").lower(),
@@ -199,8 +249,23 @@ def load_settings() -> ServiceSettings:
         iclaims_locale=_getenv("ICLAIMS_LOCALE", "es"),
         iclaims_code_domain=_getenv("ICLAIMS_CODE_DOMAIN", "none"),
         iclaims_inference_domain=_getenv("ICLAIMS_INFERENCE_DOMAIN", "none"),
-        auth_mode=auth_mode,
         auth_disabled_subjects=_split_csv(_getenv("PRECONV_AUTH_DISABLED_SUBJECTS", "")),
         auth_disabled_devices=_split_csv(_getenv("PRECONV_AUTH_DISABLED_DEVICES", "")),
+        demo_mode=_getenv("DEMO_MODE", "false").lower() in {"1", "true", "yes", "on"},
+        exchange_session_token_secret=_getenv("EXCHANGE_SESSION_TOKEN_SECRET", "dev-session-secret-change-me"),
+        exchange_session_token_ttl_seconds=_getenv_int("EXCHANGE_SESSION_TOKEN_TTL_SECONDS", 900),
+        exchange_oidc_issuer=_getenv("EXCHANGE_OIDC_ISSUER", ""),
+        exchange_oidc_audience=_getenv("EXCHANGE_OIDC_AUDIENCE", ""),
+        exchange_oidc_allowed_issuers=_split_csv_raw(_getenv("EXCHANGE_OIDC_ALLOWED_ISSUERS", "")),
+        exchange_oidc_allowed_audiences=_split_csv_raw(_getenv("EXCHANGE_OIDC_ALLOWED_AUDIENCES", "")),
+        exchange_oidc_jwks_cache_ttl_seconds=_getenv_int("EXCHANGE_OIDC_JWKS_CACHE_TTL_SECONDS", 3600),
+        exchange_default_allowed_scopes=_getenv("EXCHANGE_DEFAULT_ALLOWED_SCOPES", "dataconv.upload"),
+        exchange_allow_insecure_assertions=exchange_allow_insecure_assertions,
+        exchange_allow_api_key=exchange_allow_api_key,
+        exchange_api_keys=_split_csv(_getenv("EXCHANGE_API_KEYS", "")),
+        exchange_api_key_subject_default=_getenv("EXCHANGE_API_KEY_SUBJECT_DEFAULT", ""),
+        exchange_api_key_org_default=_getenv("EXCHANGE_API_KEY_ORG_DEFAULT", ""),
         job_result_ttl_seconds=_getenv_int("PRECONV_JOB_RESULT_TTL_SECONDS", 3600),
+        supported_jurisdictions=_parse_supported_values(_getenv("SUPPORTED_JURISDICTIONS", "*"), upper=True),
+        supported_sectors=_parse_supported_values(_getenv("SUPPORTED_SECTORS", "*"), upper=False),
     )

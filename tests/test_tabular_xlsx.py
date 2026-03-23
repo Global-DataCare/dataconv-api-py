@@ -16,6 +16,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from adapter_ingestion.models import AdapterContext
+from adapter_ingestion.manufacturers.tabular_xlsx import TabularXlsxAdapter
 from adapter_ingestion.manufacturers.wakyma import WakymaAdapter
 from adapter_ingestion.manufacturers.xlsx_common import ParsedRow
 
@@ -86,6 +87,23 @@ class TabularXlsxTests(unittest.TestCase):
             subject_id,
             f"did:web:acme.globaldatacare.es:animal:subject:{token_multibase}",
         )
+
+    def test_subject_id_uses_person_kind(self) -> None:
+        adapter = WakymaAdapter()
+        context = AdapterContext(
+            manufacturer="wakyma",
+            tenant_id="acme",
+            jurisdiction="es",
+            sector="veterinary",
+            issuer_did="did:web:acme.globaldatacare.es:employee:loader",
+            audience_did="did:web:acme.globaldatacare.es",
+            subject_did_prefix="did:web:acme.globaldatacare.es",
+            subject_kind="person",
+        )
+
+        subject_id = adapter._subject_id(context=context, subject_token="123456", species_code="100000108988")
+
+        self.assertTrue(subject_id.startswith("did:web:acme.globaldatacare.es:person:subject:"))
 
     def test_build_excluded_section_families_normalizes_valid_items(self) -> None:
         adapter = WakymaAdapter()
@@ -332,8 +350,8 @@ class TabularXlsxTests(unittest.TestCase):
             },
             schema_config={
                 "fieldMap": {
-                    "subject-id": "Paciente",
-                    "personal-id": "DNI",
+                    "subject_id": "Paciente",
+                    "personal_id": "DNI",
                     "family": "Tipo",
                     "subfamily": "Tipo",
                     "concept": "Motivo",
@@ -392,8 +410,8 @@ class TabularXlsxTests(unittest.TestCase):
             },
             schema_config={
                 "fieldMap": {
-                    "subject-id": "Paciente",
-                    "personal-id": "DNI",
+                    "subject_id": "Paciente",
+                    "personal_id": "DNI",
                     "family": "Tipo",
                     "subfamily": "Tipo",
                     "concept": "Motivo",
@@ -428,6 +446,145 @@ class TabularXlsxTests(unittest.TestCase):
 
         self.assertEqual(len(records), 1)
         self.assertTrue(records[0].subject_id.startswith("did:web:acme.globaldatacare.es:animal:subject:"))
+
+    def test_read_records_accepts_missing_loinc_with_generic_fallback(self) -> None:
+        adapter = TabularXlsxAdapter()
+        context = AdapterContext(
+            manufacturer="tabular",
+            tenant_id="acme",
+            jurisdiction="es",
+            sector="veterinary",
+            issuer_did="did:web:acme.globaldatacare.es:employee:loader",
+            audience_did="did:web:acme.globaldatacare.es",
+            subject_did_prefix="did:web:acme.globaldatacare.es",
+            strict_species_mapping=False,
+            schema_config={
+                "fieldMap": {
+                    "section": "Seccion",
+                    "family": "Familia",
+                    "subfamily": "Subfamilia",
+                    "concept": "Concepto",
+                    "subject_id": "Paciente",
+                }
+            },
+        )
+        rows = [
+            ParsedRow(
+                row_number=2,
+                values={
+                    "Seccion": "Clinica",
+                    "Familia": "Consultas",
+                    "Subfamilia": "Revision",
+                    "Concepto": "Consulta general",
+                    "Paciente": "123",
+                },
+            ),
+        ]
+
+        with NamedTemporaryFile(suffix=".xlsx") as tmp, patch(
+            "adapter_ingestion.manufacturers.tabular_xlsx.read_xlsx_rows",
+            return_value=rows,
+        ):
+            records = adapter.read_records(Path(tmp.name), context)
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].composition_section, "clinica:consultas")
+        self.assertEqual(records[0].document_category_code, "")
+        self.assertEqual(records[0].composition_type_code, "")
+        self.assertEqual(adapter.get_last_report().get("recordsDroppedMissingLoincMapping"), 0)
+        self.assertEqual(
+            adapter.get_last_report().get("missingLoincBySectionFamily"),
+            {"clinica:consultas": 1},
+        )
+
+    def test_read_records_defaults_missing_section_and_family(self) -> None:
+        adapter = TabularXlsxAdapter()
+        context = AdapterContext(
+            manufacturer="tabular",
+            tenant_id="acme",
+            jurisdiction="es",
+            sector="veterinary",
+            issuer_did="did:web:acme.globaldatacare.es:employee:loader",
+            audience_did="did:web:acme.globaldatacare.es",
+            subject_did_prefix="did:web:acme.globaldatacare.es",
+            strict_species_mapping=False,
+            schema_config={
+                "fieldMap": {
+                    "concept": "Concepto",
+                    "subject_id": "Paciente",
+                }
+            },
+        )
+        rows = [
+            ParsedRow(
+                row_number=2,
+                values={
+                    "Concepto": "Observacion libre",
+                    "Paciente": "123",
+                },
+            ),
+        ]
+
+        with NamedTemporaryFile(suffix=".xlsx") as tmp, patch(
+            "adapter_ingestion.manufacturers.tabular_xlsx.read_xlsx_rows",
+            return_value=rows,
+        ):
+            records = adapter.read_records(Path(tmp.name), context)
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].section, "default")
+        self.assertEqual(records[0].family, "default")
+        self.assertEqual(records[0].subfamily, "default")
+        self.assertEqual(records[0].composition_section, "default")
+
+    def test_read_records_sanitizes_non_concept_fields_and_birthyear(self) -> None:
+        adapter = TabularXlsxAdapter()
+        context = AdapterContext(
+            manufacturer="tabular",
+            tenant_id="acme",
+            jurisdiction="es",
+            sector="veterinary",
+            issuer_did="did:web:acme.globaldatacare.es:employee:loader",
+            audience_did="did:web:acme.globaldatacare.es",
+            subject_did_prefix="did:web:acme.globaldatacare.es",
+            strict_species_mapping=False,
+            schema_config={
+                "fieldMap": {
+                    "subject_id": "IdMascota",
+                    "concept": "Concepto",
+                    "species": "Especie",
+                    "breed": "Raza",
+                    "genderStatus": "Esterilizado",
+                    "birthyear": "Nacimiento",
+                }
+            },
+        )
+        rows = [
+            ParsedRow(
+                row_number=2,
+                values={
+                    "IdMascota": "['3345A']",
+                    "Concepto": "['texto largo con [ ] y comillas']",
+                    "Especie": "['dog']",
+                    "Raza": "['westie', 'grifon-de-bruselas']",
+                    "Esterilizado": "['True']",
+                    "Nacimiento": "2015-07-17 11:49:00.000",
+                },
+            ),
+        ]
+
+        with NamedTemporaryFile(suffix=".xlsx") as tmp, patch(
+            "adapter_ingestion.manufacturers.tabular_xlsx.read_xlsx_rows",
+            return_value=rows,
+        ):
+            records = adapter.read_records(Path(tmp.name), context)
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].species_local, "dog")
+        self.assertEqual(records[0].animal_breed_code, "westie, grifon-de-bruselas")
+        self.assertEqual(records[0].animal_gender_status_code, "neutered")
+        self.assertEqual(records[0].subject_birthyear, "2015")
+        self.assertEqual(records[0].concept, "['texto largo con [ ] y comillas']")
 
 
 if __name__ == "__main__":

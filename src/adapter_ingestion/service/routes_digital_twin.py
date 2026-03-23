@@ -3,7 +3,16 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+try:
+    from typing import Annotated, Any
+except ImportError:  # pragma: no cover
+    from typing import Any
+
+    class Annotated:  # type: ignore[no-redef]
+        def __class_getitem__(cls, params):
+            if isinstance(params, tuple) and params:
+                return params[0]
+            return params
 import json
 
 from .api_support import Body, DIDCOMM_PLAINTEXT_MEDIA_TYPE, DidcommJSONResponse, HTTPException, JSONResponse, Path, Request, Response
@@ -19,9 +28,23 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     search_manager,
 ) -> None:
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_upload",
+        status_code=202,
+        tags=["2.1 V1 Publisher Upload Request"],
+        summary="Submit conversion upload",
+        description=(
+            "Accepts conversion input and enqueues an asynchronous job.\n\n"
+            "Accepted transports are `multipart/form-data` with `file`, or "
+            "`application/didcomm-plain+json` with top-level DIDComm `attachments[]` carrying the "
+            "input file via `data.base64` or `data.links`.\n\n"
+            "Use DIDComm metadata fields `iss`, `type`, `thid`, `jti`, `iat`, `exp`. "
+            "`thid` is required for correlation and `exp >= iat` is required."
+        ),
+    )
+    @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload",
         status_code=202,
-        tags=["2.1 Conversion Upload Request"],
+        tags=["2.1 V1 Publisher Upload Request"],
         summary="Submit conversion upload",
         description=(
             "Accepts conversion input and enqueues an asynchronous job.\n\n"
@@ -83,8 +106,20 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         return None
 
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_upload-response",
+        tags=["2.2 V1 Publisher Upload Response"],
+        summary="Poll conversion result by thread id",
+        response_class=DidcommJSONResponse,
+        description=(
+            "Returns job status for a previously submitted conversion.\n\n"
+            "Use the same DIDComm `thid` sent in `_upload` and include envelope fields "
+            "`iss`, `type`, `iat`, `exp`.\n\n"
+            "Terminal job responses are retained for `PRECONV_JOB_RESULT_TTL_SECONDS`."
+        ),
+    )
+    @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload-response",
-        tags=["2.2 Conversion Upload Response"],
+        tags=["2.2 V1 Publisher Upload Response"],
         summary="Poll conversion result by thread id",
         response_class=DidcommJSONResponse,
         description=(
@@ -125,8 +160,19 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         )
 
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_patch",
+        tags=["2.3 V1 Publisher Patch"],
+        summary="Apply draft promotion via patch",
+        response_class=DidcommJSONResponse,
+        description=(
+            "Promotes a reviewed conversion thread to `userSelected=false` using `thid`.\n\n"
+            "Current review flow uses `Composition/_patch` as the governing publication action for a conversion thread. "
+            "The implementation keeps the route parameterized, but public examples should use `Composition` here."
+        ),
+    )
+    @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_patch",
-        tags=["2.3 Conversion Patch"],
+        tags=["2.3 V1 Publisher Patch"],
         summary="Apply draft promotion via patch",
         response_class=DidcommJSONResponse,
         description=(
@@ -163,8 +209,19 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         )
 
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_batch",
+        tags=["2.5 V1 Publisher Batch"],
+        summary="Promote reviewed resources in batch",
+        response_class=DidcommJSONResponse,
+        description=(
+            "Promotes reviewed resources to `userSelected=false` and projects them to search.\n\n"
+            "Current publication flow uses `Patient/_batch` as the public example path, even though the runtime keeps "
+            "the route parameterized."
+        ),
+    )
+    @app.post(
         "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_batch",
-        tags=["2.5 Conversion Batch"],
+        tags=["2.5 V1 Publisher Batch"],
         summary="Promote reviewed resources in batch",
         response_class=DidcommJSONResponse,
         description=(
@@ -201,8 +258,20 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         )
 
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{resource_type}/_search",
+        tags=["2.4 V1 Publisher Dataset Search"],
+        summary="Tenant-scoped FHIR API search",
+        response_class=JSONResponse,
+        description=(
+            "Executes tenant-scoped FHIR-like search over the SQL search projection.\n\n"
+            "This is intentionally published under `org.hl7.fhir.api` and not under `digitaltwin`, because the current "
+            "phase does not yet expose final `org.hl7.fhir.r4` / `org.hl7.fhir.r5` conversion outputs.\n\n"
+            "Supported comparator syntax today is value-prefix based: `ge`, `gt`, `le`, `lt`."
+        ),
+    )
+    @app.post(
         "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/org.hl7.fhir.api/{resource_type}/_search",
-        tags=["2.4 FHIR-like Search API"],
+        tags=["2.4 V1 Publisher Dataset Search"],
         summary="Tenant-scoped FHIR API search",
         response_class=JSONResponse,
         description=(

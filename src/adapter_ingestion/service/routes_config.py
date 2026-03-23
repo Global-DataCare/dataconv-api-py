@@ -3,16 +3,36 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+try:
+    from typing import Annotated, Any
+except ImportError:  # pragma: no cover
+    from typing import Any
+
+    class Annotated:  # type: ignore[no-redef]
+        def __class_getitem__(cls, params):
+            if isinstance(params, tuple) and params:
+                return params[0]
+            return params
 
 from .api_support import Body, DidcommJSONResponse, Path, Request, Response
 
 
 def register_config_routes(app, *, config_create_manager, config_poll_manager) -> None:  # type: ignore[no-untyped-def]
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create",
+        status_code=202,
+        tags=["1.1 V1 Publisher Config Request"],
+        summary="Request creation/update of tenant configuration",
+        description=(
+            "Stores one or more configuration entries for a tenant and software identifier token.\n\n"
+            "The requester is resolved from DIDComm field `iss` (did:web employee/system). "
+            "Envelope fields `type`, `iat`, and `exp` are required (`exp >= iat`)."
+        ),
+    )
+    @app.post(
         "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create",
         status_code=202,
-        tags=["1.1 Tenant Configuration Request"],
+        tags=["1.1 V1 Publisher Config Request"],
         summary="Request creation/update of tenant configuration",
         description=(
             "Stores one or more configuration entries for a tenant and software identifier token.\n\n"
@@ -50,8 +70,20 @@ def register_config_routes(app, *, config_create_manager, config_poll_manager) -
         return response
 
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create-response",
+        tags=["1.2 V1 Publisher Config Response"],
+        summary="Retrieve response for tenant configuration request",
+        response_class=DidcommJSONResponse,
+        description=(
+            "Retrieves the terminal result (`succeeded` or `failed`) for a previously submitted `_create` action.\n\n"
+            "Use the same DIDComm `thid` sent in `_create` and include envelope "
+            "fields `iss`, `type`, `iat`, and `exp`.\n\n"
+            "POP semantics: once delivered, this response is consumed and cannot be fetched again."
+        ),
+    )
+    @app.post(
         "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create-response",
-        tags=["1.2 Tenant Configuration Response"],
+        tags=["1.2 V1 Publisher Config Response"],
         summary="Retrieve response for tenant configuration request",
         response_class=DidcommJSONResponse,
         description=(

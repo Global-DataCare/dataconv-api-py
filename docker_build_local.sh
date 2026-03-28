@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE_NAME="${IMAGE_NAME:-preconversion-api:local}"
+IMAGE_NAME="${IMAGE_NAME:-preconversion-api:local-0.6.2}"
 NO_CACHE_FLAG="${NO_CACHE_FLAG:-false}"
 
 if [[ "${1:-}" == "--no-cache" || "${1:-}" == "-n" ]]; then

@@ -46,17 +46,19 @@ class RelatedPersonClaim:
     NAME = "RelatedPerson.name"
 
 
-class PatientClaim:
-    IDENTIFIER = "Patient.identifier"
-    ACTIVE = "Patient.active"
-    LANGUAGE = "Patient.language"
-    LINK = "Patient.link"
+class SubjectClaim:
+    ID = "Subject.id"
+    ACTIVE = "Subject.active"
+    LANGUAGE = "Subject.language"
+    LINK = "Subject.link"
+    BIRTHYEAR = "Subject.birthyear"
+    BIRTHSEX = "Subject.birthsex"
 
 
 class AnimalClaim:
-    SPECIES = "Patient.animal-species"
-    BREED = "Patient.animal-breed"
-    GENDER_STATUS = "Patient.animal-genderstatus"
+    SPECIES = "Subject.animal-species"
+    BREED = "Subject.animal-breed"
+    GENDER_STATUS = "Subject.animal-genderstatus"
 
 
 class EncounterClaim:
@@ -124,19 +126,26 @@ RelatedPersonClaims = TypedDict(
 )
 
 
-PatientClaims = TypedDict(
-    "PatientClaims",
+SubjectClaims = TypedDict(
+    "SubjectClaims",
     {
-        PatientClaim.IDENTIFIER: str,
-        PatientClaim.ACTIVE: str,
-        PatientClaim.LANGUAGE: str,
-        PatientClaim.LINK: str,
+        SubjectClaim.ID: str,
+        SubjectClaim.ACTIVE: str,
+        SubjectClaim.LANGUAGE: str,
+        SubjectClaim.LINK: str,
+        SubjectClaim.BIRTHYEAR: str,
+        SubjectClaim.BIRTHSEX: str,
         AnimalClaim.SPECIES: str,
         AnimalClaim.BREED: str,
         AnimalClaim.GENDER_STATUS: str,
     },
     total=False,
 )
+
+
+# Backwards compatibility for internal imports during the v1 -> v2 transition.
+PatientClaim = SubjectClaim
+PatientClaims = SubjectClaims
 
 
 EncounterClaims = TypedDict(

@@ -3,6 +3,7 @@
 
 from .gcp import FirestoreConfigStore, FirestoreJobStore, FirestoreVaultRepository, GCSBlobStore, PubSubJobQueue
 from .in_memory import InMemoryBlobStore, InMemoryConfigStore, InMemoryJobQueue, InMemoryJobStore, InMemoryVaultRepository
+from .filesystem import FileSystemVaultRepository
 from .search import InMemorySearchRepository, PostgresSearchRepository
 
 __all__ = [
@@ -12,6 +13,7 @@ __all__ = [
     "InMemoryBlobStore",
     "InMemoryVaultRepository",
     "InMemorySearchRepository",
+    "FileSystemVaultRepository",
     "FirestoreConfigStore",
     "FirestoreJobStore",
     "FirestoreVaultRepository",

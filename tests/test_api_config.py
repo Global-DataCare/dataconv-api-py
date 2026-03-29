@@ -74,9 +74,9 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["breed"], "breed")
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["genderStatus"], "issterilized")
 
-    def test_extract_embedded_api_config_accepts_colon_marker_and_manufacturer(self) -> None:
+    def test_extract_embedded_api_config_accepts_colon_marker_and_software_id(self) -> None:
         csv_text = (
-            "API-CONFIG:language=es:manufacturer:qvet\n"
+            "API-CONFIG:language=es:software-id:qvet-v1\n"
             ",subject_id,subject_animal-species,subject_animal-breeds,subject_animal-genderstatus,date\n"
             "tenant,_id,specie,breed,issterilized,createdat\n"
             "1,dog,westie,False,2026-03-01\n"
@@ -94,7 +94,7 @@ class ApiConfigTests(unittest.TestCase):
 
         self.assertIsNotNone(extracted)
         self.assertEqual(extracted["runtimeDefaults"]["language"], "es")
-        self.assertEqual(extracted["runtimeDefaults"]["manufacturer"], "qvet")
+        self.assertEqual(extracted["runtimeDefaults"]["softwareId"], "qvet-v1")
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["subject_id"], "_id")
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["species"], "specie")
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["breed"], "breed")
@@ -126,6 +126,9 @@ class ApiConfigTests(unittest.TestCase):
             default_audience_did = "did:web:example.org"
             default_subject_did_prefix = "did:web:example.org"
             default_species_fhir_file = str(ROOT / "configs" / "fhir-target-species.template.editable.json")
+            supported_jurisdictions = ("ES", "PT")
+            supported_sectors = ("onehealth-research", "animal-care")
+            exchange_allow_api_key = True
 
         app = _App()
         settings = _Settings()
@@ -152,6 +155,10 @@ class ApiConfigTests(unittest.TestCase):
             "Problemas que cubre este tratamiento",
         )
         self.assertEqual(payload["language"], "es")
+        self.assertEqual(payload["allowedJurisdictions"], ["ES", "PT"])
+        self.assertEqual(payload["allowedSectors"], ["onehealth-research", "animal-care"])
+        self.assertEqual(payload["auth"]["exchangeEndpoint"], "/exchange")
+        self.assertEqual(payload["auth"]["apiKeySupported"], True)
         self.assertEqual(
             payload["endpoints"]["upload"],
             "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_upload",

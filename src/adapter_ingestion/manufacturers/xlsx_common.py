@@ -56,6 +56,43 @@ def slug(value: str) -> str:
     return slug_text or "na"
 
 
+def strip_list_artifacts(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if text.startswith("[") and text.endswith("]"):
+        text = text[1:-1].strip()
+    text = re.sub(r"(^['\"]+|['\"]+$)", "", text)
+    text = re.sub(r"['\"]\s*,\s*['\"]", ", ", text)
+    text = re.sub(r"['\"]+", "", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def birth_year(value: str) -> str:
+    text = strip_list_artifacts(value)
+    if not text:
+        return ""
+    match = re.search(r"\b(19|20)\d{2}\b", text)
+    if match:
+        return match.group(0)
+    return ""
+
+
+def normalize_gender_status(value: str) -> str:
+    text = strip_list_artifacts(value)
+    if not text:
+        return ""
+
+    normalized = normalize_token(text)
+    if normalized in {"true", "1", "yes", "y", "si", "sí", "sterilized", "sterilised", "castrated", "spayed"}:
+        return "neutered"
+    if normalized in {"false", "0", "no", "n", "intact", "entero", "entera", "not neutered"}:
+        return "intact"
+    if normalized in {"neutered", "castrado", "castrada", "esterilizado", "esterilizada"}:
+        return "neutered"
+    return text
+
+
 def _col_index(cell_ref: str) -> int | None:
     match = CELL_REF_RE.match(cell_ref or "")
     if not match:

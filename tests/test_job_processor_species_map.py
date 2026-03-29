@@ -55,9 +55,15 @@ class JobProcessorSpeciesMapTests(unittest.TestCase):
             iclaims_locale="es",
             iclaims_code_domain="none",
             iclaims_inference_domain="none",
-            auth_mode="parse-only",
             auth_disabled_subjects=(),
             auth_disabled_devices=(),
+            demo_mode=False,
+            exchange_session_token_secret="dev-session-secret-change-me",
+            exchange_session_token_ttl_seconds=900,
+            exchange_oidc_issuer="",
+            exchange_oidc_audience="",
+            exchange_default_allowed_scopes="dataconv.upload",
+            exchange_allow_insecure_assertions=True,
             job_result_ttl_seconds=3600,
         )
 

@@ -16,7 +16,7 @@ class QvetAdapter(TabularXlsxAdapter):
         "family": "FAMILIA",
         "subfamily": "SUBFAMILIA",
         "concept": "CONCEPTO",
-        "subjectId": "HISTORIA_ID",
+        "subject_id": "HISTORIA_ID",
         "owner": "",
         "ownerId": "",
         "species": "ESPECIE",

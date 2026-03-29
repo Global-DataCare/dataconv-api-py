@@ -1,0 +1,8 @@
+{
+  "thid": "dcr-acme-001",
+  "status": "ok",
+  "action": "_dcr",
+  "bindingStatus": "bound",
+  "tenant_id": "acme",
+  "client_id": "dck_abc"
+}

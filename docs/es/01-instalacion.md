@@ -11,14 +11,14 @@
 Si todavía no lo tienes:
 
 ```bash
-git clone <URL-DEL-REPO> adapter-ingestion-py
-cd adapter-ingestion-py
+git clone <URL-DEL-REPO> dataconv-api-py
+cd dataconv-api-py
 ```
 
 Si ya lo tienes local:
 
 ```bash
-cd /ruta/a/adapter-ingestion-py
+cd /ruta/a/dataconv-api-py
 ```
 
 ## 2) Verificar Python
@@ -42,20 +42,28 @@ Importante:
 - Usa siempre `python -m pip` (no `pip` suelto) para evitar mezclar intérpretes.
 - Si ves `UNKNOWN-0.0.0` o `does not provide the extra 'api'`, tu `pip/setuptools` es antiguo o viene del Python de Xcode. Activa `.venv` y repite el upgrade anterior.
 
-## 4) API local (dos terminales)
+## 4) API local
 
-Para levantar el servicio HTTP completo en local necesitas instalar extras de API y ejecutar dos procesos:
-
-- `preconversion-api`
-- `preconversion-worker`
+Para levantar el servicio HTTP completo en local instala extras de API:
 
 Instalación:
 
 ```bash
 source .venv/bin/activate
 python -m pip install -e ".[api,excel]"
-cp .env.local.example .env.local
+cp env.local.example .env.local
 ```
+
+### Modo local `mem` (worker embebido): 1 terminal
+
+Con providers en memoria (`mem`), la API arranca worker embebido automáticamente:
+
+```bash
+source .venv/bin/activate
+./scripts/run-api-local.sh
+```
+
+### Modo no embebido (`gcloud`/producción): 2 terminales (solo ejecución manual local)
 
 Arranque:
 
@@ -63,21 +71,27 @@ Terminal 1:
 
 ```bash
 source .venv/bin/activate
-preconversion-api
+./scripts/run-api-local.sh
 ```
 
 Terminal 2:
 
 ```bash
 source .venv/bin/activate
-preconversion-worker
+./scripts/run-worker-local.sh
 ```
+
+Nota:
+
+- Esto aplica a ejecución local manual cuando no se usa worker embebido (`mem`).
+- En Docker local no hace falta abrir dos terminales manuales para API/worker.
+- En Kubernetes/cloud, API y worker se ejecutan como workloads gestionados por el orquestador.
 
 Importante:
 
 - La activación de `.venv` no se comparte entre terminales.
 - Si abres una terminal nueva, repite `source .venv/bin/activate`.
-- Swagger queda en `http://127.0.0.1:8080/api-docs`.
+- Swagger por defecto queda en `http://127.0.0.1:{LOCAL_PORT}/api-docs` (usa `LOCAL_PORT` y, en Docker, `DOCKER_PORT` para el host).
 
 ## 5) Ejecutar sin instalación de dependencias extra
 

@@ -1,0 +1,8 @@
+{
+  "thid": "pkce-token-001",
+  "status": "ok",
+  "action": "_token",
+  "id_token": "<JWT>",
+  "token_type": "urn:ietf:params:oauth:token-type:id_token",
+  "expires_in": 300
+}

@@ -1,0 +1,22 @@
+{
+  "thid": "pkce-token-001",
+  "type": "application/bundle-api+json",
+  "client_id": "dck_abc",
+  "code": "c2d3f1aa-1d5c-4600-b9b0-973f2f0f2f4e",
+  "code_verifier": "verifier123",
+  "body": {},
+  "meta": {
+    "jws": {
+      "protected": {
+        "alg": "ES384",
+        "kid": "controller-es384-001",
+        "jwk": {
+          "kty": "EC",
+          "crv": "P-384",
+          "x": "<x>",
+          "y": "<y>"
+        }
+      }
+    }
+  }
+}

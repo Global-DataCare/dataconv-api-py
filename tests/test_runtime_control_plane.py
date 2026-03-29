@@ -6,7 +6,6 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import sys
-import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,9 +16,6 @@ if str(SRC) not in sys.path:
 from adapter_ingestion.runtime import ConfigKey, JobRequest, JobStatus, PreconversionControlPlane
 from dataclasses import replace
 from adapter_ingestion.runtime.adapters import (
-    FileSystemConfigStore,
-    FileSystemJobQueue,
-    FileSystemJobStore,
     InMemoryConfigStore,
     InMemoryJobQueue,
     InMemoryJobStore,
@@ -119,39 +115,6 @@ class RuntimeControlPlaneTests(unittest.TestCase):
         self.assertTrue(bool(delivered.delivered_at))
         self.assertTrue(control.delete_job(done.job_id))
         self.assertIsNone(control.get_job(done.job_id))
-
-    def test_job_lifecycle_filesystem(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            control = PreconversionControlPlane(
-                config_store=FileSystemConfigStore(root),
-                job_store=FileSystemJobStore(root),
-                job_queue=FileSystemJobQueue(root),
-            )
-            queued = control.submit_job(
-                JobRequest(
-                    alternate_name="franquicia-x",
-                    manufacturer="qvet",
-                    manufacturer_version="2026.01",
-                    country="es",
-                    facility_id="sevilla-01",
-                    input_ref="upload://session/input.xlsx",
-                )
-            )
-            self.assertEqual(queued.status, JobStatus.QUEUED)
-            by_thid = control.get_job_by_thid(queued.thid)
-            self.assertIsNotNone(by_thid)
-            self.assertEqual(by_thid.job_id, queued.job_id)
-
-            running = control.claim_next_job(worker_id="worker-fs")
-            self.assertIsNotNone(running)
-            self.assertEqual(running.status, JobStatus.RUNNING)
-
-            failed = control.mark_job_failed(running.job_id, error="mapping missing for species")
-            self.assertEqual(failed.status, JobStatus.FAILED)
-            self.assertIn("mapping", failed.error)
-            self.assertTrue(control.delete_job(failed.job_id))
-            self.assertIsNone(control.get_job(failed.job_id))
 
     def test_cleanup_expired_jobs_scans_all_tenants(self) -> None:
         control = PreconversionControlPlane(

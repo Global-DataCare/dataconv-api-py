@@ -1,0 +1,7 @@
+{
+  "thid": "pkce-code-001",
+  "status": "ok",
+  "action": "_code",
+  "code": "c2d3f1aa-1d5c-4600-b9b0-973f2f0f2f4e",
+  "expires_in": 300
+}

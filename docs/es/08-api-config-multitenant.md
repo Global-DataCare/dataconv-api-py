@@ -56,7 +56,9 @@ Desglose práctico de cada entry en `data[]`:
   - Ejemplo: si fila 1 es título y la cabecera está en fila 2, usar `headerRowIndex=2`.
 - `config.mappingConfig.excludedSectionFamilies` (opcional recomendado): exclusiones por categoría. Si una fila coincide, no se procesa ni se devuelve en `body.data[]`.
 - `config.speciesLocalToFhirCode` (recomendado): traducción de textos locales (`Perro`, `CANINA`, etc.) a código FHIR.
-- `config.runtimeDefaults` (opcional): defaults de ejecución (`language`, `dataUse`, etc.).
+- `config.runtimeDefaults` (opcional): defaults de ejecución (`language`, `dataUse`, `subjectKind`, etc.).
+  - En archivos API-CONFIG embarcados, también aceptamos marcadores con `;` o `:` (ej. `API-CONFIG:language=es:software-id=qvet-v1:subjectKind=animal`).
+  - Si llega `software-id` sin versión (ej. `qvet`) y existe plantilla `qvet-v1.json`, se aplica `v1` por defecto para la autoconfiguración implícita.
 - `config.speciesFhir` (opcional avanzado): solo enviar si quieres sobrescribir el catálogo base del servidor.
   - Si no se envía, la API usa el catálogo por defecto (`PRECONV_DEFAULT_SPECIES_FHIR_FILE`).
 
@@ -72,17 +74,17 @@ Nota sobre `sourceId`:
 
 ## 3) Endpoints implementados (patrón gateway, POST-only, request/response)
 
-1. `POST /host/cds-{jurisdiction}/v1/animal-care/{alternate-name}/config/didcomm/_create`
+1. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create`
 Request de alta/actualización de configuración por organización (acepta una o varias entries en `body.data[]`).
 Cada item de `data[]` es un objeto de configuración directo (sin wrapper `payload`), usando `config` como wrapper interno.
 
-2. `POST /host/cds-{jurisdiction}/v1/animal-care/{alternate-name}/config/didcomm/_create-response`
+2. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
 Retrieve de respuesta de `_create` por `thid` (patrón `action` -> `action-response`).
 
-3. `POST /{alternate-name}/cds-{jurisdiction}/v1/animal-care/conversion/{software-id}/{csv|excel}/_upload`
+3. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
 Request de subida y encolado asíncrono de conversión.
 
-4. `POST /{alternate-name}/cds-{jurisdiction}/v1/animal-care/conversion/{software-id}/{csv|excel}/_upload-response`
+4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
 Retrieve de estado/resultado asíncrono por `thid` (patrón `action` -> `action-response`).
 
 Respuesta:
@@ -142,7 +144,7 @@ Nota de operación:
 Subida de Excel con `multipart/form-data`:
 
 ```bash
-curl -X POST "https://<host>/<alternate-name>/cds-ES/v1/animal-care/conversion/qvet-v1.0/excel/_upload" \
+curl -X POST "https://<host>/publisher/cds-ES/v1/animal-care/<alternate-name>/dataset/qvet-v1.0/excel/_upload" \
   -F "file=@/ruta/export.xlsx" \
   -F "iss=did:web:clinic.example:employee:it:loader" \
   -F "type=https://didcomm.org/plaintext/2.0/message" \
@@ -155,7 +157,7 @@ curl -X POST "https://<host>/<alternate-name>/cds-ES/v1/animal-care/conversion/q
 Subida DIDComm con `attachments[]` y URL externa:
 
 ```bash
-curl -X POST "https://<host>/<alternate-name>/cds-ES/v1/animal-care/conversion/qvet-v1.0/excel/_upload" \
+curl -X POST "https://<host>/publisher/cds-ES/v1/animal-care/<alternate-name>/dataset/qvet-v1.0/excel/_upload" \
   -H "Content-Type: application/didcomm-plain+json" \
   -d '{\
     "iss":"did:web:clinic.example:employee:it:loader",\
@@ -177,7 +179,7 @@ curl -X POST "https://<host>/<alternate-name>/cds-ES/v1/animal-care/conversion/q
 Polling asíncrono:
 
 ```bash
-curl -X POST "https://<host>/<alternate-name>/cds-ES/v1/animal-care/conversion/qvet-v1.0/excel/_upload-response" \
+curl -X POST "https://<host>/publisher/cds-ES/v1/animal-care/<alternate-name>/dataset/qvet-v1.0/excel/_upload-response" \
   -H "Content-Type: application/didcomm-plain+json" \
   -d '{"iss":"did:web:clinic.example:employee:it:loader","type":"https://didcomm.org/plaintext/2.0/message","iat":1760000000,"exp":1760003600,"thid":"<thid-enviado-en-upload>"}'
 ```
@@ -280,18 +282,18 @@ $CreateBody = @"
   ]
 }
 "@
-curl.exe -sS -X POST "$Base/host/cds-$Jur/v1/animal-care/$Alt/config/didcomm/_create" `
+curl.exe -sS -X POST "$Base/publisher/cds-$Jur/v1/animal-care/$Alt/$Man/config/_create" `
   -H "Content-Type: application/didcomm-plain+json" `
   --data-raw $CreateBody
 
 # 1b) recuperar respuesta de configuracion
 $CreatePollBody = "{""iss"":""$Iss"",""type"":""https://didcomm.org/plaintext/2.0/message"",""iat"":$Now,""exp"":$Exp,""thid"":""cfg-$Thid""}"
-curl.exe -sS -X POST "$Base/host/cds-$Jur/v1/animal-care/$Alt/config/didcomm/_create-response" `
+curl.exe -sS -X POST "$Base/publisher/cds-$Jur/v1/animal-care/$Alt/$Man/config/_create-response" `
   -H "Content-Type: application/didcomm-plain+json" `
   --data-raw $CreatePollBody
 
 # 2) subir fichero y encolar
-curl.exe -sS -X POST "$Base/$Alt/cds-$Jur/v1/animal-care/conversion/$Man/excel/_upload" `
+curl.exe -sS -X POST "$Base/publisher/cds-$Jur/v1/animal-care/$Alt/dataset/$Man/excel/_upload" `
   -F "file=@C:\ruta\export.xlsx" `
   -F "iss=$Iss" `
   -F "type=https://didcomm.org/plaintext/2.0/message" `
@@ -302,7 +304,7 @@ curl.exe -sS -X POST "$Base/$Alt/cds-$Jur/v1/animal-care/conversion/$Man/excel/_
 
 # 3) consultar estado
 $PollBody = "{""iss"":""$Iss"",""type"":""https://didcomm.org/plaintext/2.0/message"",""iat"":$Now,""exp"":$Exp,""thid"":""$Thid""}"
-curl.exe -sS -X POST "$Base/$Alt/cds-$Jur/v1/animal-care/conversion/$Man/excel/_upload-response" `
+curl.exe -sS -X POST "$Base/publisher/cds-$Jur/v1/animal-care/$Alt/dataset/$Man/excel/_upload-response" `
   -H "Content-Type: application/didcomm-plain+json" `
   --data-raw $PollBody
 ```
@@ -389,32 +391,30 @@ Notas:
 ## 7) Modo de autenticación del envelope (runtime)
 
 Variables de entorno:
-- `PRECONV_AUTH_MODE=parse-only|verify-id-token|verify-vp-token|verify-both`
+- `DEMO_MODE=true|false`
 - `PRECONV_AUTH_DISABLED_SUBJECTS` (lista CSV de sujetos desactivados/revocados)
 - `PRECONV_AUTH_DISABLED_DEVICES` (lista CSV de dispositivos desactivados/revocados)
 - `PRECONV_JOB_RESULT_TTL_SECONDS` (retención de respuesta terminal para `_upload-response`; `-1` desactiva expiración)
 - `PRECONV_CLEANUP_SCHEDULE` (solo despliegue K8s; frecuencia del CronJob de limpieza global)
 
 Comportamiento:
-- `parse-only` (solo para pruebas internas/demostraciones): no valida firma criptográfica de tokens; extrae claims si hay `id_token`/`vp_token`.
-- `verify-id-token`: exige `id_token` en cada request DIDComm pública.
-- `verify-vp-token`: exige `vp_token` en cada request DIDComm pública.
-- `verify-both`: exige ambos y comprueba coherencia de sujeto entre ambos.
+- `DEMO_MODE=true` (solo pruebas internas/demostraciones): no exige Bearer emitido por `/exchange`.
+- `DEMO_MODE=false` (producción): exige `Authorization: Bearer <token>` válido emitido por `/exchange`.
 
 Recomendación de operación:
-- En entornos reales, no usar `parse-only`.
-- Usar al menos `verify-id-token` (o `verify-vp-token` / `verify-both` según el perfil de confianza requerido).
+- En entornos reales, usar `DEMO_MODE=false`.
+- Reservar `DEMO_MODE=true` exclusivamente para demos/pruebas controladas.
 
 Bearer en Swagger (Authorize):
-- La API acepta `Authorization: Bearer <token>` como fallback de `id_token`.
+- La API acepta `Authorization: Bearer <token>` como mecanismo de autenticación.
 - El token puede venir de cualquier proveedor de identidad soportado por tu despliegue
   (Google, Microsoft Entra ID, eIDAS u otro equivalente), siempre con la `audience` esperada.
-- Ejemplo demo (`PRECONV_AUTH_MODE=parse-only`): `Bearer demo-token`.
-- Ejemplo producción (`verify-*`): `Bearer <JWT id_token>`.
+- Ejemplo demo (`DEMO_MODE=true`): se puede usar `Bearer demo-token` o no enviar Bearer de exchange.
+- Ejemplo producción (`DEMO_MODE=false`): `Bearer <session access token de /exchange>`.
 - En Swagger -> `Authorize` -> pegar `Bearer <token>`.
 
 Notas operativas:
-- En esta fase, `verify-*` valida presencia/formato JWT + coherencia básica; la verificación criptográfica completa se deja para la siguiente iteración.
+- En esta fase, en producción se valida el Bearer de sesión emitido por `/exchange`.
 - Si un sujeto/dispositivo aparece en listas de desactivación/revocación, la API devuelve `403`.
 
 ## 8) Qué se reutiliza del repo actual

@@ -1,0 +1,25 @@
+{
+  "schemaConfig": {
+    "headerRowIndex": 1,
+    "fieldMap": {
+      "subject_id": "_id",
+      "species": "specie",
+      "breed": "breed",
+      "subject_birhtsex": "sex",
+      "birthyear": "birthdate",
+      "observation_weight": "weight",
+      "genderStatus": "issterilized",
+      "origin": "origin",
+      "date": "createdat",
+      "procedure_code-display": "petidvaccinestatus",
+      "procedure-subpotent-date": "vaccineexpirationdate",
+      "coverage_insurer": "insurancecompany",
+      "coverage_period-end": "insuranceexpirationdate",
+      "subject_address-postalcode": "zipcode",
+      "subject_address-country": "country"
+    }
+  },
+  "runtimeDefaults": {
+    "language": "es"
+  }
+}

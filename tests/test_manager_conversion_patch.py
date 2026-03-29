@@ -89,9 +89,22 @@ class TestConversionPatchManager(unittest.TestCase):
                 iclaims_locale="es",
                 iclaims_code_domain="none",
                 iclaims_inference_domain="none",
-                auth_mode="parse-only",
                 auth_disabled_subjects=(),
                 auth_disabled_devices=(),
+                demo_mode=True,
+                exchange_session_token_secret="dev-session-secret-change-me",
+                exchange_session_token_ttl_seconds=900,
+                exchange_oidc_issuer="",
+                exchange_oidc_audience="",
+                exchange_oidc_allowed_issuers=(),
+                exchange_oidc_allowed_audiences=(),
+                exchange_oidc_jwks_cache_ttl_seconds=3600,
+                exchange_default_allowed_scopes="dataconv.upload",
+                exchange_allow_insecure_assertions=True,
+                exchange_allow_api_key=False,
+                exchange_api_keys=(),
+                exchange_api_key_subject_default="",
+                exchange_api_key_org_default="",
                 job_result_ttl_seconds=3600,
             ),
             control_plane=SimpleNamespace(),
@@ -124,6 +137,15 @@ class TestConversionPatchManager(unittest.TestCase):
         
         self.assertEqual(res["body"]["status"], "success")
         self.assertEqual(res["body"]["promotedCount"], 2)
+        self.assertEqual(res["body"]["issues"]["resourceType"], "OperationOutcome")
+        self.assertEqual(res["body"]["issues"]["issue"][0]["severity"], "information")
+        self.assertNotIn("publication", res["body"])
+        self.assertGreaterEqual(len(res["body"]["data"]), 1)
+        self.assertEqual(res["body"]["data"][0]["resource"]["@type"], "dcat:Dataset")
+        self.assertEqual(
+            res["body"]["data"][0]["resource"]["dcat:distribution"][0]["dcat:accessURL"],
+            "https://globaldatacare.es/publisher/cds-es/v1/onehealth-research/test-tenant-123/dataset/Composition/_search",
+        )
         
         # Verify changes in Vault
         promoted_comp = vault_repo.get(vault_id, "comp-1", "Composition")

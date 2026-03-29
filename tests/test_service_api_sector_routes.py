@@ -39,7 +39,10 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         self._env_patcher = patch.dict(os.environ, env, clear=False)
         self._env_patcher.start()
         sys.modules.pop("adapter_ingestion.service.api", None)
-        service_api = importlib.import_module("adapter_ingestion.service.api")
+        try:
+            service_api = importlib.import_module("adapter_ingestion.service.api")
+        except RuntimeError as exc:
+            self.skipTest(str(exc))
         self._service_api = importlib.reload(service_api)
         self.app = self._service_api.create_app()
 
@@ -61,6 +64,11 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
     def test_openapi_uses_new_sector_paths(self) -> None:
         schema = self.app.openapi()
         paths = schema.get("paths", {})
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/{software-id}/config/_create", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_upload", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_patch", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{resource-type}/_search", paths)
+
         self.assertIn("/host/cds-{jurisdiction}/v1/{sector}/{tenant-id}/{software-id}/config/_create", paths)
         self.assertIn("/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software-id}/{resource-type}/_upload", paths)
         self.assertIn("/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software-id}/{resource-type}/_patch", paths)

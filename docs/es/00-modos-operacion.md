@@ -29,11 +29,11 @@ Procesos:
 Flujo (POST-only, estilo gateway):
 
 1. Crear/actualizar configuración tenant:
-   `POST /host/cds-{jurisdiction}/v1/animal-care/{alternateName}/config/didcomm/_create`
+   `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternateName}/{softwareId}/config/_create`
 2. Subir y encolar conversión:
-   `POST /{alternateName}/cds-{jurisdiction}/v1/animal-care/conversion/{manufacturer}/{csv|excel}/_upload`
+   `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternateName}/dataset/{softwareId}/{csv|excel}/_upload`
 3. Recuperar respuesta por `thid`:
-   `POST /{alternateName}/cds-{jurisdiction}/v1/animal-care/conversion/{manufacturer}/{csv|excel}/_upload-response`
+   `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternateName}/dataset/{softwareId}/{csv|excel}/_upload-response`
 4. El worker genera exactamente los mismos artefactos lógicos del modo CLI, pero en el `BlobStore` configurado.
 
 ## Contrato actual de salida (canónico)

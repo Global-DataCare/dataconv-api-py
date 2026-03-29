@@ -21,6 +21,7 @@ from ..api_support import (
     _extract_payload_value,
     _extract_requested_by,
     _extract_required_type,
+    _enforce_supported_scope,
     _job_log_fields,
     _merge_multipart_metadata,
     _normalize_country_code,
@@ -35,6 +36,8 @@ from ..api_config import (
     is_reserved_api_config_software_id,
 )
 from ..defaults import default_tenant_config_payload
+from ..defaults import load_software_id_preset
+from ..defaults import resolve_software_id_default_template
 from ..observability import log_event
 from ..research import build_upload_response_path
 from .dependencies import ApiManagerDependencies
@@ -72,6 +75,7 @@ class ConversionUploadManager:
         body: dict[str, Any] | None,
     ) -> None:
         payload = body if isinstance(body, dict) else {}
+        _enforce_supported_scope(jurisdiction, sector, self._deps.settings)
         try:
             form_data = await request.form()
         except Exception:
@@ -115,6 +119,7 @@ class ConversionUploadManager:
             self._deps.settings,
             authorization_header=auth_header,
             require_token=True,
+            required_scopes={"dataconv.upload"},
         )
         thid = str(_extract_payload_value(payload, "thid") or "").strip()
         if not thid:
@@ -192,14 +197,45 @@ class ConversionUploadManager:
                     extracted_config = extract_embedded_api_config(Path(tmp.name))
 
                 if extracted_config:
-                    base_config = (
-                        dict(resolved_config.content or {})
-                        if resolved_config
-                        else default_tenant_config_payload(self._deps.settings)
+                    runtime_defaults = extracted_config.get("runtimeDefaults")
+                    embedded_software_id = ""
+                    if isinstance(runtime_defaults, dict):
+                        embedded_software_id = str(runtime_defaults.get("softwareId") or "").strip()
+                    if not embedded_software_id:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                "softwareId api-config requires embedded marker software-id=<value> "
+                                "to resolve the implicit target configuration"
+                            ),
+                        )
+                    resolved_embedded_software_id = resolve_software_id_default_template(embedded_software_id)
+                    target_manufacturer_name, target_manufacturer_version = _resolve_manufacturer_and_version(
+                        resolved_embedded_software_id,
+                        "",
                     )
+                    target_selector = ConfigKey(
+                        alternate_name=tenant_id,
+                        manufacturer=target_manufacturer_name,
+                        sector=sector,
+                        manufacturer_version=target_manufacturer_version,
+                        country=country_code,
+                        facility_id=facility_id,
+                    )
+                    target_resolved_config = self._deps.control_plane.resolve_config(target_selector)
+                    if target_resolved_config:
+                        base_config = dict(target_resolved_config.content or {})
+                    else:
+                        base_payload = default_tenant_config_payload(self._deps.settings)
+                        preset_payload = load_software_id_preset(resolved_embedded_software_id)
+                        base_config = (
+                            deep_merge_dicts(base_payload, preset_payload)
+                            if isinstance(preset_payload, dict)
+                            else base_payload
+                        )
                     merged_config = deep_merge_dicts(base_config, extracted_config)
                     self._deps.control_plane.upsert_config(
-                        key=selector,
+                        key=target_selector,
                         content=merged_config,
                         updated_by=effective_requested_by or "system-bootstrap",
                     )
@@ -212,9 +248,16 @@ class ConversionUploadManager:
                         ),
                     )
             elif not resolved_config:
+                base_payload = default_tenant_config_payload(self._deps.settings)
+                preset_payload = load_software_id_preset(software_id)
+                autoconfig_payload = (
+                    deep_merge_dicts(base_payload, preset_payload)
+                    if isinstance(preset_payload, dict)
+                    else base_payload
+                )
                 self._deps.control_plane.upsert_config(
                     key=selector,
-                    content=default_tenant_config_payload(self._deps.settings),
+                    content=autoconfig_payload,
                     updated_by=effective_requested_by or "system-bootstrap",
                 )
 

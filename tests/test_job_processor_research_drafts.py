@@ -66,9 +66,15 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
             iclaims_locale="es",
             iclaims_code_domain="none",
             iclaims_inference_domain="none",
-            auth_mode="parse-only",
             auth_disabled_subjects=(),
             auth_disabled_devices=(),
+            demo_mode=False,
+            exchange_session_token_secret="dev-session-secret-change-me",
+            exchange_session_token_ttl_seconds=900,
+            exchange_oidc_issuer="",
+            exchange_oidc_audience="",
+            exchange_default_allowed_scopes="dataconv.upload",
+            exchange_allow_insecure_assertions=True,
             job_result_ttl_seconds=3600,
         )
 
@@ -115,11 +121,11 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
                     "data": [
                         {
                             "resource": {
-                                "resourceType": "Patient",
-                                "id": "patient-1",
+                                "resourceType": "Subject",
+                                "id": "subject-1",
                                 "meta": {
                                     "claims": {
-                                        "Patient.identifier": "HISTORIA-001",
+                                        "Subject.id": "HISTORIA-001",
                                     }
                                 },
                                 "contained": [
@@ -180,10 +186,10 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         vault_data = vault_repo._collections.get(vault_id, {})
         
         resource_types = sorted(list(k for k in vault_data.keys() if "_" not in k))
-        self.assertEqual(resource_types, ["Composition", "DocumentReference", "Encounter", "Patient"])
+        self.assertEqual(resource_types, ["Composition", "DocumentReference", "Encounter", "Subject"])
         
-        patient = vault_repo.get(vault_id, "patient-1", "Patient")
-        self.assertEqual(patient["meta"]["claims"]["Patient.userSelected"], "true")
+        subject = vault_repo.get(vault_id, "subject-1", "Subject")
+        self.assertEqual(subject["meta"]["claims"]["Subject.userSelected"], "true")
         
         docref = vault_repo.get(vault_id, "docref-1", "DocumentReference")
         self.assertEqual(docref["meta"]["claims"]["DocumentReference.userSelected"], "true")
@@ -202,9 +208,9 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         composition_payload = json.loads(
             blob_store.get_bytes(f"jobs/{queued.job_id}/composition-message.json").decode("utf-8")
         )
-        patient = composition_payload["body"]["data"][0]["resource"]
-        self.assertEqual(patient["meta"]["claims"]["Patient.userSelected"], "true")
-        document = next(item for item in patient["contained"] if item["resourceType"] == "DocumentReference")
+        subject = composition_payload["body"]["data"][0]["resource"]
+        self.assertEqual(subject["meta"]["claims"]["Subject.userSelected"], "true")
+        document = next(item for item in subject["contained"] if item["resourceType"] == "DocumentReference")
         self.assertEqual(document["meta"]["claims"]["DocumentReference.userSelected"], "true")
         self.assertEqual(document["docStatus"], "preliminary")
 

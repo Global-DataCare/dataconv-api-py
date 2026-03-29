@@ -21,14 +21,12 @@ def install_components(schema: dict[str, Any]) -> None:
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": (
-            "Optional bearer token used as `id_token` fallback.\n\n"
-            "Use an identity token issued by a recognized identity provider "
-            "(IdP, for example Google, Microsoft Entra ID, eIDAS, or equivalent), "
-            "with the audience expected by this API.\n\n"
-            "Examples:\n"
-            "- Demo (`PRECONV_AUTH_MODE=parse-only`): `Bearer demo-token`.\n"
-            "- Production (`verify-*` modes): `Bearer <JWT id_token>`.\n\n"
-            "Click Authorize in Swagger and paste `Bearer <token>`."
+            "DataConv access token issued by controller bootstrap exchange `/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange` and by tenant-scoped identity exchange `.../{tenant-id}/identity/auth/_exchange`.\n\n"
+            "1. Bootstrap controller/organization context with controller exchange.\n"
+            "2. Copy the returned `access_token`.\n"
+            "3. Click Authorize here and paste `Bearer <access_token>`.\n\n"
+            "Demo (`DEMO_MODE=true`): Bearer token is still required; signature verification is bypassed.\n"
+            "Production (`DEMO_MODE=false`): Bearer token is required and fully validated."
         ),
     }
 
@@ -40,6 +38,8 @@ def install_components(schema: dict[str, Any]) -> None:
     schemas.update(_core_schemas())
     schemas.update(_config_schemas())
     schemas.update(_conversion_schemas())
+    schemas.update(_exchange_schemas())
+    schemas.update(_tenant_api_key_schemas())
 
 
 def _core_schemas() -> dict[str, Any]:
@@ -138,9 +138,10 @@ def _config_schemas() -> dict[str, Any]:
                         "family": {"type": "string", "example": "FAMILIA"},
                         "subfamily": {"type": "string", "example": "SUBFAMILIA"},
                         "concept": {"type": "string", "example": "CONCEPTO"},
-                        "subjectId": {"type": "string", "example": "HISTORIA_ID"},
-                        "subject-id": {"type": "string", "example": "HISTORIA_ID"},
-                        "personal-id": {"type": "string", "example": "DNI"},
+                        "subject_id": {"type": "string", "example": "HISTORIA_ID"},
+                        "personal_id": {"type": "string", "example": "DNI"},
+                        "birthyear": {"type": "string", "example": "FECHA_NACIMIENTO"},
+                        "birthsex": {"type": "string", "example": "SEXO"},
                         "owner": {"type": "string", "example": "PROPIETARIO"},
                         "ownerId": {"type": "string", "example": "NIF_PROPIETARIO"},
                         "species": {"type": "string", "example": "ESPECIE"},
@@ -208,7 +209,9 @@ def _config_schemas() -> dict[str, Any]:
                     "family": "FAMILIA",
                     "subfamily": "SUBFAMILIA",
                     "concept": "CONCEPTO",
-                    "subjectId": "HISTORIA_ID",
+                    "subject_id": "HISTORIA_ID",
+                    "birthyear": "FECHA_NACIMIENTO",
+                    "birthsex": "SEXO",
                     "owner": "PROPIETARIO",
                     "ownerId": "NIF_PROPIETARIO",
                     "species": "ESPECIE",
@@ -253,6 +256,7 @@ def _config_schemas() -> dict[str, Any]:
             "properties": {
                 "language": {"type": "string", "example": "es-ES"},
                 "dataUse": {"type": "string", "enum": ["secondary", "individual"], "example": "secondary"},
+                "logComposition": {"type": "boolean", "example": False},
                 "subjectKind": {"type": "string", "example": "animal"},
                 "subjectDidPrefix": {"type": "string", "example": "did:web:clinic.example"},
                 "includeFields": {"type": "array", "items": {"type": "string"}},
@@ -261,6 +265,7 @@ def _config_schemas() -> dict[str, Any]:
             "example": {
                 "language": "es-ES",
                 "dataUse": "secondary",
+                "logComposition": False,
                 "subjectKind": "animal",
                 "subjectDidPrefix": "did:web:clinic.example",
                 "includeFields": ["FECHA", "CONCEPTO", "SECCION", "FAMILIA", "SUBFAMILIA", "SUBJECT_ID", "ESPECIE"],
@@ -283,7 +288,9 @@ def _config_schemas() -> dict[str, Any]:
                         "family": "FAMILIA",
                         "subfamily": "SUBFAMILIA",
                         "concept": "CONCEPTO",
-                        "subjectId": "HISTORIA_ID",
+                        "subject_id": "HISTORIA_ID",
+                        "birthyear": "FECHA_NACIMIENTO",
+                        "birthsex": "SEXO",
                         "owner": "PROPIETARIO",
                         "ownerId": "NIF_PROPIETARIO",
                         "species": "ESPECIE",
@@ -298,6 +305,7 @@ def _config_schemas() -> dict[str, Any]:
                 "runtimeDefaults": {
                     "language": "es-ES",
                     "dataUse": "secondary",
+                    "logComposition": False,
                     "subjectKind": "animal",
                     "subjectDidPrefix": "did:web:clinic.example",
                     "includeFields": ["FECHA", "CONCEPTO", "SECCION", "FAMILIA", "SUBFAMILIA", "SUBJECT_ID", "ESPECIE"],
@@ -560,10 +568,12 @@ def _conversion_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
-                "vp_token": {"type": "string"},
-                "id_token": {"type": "string"},
+                # TODO(auth-cleanup): id_token/vp_token in the DIDComm body are only used in
+                # DEMO_MODE for subject tracking. In production the Bearer header is the sole
+                # credential carrier. Remove these fields from the schema once the SDK stops
+                # sending them in the request body (breaking change — coordinate with SDK release).
             },
-            "additionalProperties": False,
+            "additionalProperties": True,
         },
         "DidcommPromotionResponse": {
             "type": "object",
@@ -638,5 +648,227 @@ def _conversion_schemas() -> dict[str, Any]:
                     }
                 ],
             },
+        },
+    }
+
+
+def _exchange_schemas() -> dict[str, Any]:
+    return {
+        "DidcommAuthRequest": {
+            "type": "object",
+            "required": ["body", "meta"],
+            "description": (
+                "DIDComm-plain auth envelope for tenant-scoped auth endpoints.\n\n"
+                "- OAuth/PKCE fields (`client_id`, `code_challenge`, `code`, `code_verifier`, etc.) travel at top-level.\n"
+                "- In `2.1 _dcr` backend SDK profile, `client_id` carries the API key value used for binding.\n"
+                "- `body` is kept for DIDComm compatibility and can be `{}` for auth requests.\n"
+                "- `meta.jws.protected.jwk` carries the controller message-signing public key."
+            ),
+            "properties": {
+                "thid": {"type": "string", "example": "auth-thid-001"},
+                "type": {"type": "string", "example": "application/bundle-api+json"},
+                "iat": {"type": "integer", "example": 1760000000},
+                "exp": {"type": "integer", "example": 1760003600},
+                "body": {"type": "object", "additionalProperties": True},
+                "attachments": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
+                "meta": {
+                    "type": "object",
+                    "properties": {
+                        "jws": {
+                            "type": "object",
+                            "properties": {
+                                "protected": {
+                                    "type": "object",
+                                    "properties": {
+                                        "alg": {"type": "string", "example": "ES384"},
+                                        "kid": {"type": "string", "example": "controller-es384-001"},
+                                        "jwk": {"type": "object", "additionalProperties": True},
+                                    },
+                                    "required": ["jwk"],
+                                }
+                            },
+                        }
+                    },
+                    "required": ["jws"],
+                },
+            },
+            "additionalProperties": True,
+        },
+        "AuthAsyncAcceptedResponse": {
+            "type": "object",
+            "required": ["detail"],
+            "properties": {
+                "detail": {"type": "string", "example": "Accepted"},
+            },
+            "description": "Submit-step response metadata is carried in HTTP headers (`Location`, `Retry-After`).",
+            "additionalProperties": True,
+        },
+        "AuthAsyncPollResponse": {
+            "type": "object",
+            "required": ["thid"],
+            "properties": {
+                "thid": {"type": "string", "example": "auth-thid-001"},
+                "status": {"type": "string", "example": "ok"},
+                "action": {"type": "string", "example": "_token"},
+                "code": {"type": "string", "example": "c2d3f1aa-1d5c-4600-b9b0-973f2f0f2f4e"},
+                "id_token": {"type": "string", "example": "<JWT>"},
+                "token_type": {"type": "string", "example": "urn:ietf:params:oauth:token-type:id_token"},
+                "expires_in": {"type": "integer", "example": 300},
+                "access_token": {"type": "string", "example": "<JWT>"},
+                "scope": {"type": "string", "example": "dataconv.upload dataconv.search"},
+            },
+            "additionalProperties": True,
+        },
+        "TokenExchangeRequest": {
+            "type": "object",
+            "required": ["subject_token", "subject_token_type"],
+            "description": (
+                "RFC 8693 token exchange request used in controller bootstrap (`.../organization/dataspace/auth/_exchange`) and tenant-scoped "
+                "auth exchange step (`.../identity/auth/_exchange`)."
+            ),
+            "properties": {
+                "grant_type": {
+                    "type": "string",
+                    "default": "urn:ietf:params:oauth:grant-type:token-exchange",
+                    "example": "urn:ietf:params:oauth:grant-type:token-exchange",
+                    "description": "RFC 8693 grant type. Optional — value is ignored; only token-exchange is supported.",
+                },
+                "subject_token": {
+                    "type": "string",
+                    "description": "OIDC `id_token` JWT issued by a trusted identity provider.",
+                },
+                "subject_token_type": {
+                    "type": "string",
+                    "default": "urn:ietf:params:oauth:token-type:id_token",
+                    "example": "urn:ietf:params:oauth:token-type:id_token",
+                },
+                "scope": {
+                    "type": "string",
+                    "example": "dataconv.upload dataconv.search",
+                    "description": "Space-separated list of requested scopes.",
+                },
+                "api_key": {
+                    "type": "string",
+                    "description": "Tenant-issued API key. If present, scope is derived from the key policy.",
+                },
+                "organization": {
+                    "type": "string",
+                    "description": "Tenant id — required when `api_key` is provided.",
+                },
+                "vp_token": {
+                    "type": "string",
+                    "description": "Optional Verifiable Presentation JWT for VP-token binding.",
+                },
+            },
+            "additionalProperties": False,
+        },
+        "TokenExchangeResponse": {
+            "type": "object",
+            "required": ["access_token", "token_type", "expires_in"],
+            "properties": {
+                "access_token": {"type": "string", "description": "Short-lived Bearer JWT for DataConv endpoints."},
+                "token_type": {"type": "string", "enum": ["Bearer"]},
+                "expires_in": {"type": "integer", "example": 900, "description": "Seconds until expiry."},
+                "scope": {"type": "string", "example": "dataconv.upload dataconv.search"},
+                "issued_token_type": {
+                    "type": "string",
+                    "default": "urn:ietf:params:oauth:token-type:access_token",
+                },
+            },
+            "additionalProperties": True,
+        },
+    }
+
+
+def _tenant_api_key_schemas() -> dict[str, Any]:
+    return {
+        "TenantApiKeyActionResource": {
+            "type": "object",
+            "required": ["@type"],
+            "properties": {
+                "@context": {"type": "string", "example": "https://schema.org"},
+                "@type": {"type": "string", "example": "UpdateAction"},
+                "identifier": {"type": "string", "example": "api-key-uuid-1"},
+                "actionStatus": {"type": "string", "example": "active"},
+                "target": {"type": "string", "example": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload"},
+                "scope": {
+                    "oneOf": [
+                        {"type": "string", "example": "dataconv.upload"},
+                        {"type": "array", "items": {"type": "string"}, "example": ["dataconv.upload", "dataconv.read"]},
+                    ]
+                },
+                "agent": {
+                    "type": "object",
+                    "properties": {
+                        "email": {"type": "string", "example": "alice@example.com"},
+                        "sameAs": {"type": "string", "example": "zMockedSameAsHash"},
+                    },
+                    "additionalProperties": True,
+                },
+                "instrument": {"type": "object", "additionalProperties": True, "example": {"permission": [{"action": "update"}]}}},
+            "additionalProperties": True,
+        },
+        "TenantApiKeyActionEntry": {
+            "type": "object",
+            "required": ["resource"],
+            "properties": {
+                "resource": {"$ref": "#/components/schemas/TenantApiKeyActionResource"}
+            },
+            "additionalProperties": False,
+        },
+        "TenantApiKeyActionRequest": {
+            "type": "object",
+            "required": ["data"],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/TenantApiKeyActionEntry"},
+                }
+            },
+            "additionalProperties": False,
+        },
+        "TenantApiKeyResource": {
+            "type": "object",
+            "required": ["@type", "identifier", "actionStatus"],
+            "properties": {
+                "@context": {"type": "string", "example": "https://schema.org"},
+                "@type": {"type": "string", "example": "Person"},
+                "identifier": {"type": "string", "example": "api-key-uuid-1"},
+                "actionStatus": {"type": "string", "example": "active"},
+                "agent": {
+                    "type": "object",
+                    "properties": {
+                        "sameAs": {"type": "string", "example": "zMockedSameAsHash"},
+                    },
+                    "additionalProperties": True,
+                },
+                "target": {"type": "string"},
+                "scope": {"type": "array", "items": {"type": "string"}},
+                "instrument": {"type": "object", "additionalProperties": True},
+                "tenantId": {"type": "string", "example": "vates-a00000001"},
+                "expiresAt": {"type": "string", "example": "2026-03-23T11:22:33Z"},
+                "apiKey": {"type": "string", "example": "dck_abc"},
+                "removed": {"type": "boolean", "example": True},
+            },
+            "additionalProperties": True,
+        },
+        "TenantApiKeyResponseEntry": {
+            "type": "object",
+            "required": ["resource"],
+            "properties": {
+                "resource": {"$ref": "#/components/schemas/TenantApiKeyResource"}
+            },
+            "additionalProperties": False,
+        },
+        "TenantApiKeyActionResponse": {
+            "type": "object",
+            "required": ["data"],
+            "properties": {
+                "data": {
+                    "type": "array",
+                    "items": {"$ref": "#/components/schemas/TenantApiKeyResponseEntry"},
+                }
+            },
+            "additionalProperties": True,
         },
     }

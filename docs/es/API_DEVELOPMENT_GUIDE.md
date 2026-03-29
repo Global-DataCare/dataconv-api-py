@@ -2,7 +2,7 @@
 
 Guía para probar la API en local de extremo a extremo usando:
 
-- `examples/input/exampleQvetES.xlsx`
+- `../examples/exampleQvetES.xlsx`
 
 ## 1) Preparar entorno local
 
@@ -47,7 +47,7 @@ UP_THID="up-$(uuidgen)"
 ## 3) 1.1 Request Creation of Tenant Configuration (`_create`)
 
 ```bash
-curl -sS -X POST "$BASE_URL/host/cds-$JUR/v1/animal-care/$ALT/config/didcomm/_create" \
+curl -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/$SOFTWARE_ID/config/_create" \
   -H "Content-Type: application/didcomm-plain+json" \
   -d "{\
     \"iss\":\"$ISS\",\
@@ -96,7 +96,7 @@ Respuesta esperada:
 ## 4) 1.2 Retrieve Response for Tenant Configuration (`_create-response`)
 
 ```bash
-curl -sS -X POST "$BASE_URL/host/cds-$JUR/v1/animal-care/$ALT/config/didcomm/_create-response" \
+curl -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/$SOFTWARE_ID/config/_create-response" \
   -H "Content-Type: application/didcomm-plain+json" \
   -d "{\
     \"iss\":\"$ISS\",\
@@ -130,8 +130,8 @@ Respuesta esperada en `_create-response`:
 Opción A: `multipart/form-data` (sigue soportada)
 
 ```bash
-curl -i -sS -X POST "$BASE_URL/$ALT/cds-$JUR/v1/animal-care/conversion/$SOFTWARE_ID/excel/_upload" \
-  -F "file=@examples/input/exampleQvetES.xlsx" \
+curl -i -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/dataset/$SOFTWARE_ID/excel/_upload" \
+  -F "file=@../examples/exampleQvetES.xlsx" \
   -F "iss=$ISS" \
   -F "thid=$UP_THID" \
   -F "jti=$UP_THID" \
@@ -148,7 +148,7 @@ Nota:
 - Si pegas `dl=0`, la API intenta normalizarlo a `dl=1` antes de descargar.
 
 ```bash
-curl -i -sS -X POST "$BASE_URL/$ALT/cds-$JUR/v1/animal-care/conversion/$SOFTWARE_ID/excel/_upload" \
+curl -i -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/dataset/$SOFTWARE_ID/excel/_upload" \
   -H "Content-Type: application/didcomm-plain+json" \
   -d "{\
     \"iss\":\"$ISS\",\
@@ -182,7 +182,7 @@ Debes recibir `202` con cabeceras:
 ## 6) 2.2 Retrieve Response for Conversion (`_upload-response`)
 
 ```bash
-curl -sS -X POST "$BASE_URL/$ALT/cds-$JUR/v1/animal-care/conversion/$SOFTWARE_ID/excel/_upload-response" \
+curl -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/dataset/$SOFTWARE_ID/excel/_upload-response" \
   -H "Content-Type: application/didcomm-plain+json" \
   -d "{\
     \"iss\":\"$ISS\",\
@@ -196,7 +196,7 @@ curl -sS -X POST "$BASE_URL/$ALT/cds-$JUR/v1/animal-care/conversion/$SOFTWARE_ID
 También se puede usar el `thid` devuelto en `Location`:
 
 ```bash
-curl -sS -X POST "$BASE_URL/$ALT/cds-$JUR/v1/animal-care/conversion/$SOFTWARE_ID/excel/_upload-response?thid=$UP_THID" \
+curl -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/dataset/$SOFTWARE_ID/excel/_upload-response?thid=$UP_THID" \
   -H "Content-Type: application/didcomm-plain+json" \
   -d "{\
     \"iss\":\"$ISS\",\
@@ -236,7 +236,8 @@ Eventos de lifecycle para depuración (stdout/Cloud Logging):
 
 ## 8) Si usas auth estricta
 
-Si no estás en `PRECONV_AUTH_MODE=parse-only`, tendrás que enviar `id_token` y/o `vp_token` según el modo configurado.
+Si `DEMO_MODE=false`, tendrás que enviar `Authorization: Bearer <token>` válido (emitido por `/exchange`).
+Si `DEMO_MODE=true`, la API funciona en modo demo sin exigir ese Bearer de exchange.
 
 Referencia completa de contrato:
 

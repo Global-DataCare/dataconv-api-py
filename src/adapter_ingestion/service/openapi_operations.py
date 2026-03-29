@@ -5,7 +5,31 @@ from __future__ import annotations
 
 from typing import Any
 
-from .openapi_constants import BATCH_PATH, CREATE_PATH, CREATE_RESPONSE_PATH, PATCH_PATH, SEARCH_PATH, UPLOAD_PATH, UPLOAD_RESPONSE_PATH
+from .openapi_constants import (
+    API_KEY_CREATE_PATH,
+    API_KEY_DISABLE_PATH,
+    API_KEY_REMOVE_PATH,
+    API_KEY_SEARCH_PATH,
+    AUTH_CODE_RESPONSE_PATH,
+    AUTH_CODE_PATH,
+    AUTH_DCR_RESPONSE_PATH,
+    AUTH_DCR_PATH,
+    AUTH_EXCHANGE_RESPONSE_PATH,
+    AUTH_EXCHANGE_PATH,
+    AUTH_TOKEN_RESPONSE_PATH,
+    AUTH_TOKEN_PATH,
+    BATCH_PATH,
+    CREATE_PATH,
+    CREATE_RESPONSE_PATH,
+    CONTROLLER_EXCHANGE_PATH,
+    CONTROLLER_EXCHANGE_RESPONSE_PATH,
+    EXCHANGE_PATH,
+    OAUTH_TOKEN_PATH,
+    PATCH_PATH,
+    SEARCH_PATH,
+    UPLOAD_PATH,
+    UPLOAD_RESPONSE_PATH,
+)
 from .openapi_paths import (
     append_optional_query_thid_parameter,
     drop_422_validation_response,
@@ -18,51 +42,101 @@ def configure_schema_metadata(schema: dict[str, Any]) -> None:
     info = schema.get("info")
     if isinstance(info, dict):
         info["title"] = "Preconversion DIDComm API"
-        info["version"] = "0.3.0"
+        info["version"] = "0.6.0"
         info["description"] = (
             "Public DIDComm/FAPI contract for tenant configuration and conversion jobs.\n\n"
-            "Sections in this OpenAPI:\n"
-            "1.1) Tenant Configuration Request (_create)\n"
-            "1.2) Tenant Configuration Response (_create-response)\n"
-            "2.1) Conversion Upload Request (_upload)\n"
-            "2.2) Conversion Upload Response (_upload-response)\n"
-            "2.3) Conversion Patch (_patch)\n"
-            "2.4) Tenant-scoped FHIR API Search (_search)\n"
-            "2.5) Conversion Batch (_batch)\n\n"
-            "Requester identity is extracted from DIDComm `iss`.\n"
-            "Token enforcement profile is configured with `PRECONV_AUTH_MODE` (`parse-only` is demo/internal-only).\n"
-            "Terminal job responses expire after `PRECONV_JOB_RESULT_TTL_SECONDS`.\n"
-            "Deployment probe endpoint `/healthz` is intentionally excluded from this contract."
+            "**Functional groups**\n\n"
+            "- 1.1 Controller Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange`\n"
+            "- 1.2 Controller API Key Provisioning: `/publisher/cds-{jurisdiction}/v1/{sector}/api-key/org.schema/action/_*`\n"
+            "- 2.1 Identity Auth DCR: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_dcr`\n"
+            "- 2.2 Identity Auth PKCE Code: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code`\n"
+            "- 2.3 Identity Auth PKCE Token: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_token`\n"
+            "- 2.4 Identity Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_exchange`\n"
+            "- 3.1 Publisher Config Request: `_create`\n"
+            "- 3.2 Publisher Config Response: `_create-response`\n"
+            "- 4.1 Publisher Upload Request: `_upload`\n"
+            "- 4.2 Publisher Upload Response: `_upload-response`\n"
+            "- 4.3 Publisher Patch: `_patch`\n"
+            "- 4.4 Publisher Dataset Search: `_search`\n"
+            "- 4.5 Publisher Batch: `_batch`\n"
+            "- 9.x Legacy aliases: deprecated compatibility routes\n\n"
+            "**Identity model**\n\n"
+            "Requester identity is extracted from DIDComm `iss`.\n\n"
+            "**Authentication**\n\n"
+            "- `DEMO_MODE=true`: Bearer token required; signature validation is bypassed (development behavior)\n"
+            "- `DEMO_MODE=false`: Bearer token required and fully validated\n\n"
+            "**SDK Auth Sequence (backend)**\n\n"
+            "1. `POST /publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange` then poll `_exchange-response`\n"
+            "2. `POST /publisher/cds-{jurisdiction}/v1/{sector}/api-key/org.schema/action/_create` (optional API-key provisioning)\n"
+            "3. `POST .../{tenant-id}/identity/auth/_dcr` then poll `_dcr-response`\n"
+            "4. `POST .../{tenant-id}/identity/auth/_code` then poll `_code-response`\n"
+            "5. `POST .../{tenant-id}/identity/auth/_token` then poll `_token-response`\n"
+            "6. `POST .../{tenant-id}/identity/auth/_exchange` then poll `_exchange-response`\n\n"
+            "**API Key Binding Model**\n\n"
+            "- Step 1 (`1.2 _create`): controller provisions API key policy for a backend/service principal. Result is `pending_dcr`.\n"
+            "- Step 2 (`2.1 _dcr`): service/device registers using `client_id` (same value as the API key in backend SDK profile) + controller JWK (`meta.jws.protected.jwk`) to bind cryptographic identity.\n"
+            "- Only after successful DCR binding should SDK continue with PKCE (`_code`, `_token`) and final tenant exchange (`_exchange`).\n\n"
+            "**Operational notes**\n\n"
+            "- Terminal job responses expire after `PRECONV_JOB_RESULT_TTL_SECONDS`\n"
+            "- Deployment probe endpoint `/healthz` is intentionally excluded from this contract"
         )
 
     schema["tags"] = [
         {
-            "name": "1.1 Tenant Configuration Request",
+            "name": "1.1 Controller Auth Exchange",
+            "description": "Bootstrap exchange before tenant-scoped identity flows.",
+        },
+        {
+            "name": "1.2 Controller API Key Provisioning",
+            "description": "Create/disable/remove API keys for organization from controller token context.",
+        },
+        {
+            "name": "2.1 Identity Auth DCR",
+            "description": "Dynamic client registration in tenant-scoped identity flow.",
+        },
+        {
+            "name": "2.2 Identity Auth PKCE Code",
+            "description": "PKCE code request in tenant-scoped identity flow.",
+        },
+        {
+            "name": "2.3 Identity Auth PKCE Token",
+            "description": "PKCE token request in tenant-scoped identity flow.",
+        },
+        {
+            "name": "2.4 Identity Auth Exchange",
+            "description": "Final tenant-scoped identity exchange step.",
+        },
+        {
+            "name": "3.1 Publisher Config Request",
             "description": "Create or update tenant configuration entries through DIDComm plaintext JSON.",
         },
         {
-            "name": "1.2 Tenant Configuration Response",
+            "name": "3.2 Publisher Config Response",
             "description": "Retrieve terminal tenant configuration result by correlation id (`thid`).",
         },
         {
-            "name": "2.1 Conversion Upload Request",
+            "name": "4.1 Publisher Upload Request",
             "description": "Submit conversion jobs with multipart upload or JSON references.",
         },
         {
-            "name": "2.2 Conversion Upload Response",
+            "name": "4.2 Publisher Upload Response",
             "description": "Poll asynchronous conversion status using the same thread id (thid).",
         },
         {
-            "name": "2.3 Conversion Patch",
+            "name": "4.3 Publisher Patch",
             "description": "Promote a reviewed conversion thread. Public examples use `Composition/_patch`.",
         },
         {
-            "name": "2.4 FHIR-like Search API",
-            "description": "Tenant-scoped host search under `org.hl7.fhir.api`, backed by the SQL projection.",
+            "name": "4.4 Publisher Dataset Search",
+            "description": "Tenant-scoped dataset search endpoint (FHIR-backed implementation).",
         },
         {
-            "name": "2.5 Conversion Batch",
+            "name": "4.5 Publisher Batch",
             "description": "Promote reviewed resources in bulk. Public examples use `Patient/_batch`.",
+        },
+        {
+            "name": "9. Legacy Endpoints",
+            "description": "Deprecated aliases from previous route conventions, kept temporarily for compatibility.",
         },
     ]
 
@@ -82,8 +156,25 @@ def configure_operations(
     patch_operation = rewritten_paths.get(PATCH_PATH, {}).get("post")
     batch_operation = rewritten_paths.get(BATCH_PATH, {}).get("post")
     search_operation = rewritten_paths.get(SEARCH_PATH, {}).get("post")
+    exchange_operation = rewritten_paths.get(EXCHANGE_PATH, {}).get("post")
+    oauth_token_operation = rewritten_paths.get(OAUTH_TOKEN_PATH, {}).get("post")
+    controller_exchange_operation = rewritten_paths.get(CONTROLLER_EXCHANGE_PATH, {}).get("post")
+    controller_exchange_response_operation = rewritten_paths.get(CONTROLLER_EXCHANGE_RESPONSE_PATH, {}).get("post")
+    auth_dcr_operation = rewritten_paths.get(AUTH_DCR_PATH, {}).get("post")
+    auth_dcr_response_operation = rewritten_paths.get(AUTH_DCR_RESPONSE_PATH, {}).get("post")
+    auth_code_operation = rewritten_paths.get(AUTH_CODE_PATH, {}).get("post")
+    auth_code_response_operation = rewritten_paths.get(AUTH_CODE_RESPONSE_PATH, {}).get("post")
+    auth_token_operation = rewritten_paths.get(AUTH_TOKEN_PATH, {}).get("post")
+    auth_token_response_operation = rewritten_paths.get(AUTH_TOKEN_RESPONSE_PATH, {}).get("post")
+    auth_exchange_operation = rewritten_paths.get(AUTH_EXCHANGE_PATH, {}).get("post")
+    auth_exchange_response_operation = rewritten_paths.get(AUTH_EXCHANGE_RESPONSE_PATH, {}).get("post")
+    api_key_create_operation = rewritten_paths.get(API_KEY_CREATE_PATH, {}).get("post")
+    api_key_disable_operation = rewritten_paths.get(API_KEY_DISABLE_PATH, {}).get("post")
+    api_key_remove_operation = rewritten_paths.get(API_KEY_REMOVE_PATH, {}).get("post")
+    api_key_search_operation = rewritten_paths.get(API_KEY_SEARCH_PATH, {}).get("post")
 
     if isinstance(create_operation, dict):
+        create_operation["tags"] = ["3.1 Publisher Config Request"]
         create_operation["security"] = [{"BearerAuth": []}]
         set_path_param_description(
             create_operation,
@@ -128,6 +219,7 @@ def configure_operations(
         set_operation_outcome_error_responses(create_operation)
 
     if isinstance(create_response_operation, dict):
+        create_response_operation["tags"] = ["3.2 Publisher Config Response"]
         create_response_operation["security"] = [{"BearerAuth": []}]
         set_path_param_description(
             create_response_operation,
@@ -163,6 +255,7 @@ def configure_operations(
         set_operation_outcome_error_responses(create_response_operation, include_404=True)
 
     if isinstance(upload_operation, dict):
+        upload_operation["tags"] = ["4.1 Publisher Upload Request"]
         upload_operation["security"] = [{"BearerAuth": []}]
         set_path_param_description(
             upload_operation,
@@ -205,6 +298,7 @@ def configure_operations(
         set_operation_outcome_error_responses(upload_operation)
 
     if isinstance(upload_response_operation, dict):
+        upload_response_operation["tags"] = ["4.2 Publisher Upload Response"]
         upload_response_operation["security"] = [{"BearerAuth": []}]
         set_path_param_description(
             upload_response_operation,
@@ -254,6 +348,7 @@ def configure_operations(
         set_operation_outcome_error_responses(upload_response_operation, include_404=True)
 
     if isinstance(patch_operation, dict):
+        patch_operation["tags"] = ["4.3 Publisher Patch"]
         patch_operation["security"] = [{"BearerAuth": []}]
         patch_operation["requestBody"] = {
             "required": True,
@@ -262,7 +357,6 @@ def configure_operations(
                     "schema": {"$ref": "#/components/schemas/DidcommPromotionRequest"},
                     "example": {
                         "iss": "did:web:clinic.example:employee:it:loader",
-                        "id_token": "demo-token",
                         "thid": "up-qvet-20260315-001",
                         "type": "https://didcomm.org/plaintext/2.0/message",
                         "iat": 1760000000,
@@ -282,6 +376,7 @@ def configure_operations(
         set_operation_outcome_error_responses(patch_operation, include_404=True)
 
     if isinstance(batch_operation, dict):
+        batch_operation["tags"] = ["4.5 Publisher Batch"]
         batch_operation["security"] = [{"BearerAuth": []}]
         batch_operation["requestBody"] = {
             "required": True,
@@ -290,7 +385,6 @@ def configure_operations(
                     "schema": {"$ref": "#/components/schemas/DidcommPromotionRequest"},
                     "example": {
                         "iss": "did:web:clinic.example:employee:it:loader",
-                        "id_token": "demo-token",
                         "thid": "up-qvet-20260315-001",
                         "type": "https://didcomm.org/plaintext/2.0/message",
                         "iat": 1760000000,
@@ -310,6 +404,7 @@ def configure_operations(
         set_operation_outcome_error_responses(batch_operation, include_404=True)
 
     if isinstance(search_operation, dict):
+        search_operation["tags"] = ["4.4 Publisher Dataset Search"]
         search_operation["security"] = [{"BearerAuth": []}]
         set_path_param_description(
             search_operation,
@@ -343,6 +438,130 @@ def configure_operations(
         }
         set_operation_outcome_error_responses(search_operation, include_404=False)
 
+    _configure_auth_dcr_operation(auth_dcr_operation)
+    _configure_auth_poll_operation(auth_dcr_response_operation, tag="2.1 Identity Auth DCR", action="_dcr")
+    _configure_auth_code_operation(auth_code_operation)
+    _configure_auth_poll_operation(auth_code_response_operation, tag="2.2 Identity Auth PKCE Code", action="_code")
+    _configure_auth_token_operation(auth_token_operation)
+    _configure_auth_poll_operation(auth_token_response_operation, tag="2.3 Identity Auth PKCE Token", action="_token")
+
+    _configure_exchange_operation(exchange_operation, tags=["1.1 Controller Auth Exchange"])
+    _configure_exchange_operation(oauth_token_operation, tags=["1.1 Controller Auth Exchange"])
+    _configure_exchange_operation(controller_exchange_operation, tags=["1.1 Controller Auth Exchange"], async_mode=True)
+    _configure_auth_poll_operation(
+        controller_exchange_response_operation, tag="1.1 Controller Auth Exchange", action="_exchange"
+    )
+    _configure_exchange_operation(auth_exchange_operation, tags=["2.4 Identity Auth Exchange"], async_mode=True)
+    _configure_auth_poll_operation(auth_exchange_response_operation, tag="2.4 Identity Auth Exchange", action="_exchange")
+
+    _configure_tenant_api_key_operation(
+        api_key_create_operation,
+        summary="Create organization API key policy",
+        request_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "UpdateAction",
+                        "agent": {"email": "alice@example.com"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {"permission": [{"action": "update"}]},
+                        "actionStatus": "active",
+                    }
+                }
+            ]
+        },
+        response_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "Person",
+                        "identifier": "api-key-uuid-1",
+                        "actionStatus": "active",
+                        "agent": {"sameAs": "zMockedSameAsHash"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {"permission": [{"action": "update"}]},
+                        "tenantId": "vates-a00000001",
+                        "expiresAt": "",
+                        "apiKey": "dck_abc",
+                        "bindingStatus": "pending_dcr",
+                    }
+                }
+            ]
+        },
+    )
+    _configure_tenant_api_key_operation(
+        api_key_disable_operation,
+        summary="Disable organization API key policy",
+        request_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "UpdateAction",
+                        "identifier": "api-key-uuid-1",
+                    }
+                }
+            ]
+        },
+        response_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "Person",
+                        "identifier": "api-key-uuid-1",
+                        "actionStatus": "disabled",
+                        "agent": {"sameAs": "zMockedSameAsHash"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {},
+                        "tenantId": "vates-a00000001",
+                        "expiresAt": "",
+                    }
+                }
+            ]
+        },
+    )
+    _configure_tenant_api_key_operation(
+        api_key_remove_operation,
+        summary="Remove organization API key policy",
+        request_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "UpdateAction",
+                        "identifier": "api-key-uuid-1",
+                    }
+                }
+            ]
+        },
+        response_example={
+            "data": [
+                {
+                    "resource": {
+                        "@context": "https://schema.org",
+                        "@type": "Person",
+                        "identifier": "api-key-uuid-1",
+                        "actionStatus": "disabled",
+                        "agent": {"sameAs": "zMockedSameAsHash"},
+                        "target": "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload",
+                        "scope": ["dataconv.upload"],
+                        "instrument": {},
+                        "tenantId": "vates-a00000001",
+                        "expiresAt": "",
+                        "removed": True,
+                    }
+                }
+            ]
+        },
+    )
+    _configure_tenant_api_key_search_operation(api_key_search_operation)
+
     for operation in (
         create_operation,
         create_response_operation,
@@ -351,6 +570,368 @@ def configure_operations(
         patch_operation,
         batch_operation,
         search_operation,
+        auth_dcr_operation,
+        auth_dcr_response_operation,
+        auth_code_operation,
+        auth_code_response_operation,
+        auth_token_operation,
+        auth_token_response_operation,
+        auth_exchange_operation,
+        auth_exchange_response_operation,
+        controller_exchange_operation,
+        controller_exchange_response_operation,
+        exchange_operation,
+        oauth_token_operation,
+        api_key_create_operation,
+        api_key_disable_operation,
+        api_key_remove_operation,
+        api_key_search_operation,
     ):
         if isinstance(operation, dict):
             drop_422_validation_response(operation)
+
+
+def _configure_auth_dcr_operation(operation: dict[str, Any] | None) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["tags"] = ["2.1 Identity Auth DCR"]
+    operation["security"] = []
+    operation["summary"] = "Dynamic Client Registration (DCR)"
+    operation["description"] = (
+        "Registers controller client metadata for a tenant-scoped auth session.\n\n"
+        "This is the binding step that follows API-key provisioning (`1.2 _create`).\n"
+        "Expected lifecycle for SDKs: `pending_dcr` (after `_create`) -> `bound` (after `_dcr-response` terminal success).\n\n"
+        "Transport profile:\n"
+        "- Content-Type: `application/didcomm-plain+json`\n"
+        "- `client_id` at top-level is required and MUST carry the API key value in backend SDK profile\n"
+        "- `body` may be `{}`\n"
+        "- `meta.jws.protected.jwk` is required for controller key binding\n\n"
+        "Async contract: returns `202` with `Location` pointing to `_dcr-response?thid=...`."
+    )
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/didcomm-plain+json": {
+                "schema": {"$ref": "#/components/schemas/DidcommAuthRequest"},
+                "example": {
+                    "thid": "dcr-tenant-acme-001",
+                    "type": "application/bundle-api+json",
+                    "client_id": "dck_abc",
+                    "body": {},
+                    "meta": {"jws": {"protected": {"alg": "ES384", "jwk": {"kty": "EC", "crv": "P-384", "x": "<x>", "y": "<y>"}}}},
+                },
+            }
+        },
+    }
+    operation.setdefault("responses", {})["202"] = {
+        "description": "DCR request accepted (binding in progress).",
+        "headers": {
+            "Location": {"schema": {"type": "string"}},
+            "Retry-After": {"schema": {"type": "string", "example": "1"}},
+        },
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AuthAsyncAcceptedResponse"}}},
+    }
+    operation.setdefault("responses", {})["400"] = {"description": "Invalid DCR payload."}
+
+
+def _configure_auth_code_operation(operation: dict[str, Any] | None) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["tags"] = ["2.2 Identity Auth PKCE Code"]
+    operation["security"] = []
+    operation["summary"] = "PKCE: validate challenge and issue authorization code"
+    operation["description"] = (
+        "PKCE authorization-code issuance step.\n\n"
+        "Required top-level fields:\n"
+        "- `client_id`\n"
+        "- `code_challenge`\n"
+        "- `code_challenge_method` (must be `S256`)\n"
+        "- DIDComm metadata in `meta.jws.protected.jwk`\n\n"
+        "`body` remains available for DIDComm compatibility and can be `{}`.\n"
+        "Async contract: `202` + poll `_code-response` by `thid`."
+    )
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/didcomm-plain+json": {
+                "schema": {"$ref": "#/components/schemas/DidcommAuthRequest"},
+                "example": {
+                    "thid": "pkce-code-001",
+                    "type": "application/bundle-api+json",
+                    "client_id": "device-client-001",
+                    "code_challenge": "<BASE64URL(SHA256(code_verifier))>",
+                    "code_challenge_method": "S256",
+                    "body": {},
+                    "meta": {"jws": {"protected": {"alg": "ES384", "jwk": {"kty": "EC", "crv": "P-384", "x": "<x>", "y": "<y>"}}}},
+                },
+            }
+        },
+    }
+    operation.setdefault("responses", {})["202"] = {
+        "description": "PKCE code request accepted.",
+        "headers": {
+            "Location": {"schema": {"type": "string"}},
+            "Retry-After": {"schema": {"type": "string", "example": "1"}},
+        },
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AuthAsyncAcceptedResponse"}}},
+    }
+    operation.setdefault("responses", {})["400"] = {"description": "Invalid code request payload."}
+    operation.setdefault("responses", {})["401"] = {"description": "Client is not registered via DCR."}
+
+
+def _configure_auth_token_operation(operation: dict[str, Any] | None) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["tags"] = ["2.3 Identity Auth PKCE Token"]
+    operation["security"] = []
+    operation["summary"] = "PKCE: exchange authorization code and verifier for id_token"
+    operation["description"] = (
+        "PKCE token step: exchange authorization `code` plus `code_verifier` for an `id_token`.\n\n"
+        "Required top-level fields:\n"
+        "- `client_id`\n"
+        "- `code`\n"
+        "- `code_verifier`\n"
+        "- DIDComm metadata in `meta.jws.protected.jwk`\n\n"
+        "`body` can be `{}` in this profile.\n"
+        "Async contract: `202` + poll `_token-response` by `thid`."
+    )
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/didcomm-plain+json": {
+                "schema": {"$ref": "#/components/schemas/DidcommAuthRequest"},
+                "example": {
+                    "thid": "pkce-token-001",
+                    "type": "application/bundle-api+json",
+                    "client_id": "device-client-001",
+                    "code": "c2d3f1aa-1d5c-4600-b9b0-973f2f0f2f4e",
+                    "code_verifier": "5f6f9758-f78d-4ff4-b099-2fc5e06ff0ad",
+                    "body": {},
+                    "meta": {"jws": {"protected": {"alg": "ES384", "jwk": {"kty": "EC", "crv": "P-384", "x": "<x>", "y": "<y>"}}}},
+                },
+            }
+        },
+    }
+    operation.setdefault("responses", {})["202"] = {
+        "description": "PKCE token request accepted.",
+        "headers": {
+            "Location": {"schema": {"type": "string"}},
+            "Retry-After": {"schema": {"type": "string", "example": "1"}},
+        },
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AuthAsyncAcceptedResponse"}}},
+    }
+    operation.setdefault("responses", {})["401"] = {"description": "Invalid/expired code or verifier mismatch."}
+
+
+def _configure_auth_poll_operation(
+    operation: dict[str, Any] | None,
+    *,
+    tag: str,
+    action: str,
+) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["tags"] = [tag]
+    operation["security"] = []
+    operation["summary"] = f"Poll {action} job status/result"
+    operation["description"] = (
+        f"Polling endpoint for `{action}` async execution.\n\n"
+        "Client must call this endpoint until status is terminal:\n"
+        "- `202`: pending, retry using `Retry-After`\n"
+        "- `200`: completed, response includes action result payload"
+    )
+    operation["parameters"] = [
+        {
+            "name": "thid",
+            "in": "query",
+            "required": True,
+            "schema": {"type": "string"},
+            "description": "Thread identifier returned in submit step.",
+        }
+    ]
+    operation["responses"] = {
+        "202": {"description": "Pending.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AuthAsyncPollResponse"}}}},
+        "200": {"description": "Completed.", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/AuthAsyncPollResponse"}}}},
+        "404": {"description": "thid not found."},
+    }
+
+
+def _configure_exchange_operation(
+    operation: dict[str, Any] | None,
+    *,
+    tags: list[str] | None = None,
+    async_mode: bool = False,
+) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["tags"] = tags or ["1.1 Controller Auth Exchange"]
+    # Exchange endpoint is public — no Bearer required to call it (it issues the token)
+    operation["security"] = []
+    operation["description"] = (
+        "Token exchange step (RFC 8693).\n\n"
+        "Bootstrap mode: `/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange` (async).\n"
+        "Tenant-scoped mode: `.../identity/auth/_exchange` is asynchronous (`202 + Location`) and polled via `_exchange-response`.\n\n"
+        "For DIDComm-plain transport, OAuth fields can be provided at top-level and `body` can be `{}`."
+    )
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/TokenExchangeRequest"},
+                "examples": {
+                    "idTokenExchange": {
+                        "summary": "Exchange OIDC id_token for DataConv access token",
+                        "value": {
+                            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                            "subject_token": "<OIDC id_token JWT>",
+                            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+                            "scope": "dataconv.upload dataconv.search",
+                        },
+                    },
+                    "apiKeyExchange": {
+                        "summary": "Exchange OIDC id_token + API key for DataConv access token",
+                        "value": {
+                            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                            "subject_token": "<OIDC id_token JWT>",
+                            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+                            "api_key": "<tenant-api-key>",
+                            "organization": "<tenant-id>",
+                            "scope": "dataconv.upload dataconv.search",
+                        },
+                    },
+                },
+            },
+            "application/x-www-form-urlencoded": {
+                "schema": {"$ref": "#/components/schemas/TokenExchangeRequest"},
+            },
+            "application/didcomm-plain+json": {
+                "schema": {"$ref": "#/components/schemas/DidcommAuthRequest"},
+            },
+        },
+    }
+    if async_mode:
+        operation.setdefault("responses", {})["202"] = {
+            "description": "Exchange request accepted.",
+            "headers": {
+                "Location": {"schema": {"type": "string"}},
+                "Retry-After": {"schema": {"type": "string", "example": "1"}},
+            },
+        }
+    else:
+        operation.setdefault("responses", {})["200"] = {
+            "description": "Access token issued. Pass as `Authorization: Bearer <access_token>` on all DIDComm endpoints.",
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/TokenExchangeResponse"},
+                    "example": {
+                        "access_token": "<JWT>",
+                        "token_type": "Bearer",
+                        "expires_in": 900,
+                        "scope": "dataconv.upload dataconv.search",
+                    },
+                }
+            },
+        }
+    drop_422_validation_response(operation)
+    responses = operation.setdefault("responses", {})
+    responses["400"] = {"description": "Invalid request or unsupported grant type."}
+    responses["401"] = {"description": "subject_token invalid, expired, or issuer not trusted."}
+
+
+def _configure_tenant_api_key_operation(
+    operation: dict[str, Any] | None,
+    *,
+    summary: str,
+    request_example: dict[str, Any],
+    response_example: dict[str, Any],
+) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["tags"] = ["1.2 Controller API Key Provisioning"]
+    operation["security"] = [{"BearerAuth": []}]
+    operation["summary"] = summary
+    operation["description"] = (
+        "Controller API-key provisioning. Organization/tenant context is resolved from Bearer token claim "
+        "`organization` and validated server-side.\n\n"
+        "Binding model: `_create` provisions policy and key material (`pending_dcr`). "
+        "Device/service binding is completed later via `2.1 identity/auth/_dcr`."
+    )
+    operation["requestBody"] = {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/TenantApiKeyActionRequest"},
+                "example": request_example,
+            }
+        },
+    }
+    operation.setdefault("responses", {})["200"] = {
+        "description": "Tenant API key registry updated.",
+        "content": {
+            "application/json": {
+                "schema": {"$ref": "#/components/schemas/TenantApiKeyActionResponse"},
+                "example": response_example,
+            }
+        },
+    }
+    operation.setdefault("responses", {})["401"] = {"description": "Missing or invalid Bearer token."}
+    operation.setdefault("responses", {})["403"] = {"description": "Missing `dataconv.tenant.keys.manage` scope or organization mismatch."}
+    operation.setdefault("responses", {})["404"] = {"description": "API key entry not found."}
+
+
+def _configure_tenant_api_key_search_operation(operation: dict[str, Any] | None) -> None:
+    if not isinstance(operation, dict):
+        return
+    operation["tags"] = ["1.2 Controller API Key Provisioning"]
+    operation["security"] = [{"BearerAuth": []}]
+    operation["summary"] = "List organization API keys with DCR bindings"
+    operation["description"] = (
+        "Returns API keys provisioned for the controller organization, enriched with DCR binding information "
+        "(clientId, controllerPublicKeyJwk, device metadata).\n\n"
+        "Use this endpoint in controller web/app to audit what backend SDK devices have consumed and bound each API key."
+    )
+    operation["requestBody"] = {
+        "required": False,
+        "content": {"application/json": {"schema": {"type": "object", "additionalProperties": True}}},
+    }
+    operation["responses"] = {
+        "200": {
+            "description": "API keys and bindings retrieved.",
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "data": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "resource": {"$ref": "#/components/schemas/TenantApiKeyResource"},
+                                        "bindings": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "clientId": {"type": "string"},
+                                                    "bindingStatus": {"type": "string", "example": "bound"},
+                                                    "boundAt": {"type": "integer", "example": 1760000000},
+                                                    "controllerPublicKeyJwk": {"type": "object", "additionalProperties": True},
+                                                    "device": {"type": "object", "additionalProperties": True},
+                                                },
+                                                "additionalProperties": True,
+                                            },
+                                        },
+                                    },
+                                    "additionalProperties": True,
+                                },
+                            }
+                        },
+                        "additionalProperties": False,
+                    }
+                }
+            },
+        },
+        "401": {"description": "Missing or invalid Bearer token."},
+        "403": {"description": "Missing `dataconv.tenant.keys.manage` scope or organization mismatch."},
+    }

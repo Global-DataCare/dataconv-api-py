@@ -21,7 +21,7 @@ def register_config_routes(app, *, config_create_manager, config_poll_manager) -
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create",
         status_code=202,
-        tags=["1.1 Publisher Config Request"],
+        tags=["3.1 Publisher Config Request"],
         summary="Request creation/update of tenant configuration",
         description=(
             "Stores one or more configuration entries for a tenant and software identifier token.\n\n"
@@ -32,7 +32,7 @@ def register_config_routes(app, *, config_create_manager, config_poll_manager) -
     @app.post(
         "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create",
         status_code=202,
-        tags=["1.1 Publisher Config Request"],
+        tags=["3.1 Publisher Config Request"],
         summary="Request creation/update of tenant configuration",
         description=(
             "Stores one or more configuration entries for a tenant and software identifier token.\n\n"
@@ -71,7 +71,7 @@ def register_config_routes(app, *, config_create_manager, config_poll_manager) -
 
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create-response",
-        tags=["1.2 Publisher Config Response"],
+        tags=["3.2 Publisher Config Response"],
         summary="Retrieve response for tenant configuration request",
         response_class=DidcommJSONResponse,
         description=(
@@ -83,7 +83,7 @@ def register_config_routes(app, *, config_create_manager, config_poll_manager) -
     )
     @app.post(
         "/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create-response",
-        tags=["1.2 Publisher Config Response"],
+        tags=["3.2 Publisher Config Response"],
         summary="Retrieve response for tenant configuration request",
         response_class=DidcommJSONResponse,
         description=(

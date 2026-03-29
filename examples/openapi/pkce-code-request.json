@@ -1,0 +1,22 @@
+{
+  "thid": "pkce-code-001",
+  "type": "application/bundle-api+json",
+  "client_id": "dck_abc",
+  "code_challenge": "<BASE64URL(SHA256(code_verifier))>",
+  "code_challenge_method": "S256",
+  "body": {},
+  "meta": {
+    "jws": {
+      "protected": {
+        "alg": "ES384",
+        "kid": "controller-es384-001",
+        "jwk": {
+          "kty": "EC",
+          "crv": "P-384",
+          "x": "<x>",
+          "y": "<y>"
+        }
+      }
+    }
+  }
+}

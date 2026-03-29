@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE_NAME="${IMAGE_NAME:-preconversion-api:local}"
+IMAGE_NAME="${IMAGE_NAME:-preconversion-api:local-0.6.2}"
 PROCESS_MODE="${PROCESS_MODE:-api}"
 CONTAINER_NAME="${CONTAINER_NAME:-preconversion-${PROCESS_MODE}}"
 PRIVATE_ENV_FILE="${SCRIPT_DIR}/private-cloudsql.env"

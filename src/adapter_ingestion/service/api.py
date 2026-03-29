@@ -52,6 +52,7 @@ def create_app():
             "Missing dependencies for HTTP service. Install with: "
             "pip install 'adapter-ingestion-py[api]'"
         )
+    from .auth_pkce import router as pkce_router
 
     settings = load_settings()
     control_plane = build_control_plane(settings)
@@ -85,59 +86,84 @@ def create_app():
         description=(
             "Public DIDComm/FAPI contract for adapter configuration and conversion jobs.\n\n"
             "**Functional groups**\n\n"
-            "- 1.1 Tenant Config Request: `_create`\n"
-            "- 1.2 Tenant Config Response: `_create-response`\n"
-            "- 2.1 Dataset Upload Request: `_upload`\n"
-            "- 2.2 Dataset Upload Response: `_upload-response`\n"
-            "- 2.3 Dataset Promotion: `_patch`\n"
-            "- 2.4 Dataset Search: `_search`\n"
-            "- 2.5 Dataset Batch Promotion: `_batch`\n"
-            "- 1.3 Tenant Auth API Keys: `_create`, `_disable`, `_remove`\n\n"
+            "- 1.1 Controller Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange`\n"
+            "- 1.2 Controller API Key Provisioning: `/publisher/cds-{jurisdiction}/v1/{sector}/api-key/org.schema/action/_*`\n"
+            "- 2.1 Identity Auth DCR: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_dcr`\n"
+            "- 2.2 Identity Auth PKCE Code: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code`\n"
+            "- 2.3 Identity Auth PKCE Token: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_token`\n"
+            "- 2.4 Identity Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_exchange`\n"
+            "- 3.1 Tenant Config Request: `_create`\n"
+            "- 3.2 Tenant Config Response: `_create-response`\n"
+            "- 4.1 Dataset Upload Request: `_upload`\n"
+            "- 4.2 Dataset Upload Response: `_upload-response`\n"
+            "- 4.3 Dataset Promotion: `_patch`\n"
+            "- 4.4 Dataset Search: `_search`\n"
+            "- 4.5 Dataset Batch Promotion: `_batch`\n\n"
             "**Identity model**\n\n"
             "Requester identity is taken from DIDComm payload field `iss`. The query parameter `requestedBy` is not used.\n\n"
             "**Authentication**\n\n"
-            "- `DEMO_MODE=true`: demo/internal mode, no auth required\n"
-            "- `DEMO_MODE=false`: production mode, Bearer token from `/exchange` is required\n\n"
+            "- `DEMO_MODE=true`: Bearer token required; signature validation is bypassed\n"
+            "- `DEMO_MODE=false`: Bearer token required and fully validated\n\n"
             "**Operational notes**\n\n"
             "- Terminal job responses expire after `PRECONV_JOB_RESULT_TTL_SECONDS` and then return not found\n"
             "- `/healthz` is deployment-only (readiness/liveness probe) and intentionally excluded from OpenAPI"
         ),
         openapi_tags=[
             {
-                "name": "1.1 Publisher Config Request",
+                "name": "1.1 Controller Auth Exchange",
+                "description": "Bootstrap exchange for controller/organization context before tenant-scoped identity auth.",
+            },
+            {
+                "name": "1.2 Controller API Key Provisioning",
+                "description": "Create/disable/remove organization API keys. Organization comes from bearer token claims.",
+            },
+            {
+                "name": "2.1 Identity Auth DCR",
+                "description": "Tenant-scoped dynamic client registration.",
+            },
+            {
+                "name": "2.2 Identity Auth PKCE Code",
+                "description": "Tenant-scoped PKCE code step.",
+            },
+            {
+                "name": "2.3 Identity Auth PKCE Token",
+                "description": "Tenant-scoped PKCE token step.",
+            },
+            {
+                "name": "2.4 Identity Auth Exchange",
+                "description": "Tenant-scoped auth exchange step.",
+            },
+            {
+                "name": "3.1 Publisher Config Request",
                 "description": "Create or update tenant configuration entries through DIDComm plaintext JSON.",
             },
             {
-                "name": "1.2 Publisher Config Response",
+                "name": "3.2 Publisher Config Response",
                 "description": "Retrieve terminal tenant configuration result by correlation id (`thid`).",
             },
             {
-                "name": "2.1 Publisher Upload Request",
+                "name": "4.1 Publisher Upload Request",
                 "description": "Submit conversion jobs with multipart upload or JSON references.",
             },
             {
-                "name": "2.2 Publisher Upload Response",
+                "name": "4.2 Publisher Upload Response",
                 "description": "Poll asynchronous conversion status using the same thread id (thid).",
             },
             {
-                "name": "2.3 Publisher Patch",
+                "name": "4.3 Publisher Patch",
                 "description": "Promotes internal drafts explicitly flipping the `userSelected` domain.",
             },
             {
-                "name": "2.4 Publisher Dataset Search",
+                "name": "4.4 Publisher Dataset Search",
                 "description": "Standard POST dataset search (FHIR-backed implementation)",
             },
             {
-                "name": "2.5 Publisher Batch",
+                "name": "4.5 Publisher Batch",
                 "description": "Promotes reviewed resources in bulk using the same semantics as `_patch`.",
             },
             {
                 "name": "9. Legacy Endpoints",
                 "description": "Deprecated aliases from previous route conventions.",
-            },
-            {
-                "name": "1.3 Tenant Auth API Keys",
-                "description": "Tenant controller API for creating, disabling and removing per-email API keys with granular scopes.",
             },
         ],
     )
@@ -228,8 +254,9 @@ def create_app():
         batch_manager=batch_manager,
         search_manager=search_manager,
     )
+    app.include_router(pkce_router)
     register_exchange_routes(app, exchange_manager=exchange_manager)
-    register_tenant_auth_routes(app, tenant_api_key_manager=tenant_api_key_manager)
+    register_tenant_auth_routes(app, tenant_api_key_manager=tenant_api_key_manager, settings=settings)
 
     app.openapi = build_custom_openapi(app)
 

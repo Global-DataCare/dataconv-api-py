@@ -160,6 +160,7 @@ class TenantApiKeyManager:
                 "@context": "https://schema.org",
                 "@type": "Person",
                 "identifier": str(item.get("keyId") or "").strip(),
+                "keyHash": str(item.get("keyHash") or "").strip(),
                 "actionStatus": str(item.get("actionStatus") or "").strip() or "active",
                 "agent": {
                     "sameAs": str(item.get("emailHash") or "").strip(),
@@ -441,6 +442,22 @@ class TenantApiKeyManager:
             payload=payload,
             remove=True,
         )
+
+    def list_api_keys(
+        self,
+        *,
+        tenant_id: str,
+        authorization_header: str,
+    ) -> dict[str, Any]:
+        self._assert_controller_access(tenant_id, authorization_header)
+        tenant_token = self._normalize_tenant(tenant_id)
+        _, entries = self._get_registry(tenant_token)
+        data: list[dict[str, Any]] = []
+        for item in entries:
+            if str(item.get("tenantId") or "").strip().lower() != tenant_token:
+                continue
+            data.append(self._response_entry_from_registry_item(item))
+        return {"data": data}
 
     def resolve_policy(self, *, tenant_id: str, api_key: str, email: str) -> TenantApiKeyPolicy | None:
         tenant_token = self._normalize_tenant(tenant_id)

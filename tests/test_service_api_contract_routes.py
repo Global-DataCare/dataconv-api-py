@@ -48,6 +48,18 @@ class ServiceApiContractRoutesTests(unittest.TestCase):
 
     def test_exposes_canonical_digital_twin_routes(self) -> None:
         paths = {getattr(route, "path", "") for route in self.app.routes}
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_dcr", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_dcr-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_code", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_code-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_token", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_token-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_exchange", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_exchange-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/api-key/org.schema/action/_create", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/api-key/org.schema/action/_search", paths)
         self.assertIn(
             "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload",
             paths,
@@ -72,6 +84,18 @@ class ServiceApiContractRoutesTests(unittest.TestCase):
     def test_openapi_uses_canonical_public_paths(self) -> None:
         schema = self.app.openapi()
         paths = schema.get("paths", {})
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_dcr", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_dcr-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_token", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_token-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_exchange", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_exchange-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/api-key/org.schema/action/_create", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/api-key/org.schema/action/_search", paths)
         self.assertIn(
             "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/{software-id}/config/_create",
             paths,

@@ -21,12 +21,12 @@ def install_components(schema: dict[str, Any]) -> None:
         "scheme": "bearer",
         "bearerFormat": "JWT",
         "description": (
-            "DataConv access token issued by `/exchange` (or `/oauth/token`).\n\n"
-            "1. Call `POST /exchange` with your OIDC `id_token` as `subject_token`.\n"
+            "DataConv access token issued by controller bootstrap exchange `/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange` and by tenant-scoped identity exchange `.../{tenant-id}/identity/auth/_exchange`.\n\n"
+            "1. Bootstrap controller/organization context with controller exchange.\n"
             "2. Copy the returned `access_token`.\n"
             "3. Click Authorize here and paste `Bearer <access_token>`.\n\n"
-            "Demo (`DEMO_MODE=true`): any non-empty value is accepted, e.g. `Bearer demo-token`.\n"
-            "Production (`DEMO_MODE=false`): a valid JWT from `/exchange` is required."
+            "Demo (`DEMO_MODE=true`): Bearer token is still required; signature verification is bypassed.\n"
+            "Production (`DEMO_MODE=false`): Bearer token is required and fully validated."
         ),
     }
 
@@ -654,9 +654,78 @@ def _conversion_schemas() -> dict[str, Any]:
 
 def _exchange_schemas() -> dict[str, Any]:
     return {
+        "DidcommAuthRequest": {
+            "type": "object",
+            "required": ["body", "meta"],
+            "description": (
+                "DIDComm-plain auth envelope for tenant-scoped auth endpoints.\n\n"
+                "- OAuth/PKCE fields (`client_id`, `code_challenge`, `code`, `code_verifier`, etc.) travel at top-level.\n"
+                "- In `2.1 _dcr` backend SDK profile, `client_id` carries the API key value used for binding.\n"
+                "- `body` is kept for DIDComm compatibility and can be `{}` for auth requests.\n"
+                "- `meta.jws.protected.jwk` carries the controller message-signing public key."
+            ),
+            "properties": {
+                "thid": {"type": "string", "example": "auth-thid-001"},
+                "type": {"type": "string", "example": "application/bundle-api+json"},
+                "iat": {"type": "integer", "example": 1760000000},
+                "exp": {"type": "integer", "example": 1760003600},
+                "body": {"type": "object", "additionalProperties": True},
+                "attachments": {"type": "array", "items": {"type": "object", "additionalProperties": True}},
+                "meta": {
+                    "type": "object",
+                    "properties": {
+                        "jws": {
+                            "type": "object",
+                            "properties": {
+                                "protected": {
+                                    "type": "object",
+                                    "properties": {
+                                        "alg": {"type": "string", "example": "ES384"},
+                                        "kid": {"type": "string", "example": "controller-es384-001"},
+                                        "jwk": {"type": "object", "additionalProperties": True},
+                                    },
+                                    "required": ["jwk"],
+                                }
+                            },
+                        }
+                    },
+                    "required": ["jws"],
+                },
+            },
+            "additionalProperties": True,
+        },
+        "AuthAsyncAcceptedResponse": {
+            "type": "object",
+            "required": ["detail"],
+            "properties": {
+                "detail": {"type": "string", "example": "Accepted"},
+            },
+            "description": "Submit-step response metadata is carried in HTTP headers (`Location`, `Retry-After`).",
+            "additionalProperties": True,
+        },
+        "AuthAsyncPollResponse": {
+            "type": "object",
+            "required": ["thid"],
+            "properties": {
+                "thid": {"type": "string", "example": "auth-thid-001"},
+                "status": {"type": "string", "example": "ok"},
+                "action": {"type": "string", "example": "_token"},
+                "code": {"type": "string", "example": "c2d3f1aa-1d5c-4600-b9b0-973f2f0f2f4e"},
+                "id_token": {"type": "string", "example": "<JWT>"},
+                "token_type": {"type": "string", "example": "urn:ietf:params:oauth:token-type:id_token"},
+                "expires_in": {"type": "integer", "example": 300},
+                "access_token": {"type": "string", "example": "<JWT>"},
+                "scope": {"type": "string", "example": "dataconv.upload dataconv.search"},
+            },
+            "additionalProperties": True,
+        },
         "TokenExchangeRequest": {
             "type": "object",
             "required": ["subject_token", "subject_token_type"],
+            "description": (
+                "RFC 8693 token exchange request used in controller bootstrap (`.../organization/dataspace/auth/_exchange`) and tenant-scoped "
+                "auth exchange step (`.../identity/auth/_exchange`)."
+            ),
             "properties": {
                 "grant_type": {
                     "type": "string",

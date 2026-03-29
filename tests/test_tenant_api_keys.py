@@ -89,7 +89,7 @@ class TenantApiKeyTests(unittest.TestCase):
 
     def test_create_tenant_api_key_requires_bearer(self) -> None:
         response = self.client.post(
-            f"/{self.tenant_id}/cds-ES/v1/animal-care/api-key/org.schema/action/_create",
+            "/publisher/cds-ES/v1/animal-care/api-key/org.schema/action/_create",
             json={
                 "data": [
                     {
@@ -105,7 +105,7 @@ class TenantApiKeyTests(unittest.TestCase):
 
     def test_create_and_exchange_with_tenant_api_key(self) -> None:
         create_response = self.client.post(
-            f"/{self.tenant_id}/cds-ES/v1/animal-care/api-key/org.schema/action/_create",
+            "/publisher/cds-ES/v1/animal-care/api-key/org.schema/action/_create",
             headers={"Authorization": f"Bearer {self._controller_bearer()}"},
             json={
                 "data": [

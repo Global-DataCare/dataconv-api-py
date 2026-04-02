@@ -224,6 +224,8 @@ kubectl -n "${K8S_NAMESPACE}" create configmap "${CONFIGMAP_NAME}" \
   --from-literal=PRECONV_DEFAULT_ISSUER_DID="${PRECONV_DEFAULT_ISSUER_DID:-did:web:globaldatacare.es:employee:preconversion}" \
   --from-literal=PRECONV_DEFAULT_AUDIENCE_DID="${PRECONV_DEFAULT_AUDIENCE_DID:-did:web:globaldatacare.es}" \
   --from-literal=PRECONV_DEFAULT_SUBJECT_DID_PREFIX="${PRECONV_DEFAULT_SUBJECT_DID_PREFIX:-did:web:globaldatacare.es}" \
+  --from-literal=PRECONV_AUTH_MODE="${PRECONV_AUTH_MODE:-parse-only}" \
+  --from-literal=DEMO_MODE="${DEMO_MODE:-false}" \
   --from-literal=PRECONV_JOB_RESULT_TTL_SECONDS="${PRECONV_JOB_RESULT_TTL_SECONDS:-3600}" \
   --from-literal=ICLAIMS_APP_ID="${ICLAIMS_APP_ID}" \
   --from-literal=ICLAIMS_VERTICAL="${ICLAIMS_VERTICAL}" \

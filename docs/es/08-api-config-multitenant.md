@@ -261,7 +261,6 @@ $CreateBody = @"
   "type": "https://didcomm.org/plaintext/2.0/message",
   "iat": $Now,
   "exp": $Exp,
-  "vp_token": "<signed-vp-jwt-with-employee-vc>",
   "data": [
     {
       "softwareId": "$Man",
@@ -319,7 +318,6 @@ Ejemplo de envío de configuración en `_create` (una entry):
   "type": "https://didcomm.org/plaintext/2.0/message",
   "iat": 1760000000,
   "exp": 1760003600,
-  "vp_token": "<signed-vp-jwt-with-employee-vc>",
   "data": [
     {
       "softwareId": "qvet-v1.0",
@@ -353,7 +351,6 @@ Ejemplo con varias configuraciones en `data[]`:
   "type": "https://didcomm.org/plaintext/2.0/message",
   "iat": 1760000000,
   "exp": 1760003600,
-  "vp_token": "<signed-vp-jwt-with-employee-vc>",
   "data": [
     {
       "softwareId": "qvet-v1.0",
@@ -387,6 +384,9 @@ Notas:
 - Los campos `iat` y `exp` son obligatorios en el envelope DIDComm/FAPI y se documentan en Swagger.
 - Si la solicitud de configuración ya fue aceptada, `_create-response` devuelve `200`.
 - Si el job sigue en curso, `_upload-response` devuelve `202` con `Retry-After`.
+- Contrato V2: autenticación de endpoints de negocio vía `Authorization: Bearer <access_token>`.
+- `id_token` se usa en el flujo de identidad/exchange, no en el payload DIDComm de negocio.
+- Compatibilidad legacy temporal: en `DEMO_MODE=true` el backend puede aceptar `id_token`/`vp_token` en payload para clientes antiguos.
 
 ## 7) Modo de autenticación del envelope (runtime)
 
@@ -398,7 +398,7 @@ Variables de entorno:
 - `PRECONV_CLEANUP_SCHEDULE` (solo despliegue K8s; frecuencia del CronJob de limpieza global)
 
 Comportamiento:
-- `DEMO_MODE=true` (solo pruebas internas/demostraciones): no exige Bearer emitido por `/exchange`.
+- `DEMO_MODE=true` (solo pruebas internas/demostraciones): mantiene compatibilidad temporal para clientes legacy.
 - `DEMO_MODE=false` (producción): exige `Authorization: Bearer <token>` válido emitido por `/exchange`.
 
 Recomendación de operación:
@@ -409,7 +409,7 @@ Bearer en Swagger (Authorize):
 - La API acepta `Authorization: Bearer <token>` como mecanismo de autenticación.
 - El token puede venir de cualquier proveedor de identidad soportado por tu despliegue
   (Google, Microsoft Entra ID, eIDAS u otro equivalente), siempre con la `audience` esperada.
-- Ejemplo demo (`DEMO_MODE=true`): se puede usar `Bearer demo-token` o no enviar Bearer de exchange.
+- Ejemplo demo (`DEMO_MODE=true`): usar `Bearer demo-token` en Swagger para pruebas manuales.
 - Ejemplo producción (`DEMO_MODE=false`): `Bearer <session access token de /exchange>`.
 - En Swagger -> `Authorize` -> pegar `Bearer <token>`.
 

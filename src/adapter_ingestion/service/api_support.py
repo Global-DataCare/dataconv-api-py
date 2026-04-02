@@ -628,7 +628,9 @@ def _parse_token_claims(token: str, field_name: str, require_jwt: bool) -> dict[
         try:
             return _decode_jwt_payload(raw)
         except Exception as exc:
-            raise HTTPException(status_code=401, detail=f"{field_name} is not a valid JWT payload") from exc
+            if require_jwt:
+                raise HTTPException(status_code=401, detail=f"{field_name} is not a valid JWT payload") from exc
+            return {}
 
     if require_jwt:
         raise HTTPException(status_code=401, detail=f"{field_name} must be a JWT in current auth mode")
@@ -714,7 +716,8 @@ def _enforce_auth_context(
                     raise HTTPException(status_code=403, detail=f"insufficient scope: missing {missing[0]}")
             return
         except HTTPException:
-            raise
+            if not demo_mode:
+                raise
         except Exception:
             if not demo_mode:
                 raise HTTPException(status_code=401, detail="invalid or expired Bearer token")

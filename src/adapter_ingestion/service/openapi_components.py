@@ -25,7 +25,9 @@ def install_components(schema: dict[str, Any]) -> None:
             "1. Bootstrap controller/organization context with controller exchange.\n"
             "2. Copy the returned `access_token`.\n"
             "3. Click Authorize here and paste `Bearer <access_token>`.\n\n"
-            "Demo (`DEMO_MODE=true`): Bearer token is still required; signature verification is bypassed.\n"
+            "V2 contract: business endpoints authenticate with `Authorization: Bearer <access_token>`.\n"
+            "Use `id_token` only in identity/auth exchange steps (`_token` -> `_exchange`).\n"
+            "Demo (`DEMO_MODE=true`): signature verification is bypassed; legacy DIDComm `id_token`/`vp_token` payload fields may still be accepted temporarily for compatibility.\n"
             "Production (`DEMO_MODE=false`): Bearer token is required and fully validated."
         ),
     }
@@ -334,8 +336,16 @@ def _config_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
-                "vp_token": {"type": "string"},
-                "id_token": {"type": "string"},
+                "vp_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
+                "id_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
                 "data": {"type": "array", "items": {"$ref": "#/components/schemas/DidcommNewOrgConfigEntry"}},
                 "body": {"type": "object", "additionalProperties": True},
             },
@@ -352,8 +362,16 @@ def _config_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
-                "vp_token": {"type": "string"},
-                "id_token": {"type": "string"},
+                "vp_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
+                "id_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
             },
             "additionalProperties": False,
         },
@@ -420,8 +438,16 @@ def _conversion_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
-                "vp_token": {"type": "string"},
-                "id_token": {"type": "string"},
+                "vp_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
+                "id_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
                 "send": {"type": "boolean", "default": False},
             },
             "additionalProperties": False,
@@ -476,8 +502,16 @@ def _conversion_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
-                "vp_token": {"type": "string"},
-                "id_token": {"type": "string"},
+                "vp_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
+                "id_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
                 "send": {"type": "boolean", "default": False},
                 "body": {"$ref": "#/components/schemas/DidcommBundleBody"},
                 "attachments": {
@@ -500,8 +534,16 @@ def _conversion_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
-                "vp_token": {"type": "string"},
-                "id_token": {"type": "string"},
+                "vp_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
+                "id_token": {
+                    "type": "string",
+                    "deprecated": True,
+                    "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
+                },
             },
             "additionalProperties": False,
         },

@@ -236,8 +236,10 @@ Eventos de lifecycle para depuración (stdout/Cloud Logging):
 
 ## 8) Si usas auth estricta
 
-Si `DEMO_MODE=false`, tendrás que enviar `Authorization: Bearer <token>` válido (emitido por `/exchange`).
-Si `DEMO_MODE=true`, la API funciona en modo demo sin exigir ese Bearer de exchange.
+Contrato V2: endpoints de negocio usan `Authorization: Bearer <access_token>`.
+`id_token` se usa en el flujo de identidad/exchange, no en payload DIDComm de negocio.
+Si `DEMO_MODE=false`, el Bearer emitido por `/exchange` es obligatorio y validado.
+Si `DEMO_MODE=true`, se mantiene compatibilidad temporal para clientes legacy, pero en Swagger/documentación se recomienda usar Bearer también.
 
 Referencia completa de contrato:
 

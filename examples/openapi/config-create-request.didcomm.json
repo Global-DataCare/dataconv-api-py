@@ -3,7 +3,6 @@
   "thid": "thid-auto",
   "jti": "req-auto",
   "type": "https://didcomm.org/plaintext/2.0/message",
-  "vp_token": "{\"vp\":{\"type\":[\"VerifiablePresentation\"]}}",
   "iat": 1760000000,
   "exp": 1760003600,
   "data": [

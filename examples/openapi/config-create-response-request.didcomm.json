@@ -1,6 +1,5 @@
 {
   "iss": "did:web:clinic.example:employee:it:admin",
-  "id_token": "demo-token",
   "thid": "thid-auto",
   "type": "https://didcomm.org/plaintext/2.0/message",
   "iat": 1760000000,

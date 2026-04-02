@@ -239,6 +239,14 @@ class ConversionUploadManager:
                         content=merged_config,
                         updated_by=effective_requested_by or "system-bootstrap",
                     )
+                    # Keep the reserved selector in sync so this same upload can be processed
+                    # immediately without requiring a second request under the target software-id.
+                    if target_selector != selector:
+                        self._deps.control_plane.upsert_config(
+                            key=selector,
+                            content=merged_config,
+                            updated_by=effective_requested_by or "system-bootstrap",
+                        )
                 elif not resolved_config:
                     raise HTTPException(
                         status_code=400,

@@ -24,6 +24,8 @@ from .openapi_constants import (
     CONTROLLER_EXCHANGE_PATH,
     CONTROLLER_EXCHANGE_RESPONSE_PATH,
     EXCHANGE_PATH,
+    LEGACY_UPLOAD_PATH,
+    LEGACY_UPLOAD_RESPONSE_PATH,
     OAUTH_TOKEN_PATH,
     PATCH_PATH,
     SEARCH_PATH,
@@ -42,7 +44,7 @@ def configure_schema_metadata(schema: dict[str, Any]) -> None:
     info = schema.get("info")
     if isinstance(info, dict):
         info["title"] = "Preconversion DIDComm API"
-        info["version"] = "0.6.0"
+        info["version"] = "0.6.3"
         info["description"] = (
             "Public DIDComm/FAPI contract for tenant configuration and conversion jobs.\n\n"
             "**Functional groups**\n\n"
@@ -153,6 +155,8 @@ def configure_operations(
     create_response_operation = rewritten_paths.get(CREATE_RESPONSE_PATH, {}).get("post")
     upload_operation = rewritten_paths.get(UPLOAD_PATH, {}).get("post")
     upload_response_operation = rewritten_paths.get(UPLOAD_RESPONSE_PATH, {}).get("post")
+    legacy_upload_operation = rewritten_paths.get(LEGACY_UPLOAD_PATH, {}).get("post")
+    legacy_upload_response_operation = rewritten_paths.get(LEGACY_UPLOAD_RESPONSE_PATH, {}).get("post")
     patch_operation = rewritten_paths.get(PATCH_PATH, {}).get("post")
     batch_operation = rewritten_paths.get(BATCH_PATH, {}).get("post")
     search_operation = rewritten_paths.get(SEARCH_PATH, {}).get("post")
@@ -265,9 +269,6 @@ def configure_operations(
         upload_operation["requestBody"] = {
             "required": True,
             "content": {
-                "multipart/form-data": {
-                    "schema": {"$ref": "#/components/schemas/DidcommUploadMultipartRequest"}
-                },
                 "application/didcomm-plain+json": {
                     "schema": {"$ref": "#/components/schemas/DidcommUploadDidcommPlaintextRequest"},
                     "example": upload_request_example,
@@ -277,6 +278,9 @@ def configure_operations(
                             "value": upload_request_example,
                         }
                     },
+                },
+                "multipart/form-data": {
+                    "schema": {"$ref": "#/components/schemas/DidcommUploadMultipartRequest"}
                 },
             },
         }
@@ -346,6 +350,103 @@ def configure_operations(
                 },
             }
         set_operation_outcome_error_responses(upload_response_operation, include_404=True)
+
+    if isinstance(legacy_upload_operation, dict):
+        legacy_upload_operation["tags"] = ["4.1 Publisher Upload Request"]
+        legacy_upload_operation["security"] = [{"BearerAuth": []}]
+        set_path_param_description(
+            legacy_upload_operation,
+            "tenant-id",
+            "Stable organization identifier (`taxId` / `VAT`). It appears in both route segments and must match.",
+        )
+        legacy_upload_operation["requestBody"] = {
+            "required": True,
+            "content": {
+                "application/didcomm-plain+json": {
+                    "schema": {"$ref": "#/components/schemas/DidcommUploadDidcommPlaintextRequest"},
+                    "example": upload_request_example,
+                    "examples": {
+                        "didcommUploadWithLink": {
+                            "summary": "Upload via DIDComm attachment link",
+                            "value": upload_request_example,
+                        }
+                    },
+                },
+                "multipart/form-data": {
+                    "schema": {"$ref": "#/components/schemas/DidcommUploadMultipartRequest"}
+                },
+            },
+        }
+        legacy_upload_responses = legacy_upload_operation.setdefault("responses", {})
+        if isinstance(legacy_upload_responses, dict):
+            legacy_upload_responses["202"] = {
+                "description": "Upload accepted and queued. Poll later using Location and the same thid.",
+                "headers": {
+                    "Location": {
+                        "description": "Polling endpoint URL (`.../_upload-response?thid=...`).",
+                        "schema": {"type": "string"},
+                    },
+                    "Retry-After": {
+                        "description": "Recommended polling delay in seconds.",
+                        "schema": {"type": "string", "example": "5"},
+                    },
+                },
+            }
+        set_operation_outcome_error_responses(legacy_upload_operation)
+
+    if isinstance(legacy_upload_response_operation, dict):
+        legacy_upload_response_operation["tags"] = ["4.2 Publisher Upload Response"]
+        legacy_upload_response_operation["security"] = [{"BearerAuth": []}]
+        set_path_param_description(
+            legacy_upload_response_operation,
+            "tenant-id",
+            "Stable organization identifier (`taxId` / `VAT`). It appears in both route segments and must match.",
+        )
+        legacy_upload_response_operation["requestBody"] = {
+            "required": True,
+            "content": {
+                "application/didcomm-plain+json": {
+                    "schema": {"$ref": "#/components/schemas/DidcommUploadResponseRequest"},
+                    "example": upload_response_request_example,
+                    "examples": {
+                        "didcommUploadResponseRequest": {
+                            "summary": "Poll upload response",
+                            "value": upload_response_request_example,
+                        }
+                    },
+                }
+            },
+        }
+        append_optional_query_thid_parameter(legacy_upload_response_operation)
+        legacy_upload_response_responses = legacy_upload_response_operation.setdefault("responses", {})
+        if isinstance(legacy_upload_response_responses, dict):
+            legacy_upload_response_responses["202"] = {
+                "description": "Upload result not ready yet (queued/running). Retry later.",
+                "headers": {
+                    "Location": {
+                        "description": "Same polling endpoint URL.",
+                        "schema": {"type": "string"},
+                    },
+                    "Retry-After": {
+                        "description": "Recommended polling delay in seconds.",
+                        "schema": {"type": "string", "example": "5"},
+                    },
+                },
+                "content": {
+                    "application/didcomm-plain+json": {
+                        "schema": {"$ref": "#/components/schemas/DidcommPollResponse"},
+                    }
+                },
+            }
+            legacy_upload_response_responses["200"] = {
+                "description": "Upload result finished (success/failure) with conversion bundle and diagnostics.",
+                "content": {
+                    "application/didcomm-plain+json": {
+                        "schema": {"$ref": "#/components/schemas/DidcommPollResponse"},
+                    }
+                },
+            }
+        set_operation_outcome_error_responses(legacy_upload_response_operation, include_404=True)
 
     if isinstance(patch_operation, dict):
         patch_operation["tags"] = ["4.3 Publisher Patch"]
@@ -567,6 +668,8 @@ def configure_operations(
         create_response_operation,
         upload_operation,
         upload_response_operation,
+        legacy_upload_operation,
+        legacy_upload_response_operation,
         patch_operation,
         batch_operation,
         search_operation,

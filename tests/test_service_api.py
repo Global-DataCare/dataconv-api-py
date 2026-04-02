@@ -293,6 +293,9 @@ class ServiceApiTests(unittest.TestCase):
         upload_operation = schema["paths"][
             "/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software-id}/{resource-type}/_upload"
         ]["post"]
+        canonical_upload_operation = schema["paths"][
+            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_upload"
+        ]["post"]
         upload_response_operation = schema["paths"][
             "/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software-id}/{resource-type}/_upload-response"
         ]["post"]
@@ -350,6 +353,8 @@ class ServiceApiTests(unittest.TestCase):
             upload_json_schema.get("$ref"),
             "#/components/schemas/DidcommUploadDidcommPlaintextRequest",
         )
+        upload_content_types = list(upload_operation.get("requestBody", {}).get("content", {}).keys())
+        self.assertEqual(upload_content_types[0], "application/didcomm-plain+json")
 
         upload_response_schema = (
             upload_response_operation.get("requestBody", {})
@@ -386,6 +391,10 @@ class ServiceApiTests(unittest.TestCase):
         )
         self.assertEqual(upload_examples.get("didcommUploadWithLink", {}).get("value", {}).get("thid"), "thid-auto")
         self.assertEqual(upload_example.get("thid"), "thid-auto")
+        self.assertEqual(upload_example.get("jti"), "req-auto")
+        self.assertEqual(upload_example.get("vp_token"), "{\"vp\":{\"type\":[\"VerifiablePresentation\"]}}")
+        self.assertEqual(upload_example.get("body", {}).get("resourceType"), "Bundle")
+        self.assertEqual(upload_example.get("body", {}).get("type"), "batch")
         self.assertIn(
             "dl=1",
             upload_examples.get("didcommUploadWithLink", {})
@@ -395,6 +404,18 @@ class ServiceApiTests(unittest.TestCase):
             .get("links", [""])[0],
         )
         self.assertIn("dl=1", upload_example.get("attachments", [{}])[0].get("data", {}).get("links", [""])[0])
+        canonical_upload_example = (
+            canonical_upload_operation.get("requestBody", {})
+            .get("content", {})
+            .get("application/didcomm-plain+json", {})
+            .get("example", {})
+        )
+        self.assertEqual(canonical_upload_example.get("jti"), "req-auto")
+        self.assertEqual(canonical_upload_example.get("body", {}).get("resourceType"), "Bundle")
+        self.assertIn(
+            "dl=1",
+            canonical_upload_example.get("attachments", [{}])[0].get("data", {}).get("links", [""])[0],
+        )
         upload_response_example = (
             upload_response_operation.get("requestBody", {})
             .get("content", {})
@@ -1588,6 +1609,16 @@ class ServiceApiTests(unittest.TestCase):
         self.assertEqual(config.content["schemaConfig"]["fieldMap"]["date"], "FECHA")
         self.assertEqual(config.content["schemaConfig"]["fieldMap"]["subject_id"], "CHIP")
         self.assertEqual(config.content["schemaConfig"]["fieldMap"]["species"], "ESPECIE")
+        reserved_config = self._resolve_config(
+            alternate_name="tenant-a",
+            manufacturer="api-config",
+            manufacturer_version="",
+            country="ES",
+            facility_id="",
+        )
+        self.assertIsNotNone(reserved_config)
+        self.assertEqual(reserved_config.content["schemaConfig"]["headerRowIndex"], 3)
+        self.assertEqual(reserved_config.content["schemaConfig"]["fieldMap"]["subject_id"], "CHIP")
 
     def test_upload_api_config_requires_embedded_rows_when_reserved_config_missing(self) -> None:
         input_ref = self._blob_store().put_bytes(

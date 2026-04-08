@@ -1,43 +1,51 @@
 # dataconv-api
 
-Language:
+Clinical pre-conversion repository with two execution modes:
 
-- Español: [README_es.md](README_es.md)
-- English: pending (`README_en.md`)
+- `API`: main runtime for integrators and client applications.
+- `LEGACY_CLI`: internal/manual validation flow.
 
-## Inicio rápido local (API + worker)
+This README is the single root entry point in English. Spanish operational material remains available under [docs/es/README.md](docs/es/README.md).
 
-Preparación:
+## 1. Local API setup
+
+Activate a virtual environment before running the API locally.
+
+Recommended local Python version: use `python3.11` so development matches the current Docker deployment runtime. If you run `python3 -m venv`, the virtual environment will inherit whatever interpreter your shell resolves at that moment.
 
 ```bash
-cd dataconv-api-py
+cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
 
-python3 -m venv .venv
+python3.11 --version
+python3.11 -m venv .venv
 source .venv/bin/activate
 
+python --version
 python -m pip install --upgrade pip
 python -m pip install -e ".[api,gcp,postgres,excel,ai]"
 
-cp env.local.example .env.local
+cp .env.local.example .env.local
 ```
 
-Para ejecutar los tests:
+If `python3.11` is not in `PATH`, verify the interpreter that your shell resolves before creating `.venv`:
+
 ```bash
-$ source .venv/bin/activate && pip install pytest && pytest
+which python3
+python3 --version
 ```
 
-### Modo local `mem` (worker embebido): 1 terminal
+### Embedded worker mode (`mem`): one terminal
 
-Si ejecutas en local con providers en memoria (`mem`), la API levanta worker embebido automáticamente y basta un solo proceso:
+If local execution uses in-memory providers (`mem`), the API starts the embedded worker automatically.
 
 ```bash
 source .venv/bin/activate
 ./scripts/run-api-local.sh
 ```
 
-### Modo no embebido (`gcloud`): 2 terminales (solo ejecución manual local)
+### Split API and worker mode: two terminals
 
-Importante: si abres una terminal nueva, debes volver a ejecutar `source .venv/bin/activate` en esa terminal.
+Use separate terminals when running the API and worker manually outside embedded mode.
 
 Terminal 1:
 
@@ -53,60 +61,237 @@ source .venv/bin/activate
 ./scripts/run-worker-local.sh
 ```
 
-Nota:
+Important notes:
 
-- Esto aplica a ejecución local manual sin worker embebido (`mem`).
-- En Docker local no necesitas dos terminales manuales para API/worker.
-- En Kubernetes/cloud, API y worker se ejecutan como workloads gestionados por el orquestador.
+- If you open a new terminal, run `source .venv/bin/activate` again.
+- If you see `preconversion-api: command not found` or `preconversion-worker: command not found`, that terminal does not have `.venv` activated.
+- Docker local mode does not require two manual terminals.
+- In Kubernetes or other cloud environments, the orchestrator manages API and worker workloads.
 
-Swagger local:
+Swagger:
 
-- URL por defecto: `http://127.0.0.1:8080/api-docs`
-- Si ejecutas sin Docker, usa el `LOCAL_PORT` configurado en tu `.env.local`.
-- Si ejecutas con Docker, usa el puerto publicado en host (`DOCKER_PORT`, por defecto igual a `LOCAL_PORT`).
+- Default URL: `http://127.0.0.1:8080/api-docs`
+- Without Docker, use the `LOCAL_PORT` configured in `.env.local`.
+- With Docker, use the published host port (`DOCKER_PORT`, by default equal to `LOCAL_PORT`).
 
-**Note on service naming:**
-
-- Internally, the software uses **"preconvert"** as a prefix in GCP resources (Firestore, PubSub, GCS) for historical reasons.
-- Externally (Docker, SDK, documentation), we use **"dataconv"** as the public product name.
-- The executable binary is called `preconversion-api`, but it's the same thing — both names refer to the same software.
-
-## Configuración mínima recomendada (auth + alcance)
-
-Variables de entorno:
+## 2. Tests
 
 ```bash
-# Auth runtime
-# true  -> demo/interno (no exige Bearer de /exchange)
-# false -> producción (exige Bearer emitido por /exchange)
+source .venv/bin/activate
+python -m pip install pytest
+python -m pytest -q
+```
+
+## 3. Service naming
+
+- Internally, the software still uses `preconvert` in GCP resource names for historical reasons.
+- Externally, Docker images, SDKs, and documentation use `dataconv` as the public product name.
+- The executable binaries remain `preconversion-api`, `preconversion-worker`, and `preconversion-cleanup`.
+
+## 4. Recommended minimum runtime scope
+
+```bash
+# Runtime auth
+# true  -> demo or internal mode
+# false -> production mode with Bearer tokens from /exchange
 DEMO_MODE=true
 
-# CSV de jurisdicciones soportadas por esta instancia.
-# Usa '*' para permitir cualquiera.
+# CSV of jurisdictions supported by this instance. Use '*' to allow any.
 SUPPORTED_JURISDICTIONS=ES
 
-# CSV de sectores soportados por esta instancia.
-# Usa '*' para permitir cualquiera.
+# CSV of sectors supported by this instance. Use '*' to allow any.
 SUPPORTED_SECTORS=health-care,animal-care,onehealth-care,onehealth-research,onehealth-insurance
 ```
 
-Comportamiento:
+Behavior:
 
-- Si `SUPPORTED_JURISDICTIONS` no contiene la jurisdicción pedida, la API responde `404`.
-- Si `SUPPORTED_SECTORS` no contiene el sector pedido, la API responde `404`.
-- Si cualquiera de ambas variables es `*`, no se restringe ese eje.
+- If `SUPPORTED_JURISDICTIONS` does not include the requested jurisdiction, the API returns `404`.
+- If `SUPPORTED_SECTORS` does not include the requested sector, the API returns `404`.
+- If either variable is `*`, that axis is unrestricted.
 
-Más detalle:
+Exchange profile note:
 
-- Español: [INTEGRATORS_GUIDE.md](INTEGRATORS_GUIDE.md)
-- Español: [README_es.md](README_es.md)
-- Español: [docs/es/API_DEVELOPMENT_GUIDE.md](docs/es/API_DEVELOPMENT_GUIDE.md)
+- The default `/exchange` flow expects `subject_token` (`id_token`) and standard validations.
+- `api_key` mode is available when `EXCHANGE_ALLOW_API_KEY=true`.
+- Exceptional desktop or non-confidential mode is explicit and disabled by default:
+  - set `EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`
+  - send `api_key_profile=api-key-exception.v1`
+  - send `api_key` (or `X-API-Key`) plus `organization` and preferably `operational_subject`
 
-Flujo copy/paste recomendado para integradores:
+## 5. Local API and worker against real Google Cloud
 
-- [INTEGRATORS_GUIDE.md](INTEGRATORS_GUIDE.md) (`acme` / `animal-care` / `ES`, `_create`, `_create-response`, `_upload`, `_upload-response`)
+If you want to run the local API and worker against real Google Cloud services, using Firestore for vault and PostgreSQL for search:
 
-Documentación operativa:
+```bash
+cp .env.local.gcp.example .env.local.gcp
+source .venv/bin/activate
+python -m pip install -e ".[prod]"
+```
 
-- Español: [docs/es/README.md](docs/es/README.md)
-- Español: [docs/es/13-bootstrap-gcp-onehealth.md](docs/es/13-bootstrap-gcp-onehealth.md)
+Complete `.env.local.gcp` with at least:
+
+- `SEARCH_PROVIDER=postgresql`
+- `POSTGRES_DSN=...`
+- `GCP_PROJECT_ID=...`
+- `GCS_BUCKET_NAME=...`
+
+Run locally against real cloud services:
+
+```bash
+./scripts/run-api-local-gcp.sh
+```
+
+```bash
+./scripts/run-worker-local-gcp.sh
+```
+
+## 6. Smoke checks and cleanup
+
+Full HTTP smoke test against the local API:
+
+```bash
+BASE_URL=http://127.0.0.1:8080 ./scripts/run-integrator-smoke.sh
+```
+
+Smoke test for real GCP adapters:
+
+```bash
+./scripts/run-gcp-adapter-integration.sh
+```
+
+Default public API surface:
+
+- DIDComm contract endpoints only: `_create`, `_create-response`, `_upload`, `_upload-response`
+- `healthz`
+
+Global cleanup command for expired jobs:
+
+```bash
+source .venv/bin/activate
+preconversion-cleanup --dry-run --pretty
+```
+
+Operational settings already integrated in the runtime:
+
+- Job response TTL: `PRECONV_JOB_RESULT_TTL_SECONDS`
+- Global cleanup cron: `PRECONV_CLEANUP_SCHEDULE`
+- Structured JSON lifecycle logs such as `job_created`, `job_response_delivered`, and `job_expired_deleted`
+
+## 7. Docker local, image push, and deployment
+
+### 7.1 Docker local (without `venv`)
+
+```bash
+cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+./docker_build_local.sh
+```
+
+API:
+
+```bash
+./docker_run.sh local
+```
+
+Worker:
+
+```bash
+PROCESS_MODE=worker ./docker_run.sh local
+```
+
+API against real cloud services from Docker:
+
+```bash
+./docker_run.sh local-gcp
+```
+
+Worker against real cloud services from Docker:
+
+```bash
+PROCESS_MODE=worker ./docker_run.sh local-gcp
+```
+
+Manual cleanup:
+
+```bash
+PROCESS_MODE=cleanup ./docker_run.sh local
+```
+
+### 7.2 Publish an image to Artifact Registry manually
+
+```bash
+cp .env.deploy.production.example .env.deploy.production
+# edit .env.deploy.production with your real values
+
+set -a
+source .env.deploy.production
+set +a
+
+gcloud auth login
+gcloud config set project "$GCP_PROJECT_ID"
+gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" -q
+
+gcloud artifacts repositories describe "$ARTIFACT_REGISTRY_REPO" --location "$GCP_REGION" >/dev/null 2>&1 || \
+  gcloud artifacts repositories create "$ARTIFACT_REGISTRY_REPO" \
+    --repository-format=docker \
+    --location="$GCP_REGION" \
+    --description="Preconversion images"
+
+IMAGE_URI="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${ARTIFACT_REGISTRY_REPO}/${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
+docker build -t "$IMAGE_URI" .
+docker push "$IMAGE_URI"
+docker image inspect --format='{{index .RepoDigests 0}}' "$IMAGE_URI"
+```
+
+### 7.3 Deploy to GKE
+
+```bash
+./cloud_deploy.sh staging
+```
+
+Or explicitly:
+
+```bash
+./scripts/deploy-gke.sh staging
+
+set -a
+source .env.deploy.staging
+set +a
+
+kubectl -n "$K8S_NAMESPACE" get deploy
+kubectl -n "$K8S_NAMESPACE" get pods -o wide
+kubectl -n "$K8S_NAMESPACE" get svc
+kubectl -n "$K8S_NAMESPACE" get ingress
+```
+
+### 7.4 Re-deploy by digest without rebuilding
+
+```bash
+PRECONV_IMAGE_REF="europe-west1-docker.pkg.dev/.../vet-claims-api@sha256:..." \
+PRECONV_SKIP_BUILD=true \
+./scripts/deploy-gke.sh production
+```
+
+## 8. Legacy CLI
+
+This flow is not for API integrators. It remains available for internal manual pre-conversion validation.
+
+Base command:
+
+```bash
+source .venv/bin/activate
+PYTHONPATH=src python -m adapter_ingestion --help
+```
+
+## 9. Documentation map
+
+- Integrator runbook: [INTEGRATORS_GUIDE.md](INTEGRATORS_GUIDE.md)
+- API walkthrough: [docs/en/API_DEVELOPMENT_GUIDE.md](docs/en/API_DEVELOPMENT_GUIDE.md)
+- Operational documentation index: [docs/en/README.md](docs/en/README.md)
+- Operating modes: [docs/en/00-operating-modes.md](docs/en/00-operating-modes.md)
+- Installation: [docs/en/01-installation.md](docs/en/01-installation.md)
+- Run and examples: [docs/en/03-run-and-examples.md](docs/en/03-run-and-examples.md)
+- Troubleshooting: [docs/en/05-troubleshooting.md](docs/en/05-troubleshooting.md)
+- Quick GKE deployment: [docs/en/10-quick-gke-deployment.md](docs/en/10-quick-gke-deployment.md)
+- Release pipeline: [docs/en/11-release-staging-production.md](docs/en/11-release-staging-production.md)
+- GCP bootstrap: [docs/en/13-gcp-bootstrap-onehealth.md](docs/en/13-gcp-bootstrap-onehealth.md)
+- Spanish operational archive: [docs/es/README.md](docs/es/README.md)

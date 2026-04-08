@@ -7,7 +7,7 @@ name = "adapter-ingestion-py"
 version = "0.6.4"
 description = "External multi-vendor ingestion adapters for gwtemplate"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]

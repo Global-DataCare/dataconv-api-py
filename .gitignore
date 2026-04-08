@@ -10,20 +10,7 @@ build/
 *.egg-info/
 
 artifacts/
-.venv/
-private-gcp-bootstrap.config
-private-cloudsql.env
-private-staging-notes.md
-private-preconversion-runtime-sa.json
-.env.local.gcp
-
-# Added
-response*
-requests/
-*.srl
-data/
-.npmrc
-.env*
+.venv*/
 coverage
 tmp
 *.tgz
@@ -37,26 +24,44 @@ stripe.*
 _private_
 *private*.*
 *.production
+coverage
+tmp/
+data/
+requests/
+response*
 
-# Ignore all .env files...
-.env*
-# ...except for the example template.
+.env
+.env.*
 !.env.example
+!.env.*.example
 
-# Local deploy config / secrets (never commit)
+.npmrc
+*.tgz
+*.srl
+
+private-gcp-bootstrap.config
+private-cloudsql.env
+private-staging-notes.md
+private-preconversion-runtime-sa.json
 private-deploy.config
 secrets/
 *.secrets
+_private_/
+*private*.*
+*.production
+admin*.*
+stripe.*
 
-# Logs
-logs
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Runtime data
-pids
+pids/
 *.pid
 *.seed
 *.pid.lock
+
+.idea/
+**/.DS_Store

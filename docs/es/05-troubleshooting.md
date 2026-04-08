@@ -98,8 +98,8 @@ Causa:
 Acción:
 
 ```bash
-cd /ruta/a/adapter-ingestion-py
-python3 -m venv .venv
+cd /ruta/a/dataconv-api-py
+python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip setuptools wheel
 python -m pip uninstall -y UNKNOWN || true

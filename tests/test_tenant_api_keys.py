@@ -133,6 +133,8 @@ class TenantApiKeyTests(unittest.TestCase):
         self.assertTrue(isinstance(response_data, list) and len(response_data) > 0)
         first_entry = response_data[0] if isinstance(response_data[0], dict) else {}
         resource = first_entry.get("resource") if isinstance(first_entry.get("resource"), dict) else {}
+        self.assertTrue(str(resource.get("consentRef") or "").startswith("urn:consent:api-key-rule:"))
+        self.assertEqual(str(resource.get("consentModel") or ""), "one-rule-one-consent-one-odrl")
         api_key = str(resource.get("apiKey") or first_entry.get("apiKey") or "")
         self.assertTrue(api_key)
 

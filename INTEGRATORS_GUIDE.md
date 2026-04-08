@@ -1,41 +1,41 @@
 # INTEGRATORS_GUIDE
 
-Guía rápida para integradores que quieran probar la API sin Swagger y guardar requests/responses versionables.
+Quick guide for integrators who want to test the API without Swagger and store versionable request and response payloads.
 
-## Objetivo
+## Goal
 
-Este flujo sirve para:
+This flow is designed to:
 
-- Probar localmente `API + worker` con `curl`.
-- Usar `application/didcomm-plain+json` con `attachments[]`.
-- Guardar payloads de entrada y respuestas en `artifacts/integrator-smoke/`.
-- Repetir pruebas mucho más rápido que desde Swagger.
+- test `API + worker` locally using `curl`
+- use `application/didcomm-plain+json` with `attachments[]`
+- store input and output payloads under `artifacts/integrator-smoke/`
+- iterate faster than with Swagger-only manual testing
 
-## Requisitos
+## Prerequisites
 
-Antes de lanzar el smoke:
+Before running the smoke flow:
 
 ```bash
 source .venv/bin/activate
 preconversion-api
 ```
 
-En otra terminal:
+In another terminal:
 
 ```bash
 source .venv/bin/activate
 preconversion-worker
 ```
 
-## Quick CLI runbook (capturas rápidas)
+## Quick CLI runbook
 
-Este flujo es el recomendado para demos/capturas con CLI:
+Recommended flow for demos and CLI screenshots:
 
-- El integrador (frontend tercero) autentica al usuario en Google/Microsoft.
-- Obtiene un `id_token` OIDC.
-- La API solo valida `id_token` (firma/iss/aud/exp) y extrae email.
+- the integrator frontend authenticates the user in Google or Microsoft
+- the frontend receives an OIDC `id_token`
+- the API validates `id_token` and extracts the user email
 
-### 1) Preparar entorno CLI
+### 1) Prepare the CLI environment
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/dataconv-client-sdk-ts
@@ -46,42 +46,38 @@ export DATACONV_JURISDICTION="ES"
 export DATACONV_SECTOR="animal-care"
 export DATACONV_SOFTWARE_ID="qvet"
 export DATACONV_RESOURCE_TYPE="Composition"
-
-# token emitido por Google/Microsoft en el frontend del integrador
-export DATACONV_ID_TOKEN="<ID_TOKEN_OIDC_REAL>"
+export DATACONV_ID_TOKEN="<REAL_OIDC_ID_TOKEN>"
 ```
 
-### 2) Login local (solo guarda estado CLI)
+### 2) Local login
 
 ```bash
 npx tsx src/cli.ts login --id-token "$DATACONV_ID_TOKEN"
 ```
 
-### 3) Obtener token de sesión para administrar API keys
+### 3) Obtain a session token for API key administration
 
 ```bash
 npx tsx src/cli.ts exchange --scope "dataconv.tenant.keys.manage"
 ```
 
-### 4) Crear API key granular (schema Action)
+### 4) Create a granular API key
 
 ```bash
 npx tsx src/cli.ts api-key-create \
-  --email "operador@integrador.example" \
+  --email "operator@integrator.example" \
   --target "publisher/cds-es/v1/animal-care/vates-a00000001/dataset/*/*/_upload" \
   --scope "excel/_upload,DocumentReference/_search,Subject/_search" \
   --instrument '{"permission":[{"action":"update"}]}'
 ```
 
-### 5) Obtener token de sesión para upload
+### 5) Obtain a session token for uploads
 
 ```bash
 npx tsx src/cli.ts exchange --scope "dataconv.upload"
 ```
 
-### 6) Crear mapping antes del upload (recomendado)
-
-Guarda un mapping JSON (ejemplo rápido):
+### 6) Create a mapping before upload
 
 ```bash
 cat > ./artifacts/mapping-qvet.json <<'JSON'
@@ -100,7 +96,7 @@ cat > ./artifacts/mapping-qvet.json <<'JSON'
 JSON
 ```
 
-### 7) Upload + poll para captura final
+### 7) Upload and poll
 
 ```bash
 npx tsx src/cli.ts upload ../examples/exampleQvetES.xlsx \
@@ -110,38 +106,32 @@ npx tsx src/cli.ts upload ../examples/exampleQvetES.xlsx \
 npx tsx src/cli.ts whoami
 ```
 
-Notas rápidas para no bloquear capturas:
+Useful notes:
 
-- Si `DEMO_MODE=false`, el backend exige Bearer de `/exchange` en operaciones protegidas.
-- Si falla `exchange` por `audience` o `issuer`, revisa `EXCHANGE_OIDC_ALLOWED_ISSUERS` y `EXCHANGE_OIDC_ALLOWED_AUDIENCES`.
-- La CLI no hace login Google/Microsoft; solo consume `id_token` ya emitido por el IdP del integrador.
-- Cuando usas `--mapping-json`, la CLI crea y hace polling de `config/_create-response` antes del upload.
-- El resumen final de CLI prioriza `OperationOutcome.issue[0].description` (si existe).
+- If `DEMO_MODE=false`, protected operations require a Bearer token from `/exchange`.
+- If `exchange` fails on audience or issuer, review `EXCHANGE_OIDC_ALLOWED_ISSUERS` and `EXCHANGE_OIDC_ALLOWED_AUDIENCES`.
+- The CLI does not perform Google or Microsoft login; it only consumes an already-issued `id_token`.
+- When `--mapping-json` is used, the CLI creates and polls `config/_create-response` before upload.
+- The final CLI summary prioritizes `OperationOutcome.issue[0].description` when available.
 
-### Scope y auth de la instancia (recomendado)
+## Recommended instance scope and auth settings
 
-Antes de ejecutar el flujo, configura estas variables en `.env.local` (sin prefijo ICA):
+Configure these variables in `.env.local`:
 
 ```bash
-# true  -> demo/interno (no exige Bearer de /exchange)
-# false -> producción (exige Bearer emitido por /exchange)
 DEMO_MODE=true
-
-# CSV de jurisdicciones soportadas por esta instancia. Usa '*' para permitir cualquiera.
 SUPPORTED_JURISDICTIONS=ES
-
-# CSV de sectores soportados por esta instancia. Usa '*' para permitir cualquiera.
 SUPPORTED_SECTORS=health-care,animal-care,onehealth-care,onehealth-research,onehealth-insurance
 ```
 
-Si la jurisdicción o el sector del path no están permitidos por la instancia, la API responde `404`.
+If the requested jurisdiction or sector is not allowed, the API returns `404`.
 
-## Flujo copy/paste para `acme` (`animal-care`, `ES`)
+## Copy-paste flow for `acme` (`animal-care`, `ES`)
 
-Ejecuta esto en una tercera terminal:
+Run this in a third terminal:
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/adapter-ingestion-py
+cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
 
 BASE_URL="http://127.0.0.1:8080"
 ALT="acme"
@@ -149,7 +139,6 @@ JUR="ES"
 SOFTWARE_ID="qvet-v1.0"
 ISS="did:web:clinic.example:employee:it:loader"
 DROPBOX_URL="https://www.dropbox.com/scl/fi/gkc57co2y9litpm7t81vt/exampleQvetES.xlsx?rlkey=5cnesxdtop8hfdryhrrlmo89w&st=1rsqrcqp&dl=1"
-FILE_PATH="../examples/exampleQvetES.xlsx"
 
 NOW="$(date -u +%s)"
 EXP="$((NOW + 3600))"
@@ -179,9 +168,6 @@ curl -i -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/$SOFTWARE_
   --data @/tmp/preconv-acme-create.json | tee /tmp/preconv-acme-create.http
 
 CFG_LOCATION="$(tr -d '\r' < /tmp/preconv-acme-create.http | sed -n 's/^Location: //p' | tail -1)"
-CFG_RETURNED_THID="$(printf '%s\n' "$CFG_LOCATION" | sed -n 's/.*[?&]thid=\([^&]*\).*/\1/p')"
-echo "CFG_LOCATION=$CFG_LOCATION"
-echo "CFG_RETURNED_THID=$CFG_RETURNED_THID"
 
 curl -sS -X POST "$BASE_URL$CFG_LOCATION" \
   -H "Content-Type: application/didcomm-plain+json" \
@@ -229,9 +215,6 @@ curl -i -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/dataset/$S
   --data @/tmp/preconv-acme-upload.json | tee /tmp/preconv-acme-upload.http
 
 UP_LOCATION="$(tr -d '\r' < /tmp/preconv-acme-upload.http | sed -n 's/^Location: //p' | tail -1)"
-UP_RETURNED_THID="$(printf '%s\n' "$UP_LOCATION" | sed -n 's/.*[?&]thid=\([^&]*\).*/\1/p')"
-echo "UP_LOCATION=$UP_LOCATION"
-echo "UP_RETURNED_THID=$UP_RETURNED_THID"
 
 curl -sS -X POST "$BASE_URL$UP_LOCATION" \
   -H "Content-Type: application/didcomm-plain+json" \
@@ -243,41 +226,30 @@ curl -sS -X POST "$BASE_URL$UP_LOCATION" \
   }" | tee /tmp/preconv-acme-upload-response-1.json
 ```
 
-Si el último poll devuelve `202`, repítelo hasta obtener `200`:
+If the last poll returns `202`, repeat it until you receive `200`.
+
+Expected outcome:
+
+- `_create` returns `202` with a `Location` header pointing to `_create-response`
+- `_create-response` returns a `batch-response` bundle with `body.data[0].response.status = "200"`
+- `_upload` returns `202` with a `Location` header pointing to `_upload-response`
+- `_upload-response` eventually returns `200` with `body.issues` and `body.data[0].resource`
+
+Important local detail:
+
+- `../examples/exampleQvetES.xlsx` uses `HISTORIA_ID`
+- if `mappingConfig.fieldMap.subjectId` is set to `ID_HISTORIA`, the job can finish successfully but return an empty conversion payload because every row is missing `subjectId`
+
+## Smoke script
+
+Included script:
+
+- `scripts/run-integrator-smoke.sh`
+
+Example:
 
 ```bash
-curl -sS -X POST "$BASE_URL$UP_LOCATION" \
-  -H "Content-Type: application/didcomm-plain+json" \
-  -d "{
-    \"iss\":\"$ISS\",
-    \"type\":\"https://didcomm.org/plaintext/2.0/message\",
-    \"iat\":$NOW,
-    \"exp\":$EXP
-  }" | tee /tmp/preconv-acme-upload-response-final.json
-```
-
-Qué debes ver:
-
-- `_create` devuelve `202` con `Location: /publisher/cds-ES/v1/animal-care/acme/qvet-v1.0/config/_create-response?thid=...`
-- `_create-response` devuelve un `Bundle` `batch-response` con `body.data[0].response.status = "200"`
-- `_upload` devuelve `202` con `Location: /publisher/cds-ES/v1/animal-care/acme/dataset/qvet-v1.0/excel/_upload-response?thid=...`
-- `_upload-response` termina devolviendo `200` con `body.issues` y `body.data[0].resource`
-
-Importante para local:
-
-- El fichero `../examples/exampleQvetES.xlsx` usa `HISTORIA_ID`.
-- Si envías un `mappingConfig.fieldMap.subjectId = "ID_HISTORIA"`, el job puede terminar en `succeeded` pero con `body.data[0].resource.body.data = []`, porque todas las filas quedan sin `subjectId`.
-
-## Script de smoke
-
-Script incluido:
-
-- [scripts/run-integrator-smoke.sh](/Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/scripts/run-integrator-smoke.sh)
-
-Ejemplo:
-
-```bash
-cd /Users/fernando/GITS/gdc-workspace/adapter-ingestion-py
+cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
 
 BASE_URL="http://127.0.0.1:8080" \
 ALT="clinic-demo" \
@@ -287,40 +259,24 @@ ISS="did:web:clinic.example:employee:it:loader" \
 ./scripts/run-integrator-smoke.sh
 ```
 
-El script:
+The script:
 
-- envía `_create`
-- consulta `_create-response`
-- envía `_upload` con DIDComm `attachments[].data.links`
-- hace polling de `_upload-response`
-- guarda todo en `artifacts/integrator-smoke/requests/<run-id>/` y `artifacts/integrator-smoke/responses/<run-id>/`
+- sends `_create`
+- polls `_create-response`
+- sends `_upload` using DIDComm `attachments[].data.links`
+- polls `_upload-response`
+- stores all requests and responses under `artifacts/integrator-smoke/`
 
-URL Dropbox por defecto usada por el script:
+## Public contract summary
 
-- `https://www.dropbox.com/scl/fi/gkc57co2y9litpm7t81vt/exampleQvetES.xlsx?rlkey=5cnesxdtop8hfdryhrrlmo89w&st=1rsqrcqp&dl=1`
+Swagger at `http://127.0.0.1:8080/api-docs` loads versioned examples from `examples/openapi/`.
 
-Puedes sobrescribirla:
+For `_upload`, the supported public inputs are:
 
-```bash
-DROPBOX_URL="https://www.dropbox.com/...&dl=1" ./scripts/run-integrator-smoke.sh
-```
+- `multipart/form-data` with `file`
+- `application/didcomm-plain+json` with top-level `attachments[]`
 
-## Contrato usado
-
-Swagger en `http://127.0.0.1:8080/api-docs` usa ejemplos cargados desde JSON versionados en `examples/openapi/`.
-
-Helpers de Swagger:
-
-- Si un ejemplo lleva `jti: "req-auto"`, al enviar se sustituye por `req-yyyymmddhhmm`.
-- Si un ejemplo lleva `thid: "thid-auto"`, al enviar se sustituye por `thid-yyyymmddhhmm`.
-- Las respuestas `202` devuelven `Location` con `?thid=...`, y los endpoints de poll aceptan ese `thid` por query si no lo pones en el body. Esto simplifica mucho el test manual desde Swagger.
-
-Para `_upload` se soportan dos entradas públicas:
-
-- `multipart/form-data` con `file`
-- `application/didcomm-plain+json` con top-level `attachments[]`
-
-Forma recomendada para integradores:
+Recommended payload shape:
 
 ```json
 {
@@ -351,22 +307,19 @@ Forma recomendada para integradores:
 }
 ```
 
-Notas:
+Notes:
 
-- `attachments[]` va fuera de `body`, como en `dataspace-ica-ts`.
-- `body` sigue siendo un mensaje DIDComm plaintext con `body.resourceType = "Bundle"` y `body.data[]`.
-- El perfil público actual acepta un solo `attachment` por request y una sola URL en `attachment.data.links`.
-- Si llega una URL de Dropbox con `dl=0`, la API intenta normalizarla a `dl=1`.
-- Si ves `CERTIFICATE_VERIFY_FAILED` al descargar desde Dropbox, actualiza el entorno con `python -m pip install -e ".[api,excel]"` para instalar `certifi`. Si estás detrás de proxy/CA corporativa, exporta `SSL_CERT_FILE=/ruta/a/ca.pem` antes de arrancar `preconversion-api`.
+- `attachments[]` stays outside `body`
+- one attachment and one URL are supported today
+- the API attempts to normalize Dropbox links from `dl=0` to `dl=1`
+- if Dropbox downloads fail with `CERTIFICATE_VERIFY_FAILED`, install `certifi` through `python -m pip install -e ".[api,excel]"` or export `SSL_CERT_FILE` to a valid corporate CA bundle
 
-## Ejemplos de respuesta
+## Sample responses
 
-Ejemplos versionados:
+- `examples/integrators/config-create-response.succeeded.sample.json`
+- `examples/integrators/upload-response.succeeded.sample.json`
 
-- [config-create-response.succeeded.sample.json](/Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/examples/integrators/config-create-response.succeeded.sample.json)
-- [upload-response.succeeded.sample.json](/Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/examples/integrators/upload-response.succeeded.sample.json)
+## References
 
-## Referencias
-
-- [docs/es/API_DEVELOPMENT_GUIDE.md](/Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/docs/es/API_DEVELOPMENT_GUIDE.md)
-- [docs/es/08-api-config-multitenant.md](/Users/fernando/GITS/gdc-workspace/adapter-ingestion-py/docs/es/08-api-config-multitenant.md)
+- [docs/en/API_DEVELOPMENT_GUIDE.md](docs/en/API_DEVELOPMENT_GUIDE.md)
+- [docs/en/08-multi-tenant-api-configuration.md](docs/en/08-multi-tenant-api-configuration.md)

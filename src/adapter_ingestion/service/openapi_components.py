@@ -763,7 +763,6 @@ def _exchange_schemas() -> dict[str, Any]:
         },
         "TokenExchangeRequest": {
             "type": "object",
-            "required": ["subject_token", "subject_token_type"],
             "description": (
                 "RFC 8693 token exchange request used in controller bootstrap (`.../organization/dataspace/auth/_exchange`) and tenant-scoped "
                 "auth exchange step (`.../identity/auth/_exchange`)."
@@ -792,6 +791,14 @@ def _exchange_schemas() -> dict[str, Any]:
                 "api_key": {
                     "type": "string",
                     "description": "Tenant-issued API key. If present, scope is derived from the key policy.",
+                },
+                "api_key_profile": {
+                    "type": "string",
+                    "example": "api-key-exception.v1",
+                    "description": (
+                        "Optional explicit profile for API-key-only exceptional desktop flow. "
+                        "Requires server flag `EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`."
+                    ),
                 },
                 "organization": {
                     "type": "string",
@@ -887,6 +894,8 @@ def _tenant_api_key_schemas() -> dict[str, Any]:
                 "target": {"type": "string"},
                 "scope": {"type": "array", "items": {"type": "string"}},
                 "instrument": {"type": "object", "additionalProperties": True},
+                "consentRef": {"type": "string", "example": "urn:consent:api-key-rule:abc123..."},
+                "consentModel": {"type": "string", "example": "one-rule-one-consent-one-odrl"},
                 "tenantId": {"type": "string", "example": "vates-a00000001"},
                 "expiresAt": {"type": "string", "example": "2026-03-23T11:22:33Z"},
                 "apiKey": {"type": "string", "example": "dck_abc"},

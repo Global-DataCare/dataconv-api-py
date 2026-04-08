@@ -171,6 +171,7 @@ class ServiceSettings:
     job_result_ttl_seconds: int
     supported_jurisdictions: tuple[str, ...] = ("*",)
     supported_sectors: tuple[str, ...] = ("*",)
+    exchange_allow_api_key_exception: bool = False
 
 
 def load_settings() -> ServiceSettings:
@@ -188,6 +189,12 @@ def load_settings() -> ServiceSettings:
         "on",
     }
     exchange_allow_api_key = _getenv("EXCHANGE_ALLOW_API_KEY", "false").lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    exchange_allow_api_key_exception = _getenv("EXCHANGE_ALLOW_API_KEY_EXCEPTION", "false").lower() in {
         "1",
         "true",
         "yes",
@@ -268,4 +275,5 @@ def load_settings() -> ServiceSettings:
         job_result_ttl_seconds=_getenv_int("PRECONV_JOB_RESULT_TTL_SECONDS", 3600),
         supported_jurisdictions=_parse_supported_values(_getenv("SUPPORTED_JURISDICTIONS", "*"), upper=True),
         supported_sectors=_parse_supported_values(_getenv("SUPPORTED_SECTORS", "*"), upper=False),
+        exchange_allow_api_key_exception=exchange_allow_api_key_exception,
     )

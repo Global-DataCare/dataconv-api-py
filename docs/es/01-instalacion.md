@@ -3,7 +3,7 @@
 ## Requisitos
 
 - Git.
-- Python `>=3.8`.
+- Python `>=3.11`.
 - Acceso al archivo exportado por el software clínico (`.xlsx`).
 
 ## 1) Descargar repositorio
@@ -24,22 +24,24 @@ cd /ruta/a/dataconv-api-py
 ## 2) Verificar Python
 
 ```bash
-python3 --version
+python3.11 --version
 ```
 
-Debe devolver `3.8` o superior.
+Debe devolver `3.11` o superior.
 
 ## 3) (Recomendado) Entorno virtual
 
 ```bash
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
+python --version
 python -m pip install --upgrade pip setuptools wheel
 ```
 
 Importante:
 
 - Usa siempre `python -m pip` (no `pip` suelto) para evitar mezclar intérpretes.
+- Si `python3.11` no está en PATH, comprueba primero `which python3` y `python3 --version` antes de crear `.venv`.
 - Si ves `UNKNOWN-0.0.0` o `does not provide the extra 'api'`, tu `pip/setuptools` es antiguo o viene del Python de Xcode. Activa `.venv` y repite el upgrade anterior.
 
 ## 4) API local
@@ -98,7 +100,7 @@ Importante:
 Este proyecto funciona con librería estándar para lectura XLSX, así que puedes usar directamente:
 
 ```bash
-PYTHONPATH=src python3 -m adapter_ingestion --help
+PYTHONPATH=src python3.11 -m adapter_ingestion --help
 ```
 
 Si prefieres instalar el comando de consola:
@@ -111,5 +113,5 @@ adapter-ingestion --help
 ## 6) Validación rápida
 
 ```bash
-python3 -m unittest discover -s tests
+python3.11 -m unittest discover -s tests
 ```

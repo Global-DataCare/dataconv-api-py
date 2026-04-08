@@ -21,6 +21,20 @@ def hash_api_key(raw_api_key: str) -> str:
     return sha256(token.encode("utf-8")).hexdigest().lower()
 
 
+def build_consent_ref(*, tenant_id: str, email_hash: str, target: str, scopes: list[str], instrument: dict[str, Any]) -> str:
+    normalized_scopes = sorted(str(scope or "").strip() for scope in (scopes or []) if str(scope or "").strip())
+    digest_input = "|".join(
+        [
+            str(tenant_id or "").strip().lower(),
+            str(email_hash or "").strip().lower(),
+            str(target or "").strip(),
+            "|".join(normalized_scopes),
+            str(instrument or {}),
+        ]
+    )
+    return f"urn:consent:api-key-rule:{sha256(digest_input.encode('utf-8')).hexdigest().lower()}"
+
+
 def _b58btc_encode(raw: bytes) -> str:
     alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
     if not raw:
@@ -168,6 +182,8 @@ class TenantApiKeyManager:
                 "target": str(item.get("target") or "").strip(),
                 "scope": scopes,
                 "instrument": instrument,
+                "consentRef": str(item.get("consentRef") or "").strip(),
+                "consentModel": str(item.get("consentModel") or "").strip() or "one-rule-one-consent-one-odrl",
                 "tenantId": str(item.get("tenantId") or "").strip(),
                 "expiresAt": str(item.get("expiresAt") or "").strip(),
             }
@@ -300,6 +316,14 @@ class TenantApiKeyManager:
                 "target": str(action.get("target") or "").strip(),
                 "operationalSubject": operational_subject,
                 "instrument": instrument,
+                "consentRef": build_consent_ref(
+                    tenant_id=tenant_token,
+                    email_hash=email_hash,
+                    target=str(action.get("target") or "").strip(),
+                    scopes=scopes,
+                    instrument=instrument,
+                ),
+                "consentModel": "one-rule-one-consent-one-odrl",
                 "actionStatus": action_status,
                 "disabled": str(action_status).strip().lower() != "active",
                 "createdAt": _iso_utc(now),
@@ -321,6 +345,8 @@ class TenantApiKeyManager:
                         "target": entry.get("target", ""),
                         "scope": scopes,
                         "instrument": instrument,
+                        "consentRef": str(entry.get("consentRef") or "").strip(),
+                        "consentModel": str(entry.get("consentModel") or "").strip(),
                         "apiKey": api_key,
                         "tenantId": tenant_token,
                         "expiresAt": expires_at,
@@ -505,6 +531,51 @@ class TenantApiKeyManager:
                 key_id=str(item.get("keyId") or "").strip(),
                 tenant_id=tenant_token,
                 email_hash=email_hash,
+                scopes=scopes,
+                operational_subject=operational_subject,
+                odrl=odrl,
+            )
+        return None
+
+    def resolve_policy_without_email(self, *, tenant_id: str, api_key: str) -> TenantApiKeyPolicy | None:
+        tenant_token = self._normalize_tenant(tenant_id)
+        if not tenant_token:
+            return None
+        key_hash = hash_api_key(api_key)
+        if not key_hash:
+            return None
+
+        _, entries = self._get_registry(tenant_token)
+        now = _utcnow()
+        for item in entries:
+            if str(item.get("tenantId") or "").strip().lower() != tenant_token:
+                continue
+            if str(item.get("keyHash") or "").strip().lower() != key_hash:
+                continue
+            if bool(item.get("disabled", False)):
+                continue
+            if str(item.get("actionStatus") or "active").strip().lower() != "active":
+                continue
+
+            expires_at = _parse_iso_utc(str(item.get("expiresAt") or ""))
+            if expires_at is not None and expires_at < now:
+                continue
+
+            scopes = [
+                str(scope or "").strip()
+                for scope in (item.get("scopes") if isinstance(item.get("scopes"), list) else [])
+                if str(scope or "").strip()
+            ]
+            if not scopes:
+                continue
+
+            operational_subject = str(item.get("operationalSubject") or "").strip()
+            odrl_payload = item.get("instrument")
+            odrl = odrl_payload if isinstance(odrl_payload, dict) else {}
+            return TenantApiKeyPolicy(
+                key_id=str(item.get("keyId") or "").strip(),
+                tenant_id=tenant_token,
+                email_hash="",
                 scopes=scopes,
                 operational_subject=operational_subject,
                 odrl=odrl,

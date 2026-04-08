@@ -797,7 +797,7 @@ def _exchange_schemas() -> dict[str, Any]:
                     "example": "api-key-exception.v1",
                     "description": (
                         "Optional explicit profile for API-key-only exceptional desktop flow. "
-                        "Requires server flag `EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`."
+                        "Requires server flag `LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`."
                     ),
                 },
                 "organization": {

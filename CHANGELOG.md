@@ -1,10 +1,34 @@
 # CHANGELOG
 
+## 2026-04-08 16:01:44 PDT
+- Documentation navigation: moved roadmap/briefing references and the primary docs entry points to the top of the root README so repo orientation appears before operational details.
+- Repository guidance: added publishable root-level roadmap and briefing references without machine-specific absolute paths.
+
+## 2026-04-08 15:39:55 PDT
+- Release: bumped package version to `0.7.1` after the `0.7.0` branch release line had already accumulated additional documentation and exchange-configuration cleanup changes.
+
+## 2026-04-08 15:02:00 PDT
+- Auth exchange: added explicit exceptional profile `api-key-exception.v1` for non-confidential desktop clients, gated by `LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`.
+- Security behavior: API-key-only exchange is now rejected unless the explicit profile is requested and enabled.
+- Token exchange manager: added tenant API key resolution path without email binding for exceptional mode (`resolve_policy_without_email`) while preserving the existing id_token + VP flow.
+- Tenant API key provisioning now returns consent-style metadata per atomic rule (`consentRef`, `consentModel=one-rule-one-consent-one-odrl`).
+- Local static API-key exchange env names are now explicit `LOCAL_*` only:
+  - `LOCAL_EXCHANGE_ALLOW_API_KEY`
+  - `LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION`
+  - `LOCAL_EXCHANGE_API_KEYS`
+  - `LOCAL_EXCHANGE_API_KEY_SUBJECT_DEFAULT`
+  - `LOCAL_EXCHANGE_API_KEY_ORG_DEFAULT`
+- OpenAPI: token exchange schema/operation docs now describe the explicit exceptional profile and include a dedicated example.
+- Tests: added unit coverage in `tests/test_token_exchange_manager.py` and updated exchange flow tests with the new profile example.
+
+## 2026-04-08 14:42:33 PDT
+- Environment templates: clarified the semantic difference between general API key exchange for organization-controlled clients and the exception-only `api-key-exception.v1` profile for non-confidential devices.
+
 ## 2026-04-08 14:02:09 PDT
 - Environment templates: translated the remaining Spanish comments in example `.env` files to English so the public-facing configuration templates are language-consistent.
 
 ## 2026-04-08 14:00:59 PDT
-- Environment templates: made `EXCHANGE_ALLOW_API_KEY_EXCEPTION` explicit by environment policy, enabled in local and staging examples and disabled in production example.
+- Environment templates: made the local/static API-key exception flag explicit by environment policy, enabled in local and staging examples and disabled in production example.
 - Documentation hygiene: replaced personal absolute home paths in the root README with `$HOME`-based shell examples.
 
 ## 2026-04-08 13:47:43 PDT
@@ -15,14 +39,6 @@
 - Repository hygiene: normalized `.gitignore` by removing duplicated blocks and consolidating local environment, cache, log, and secret patterns.
 - Git review safety: `.env.*.example` files are no longer hidden by ignore rules, so example templates remain visible for review and staging.
 - Documentation cleanup: replaced the remaining stale repository path references from `adapter-ingestion-py` to `dataconv-api-py` in English and Spanish operational docs.
-
-## 2026-04-08 15:02:00 PDT
-- Auth exchange: added explicit exceptional profile `api-key-exception.v1` for non-confidential desktop clients, gated by `EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`.
-- Security behavior: API-key-only exchange is now rejected unless the explicit profile is requested and enabled.
-- Token exchange manager: added tenant API key resolution path without email binding for exceptional mode (`resolve_policy_without_email`) while preserving the existing id_token + VP flow.
-- Tenant API key provisioning now returns consent-style metadata per atomic rule (`consentRef`, `consentModel=one-rule-one-consent-one-odrl`).
-- OpenAPI: token exchange schema/operation docs now describe the explicit exceptional profile and include a dedicated example.
-- Tests: added unit coverage in `tests/test_token_exchange_manager.py` and updated exchange flow tests with the new profile example.
 
 ## 2026-04-08 11:11:39 PDT
 - Documentation: added a primary English docset under `docs/en/` covering installation, clinic configuration, runbooks, API contract, deployment, storage adapters, release flow, and GCP bootstrap.

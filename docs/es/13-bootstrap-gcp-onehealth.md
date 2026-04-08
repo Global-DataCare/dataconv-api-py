@@ -71,7 +71,7 @@ Y una plantilla de variables:
 Flujo:
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/adapter-ingestion-py
+cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
 
 cp private-gcp-bootstrap.config.example private-gcp-bootstrap.config
 $EDITOR private-gcp-bootstrap.config

@@ -56,8 +56,15 @@ class TestConversionSearchManager(unittest.TestCase):
             exchange_session_token_ttl_seconds=900,
             exchange_oidc_issuer="",
             exchange_oidc_audience="",
+            exchange_oidc_allowed_issuers=(),
+            exchange_oidc_allowed_audiences=(),
+            exchange_oidc_jwks_cache_ttl_seconds=3600,
             exchange_default_allowed_scopes="dataconv.upload",
             exchange_allow_insecure_assertions=True,
+            exchange_allow_api_key=False,
+            exchange_api_keys=(),
+            exchange_api_key_subject_default="",
+            exchange_api_key_org_default="",
             job_result_ttl_seconds=3600,
         )
 

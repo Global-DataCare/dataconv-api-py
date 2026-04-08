@@ -876,7 +876,8 @@ def _configure_exchange_operation(
         "Token exchange step (RFC 8693).\n\n"
         "Bootstrap mode: `/publisher/cds-{jurisdiction}/v1/{sector}/organization/dataspace/auth/_exchange` (async).\n"
         "Tenant-scoped mode: `.../identity/auth/_exchange` is asynchronous (`202 + Location`) and polled via `_exchange-response`.\n\n"
-        "For DIDComm-plain transport, OAuth fields can be provided at top-level and `body` can be `{}`."
+        "For DIDComm-plain transport, OAuth fields can be provided at top-level and `body` can be `{}`.\n\n"
+        "Exceptional non-confidential client profile is explicit as `api_key_profile=api-key-exception.v1` and must be enabled server-side."
     )
     operation["requestBody"] = {
         "required": True,
@@ -902,6 +903,17 @@ def _configure_exchange_operation(
                             "api_key": "<tenant-api-key>",
                             "organization": "<tenant-id>",
                             "scope": "dataconv.upload dataconv.search",
+                        },
+                    },
+                    "apiKeyExceptionExchange": {
+                        "summary": "Exceptional API-key-only desktop flow (explicit profile)",
+                        "value": {
+                            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+                            "api_key_profile": "api-key-exception.v1",
+                            "api_key": "<tenant-api-key>",
+                            "organization": "<tenant-id>",
+                            "operational_subject": "did:web:clinic.local:service:excel-uploader",
+                            "scope": "dataconv.upload",
                         },
                     },
                 },
@@ -940,7 +952,7 @@ def _configure_exchange_operation(
     drop_422_validation_response(operation)
     responses = operation.setdefault("responses", {})
     responses["400"] = {"description": "Invalid request or unsupported grant type."}
-    responses["401"] = {"description": "subject_token invalid, expired, or issuer not trusted."}
+    responses["401"] = {"description": "subject_token invalid, expired, issuer not trusted, or api-key-exception profile not allowed."}
 
 
 def _configure_tenant_api_key_operation(
@@ -959,7 +971,9 @@ def _configure_tenant_api_key_operation(
         "Controller API-key provisioning. Organization/tenant context is resolved from Bearer token claim "
         "`organization` and validated server-side.\n\n"
         "Binding model: `_create` provisions policy and key material (`pending_dcr`). "
-        "Device/service binding is completed later via `2.1 identity/auth/_dcr`."
+        "Device/service binding is completed later via `2.1 identity/auth/_dcr`.\n\n"
+        "Atomic policy model: each `data[].resource` is one authorization rule "
+        "(`1 rule = 1 consent-like record = 1 ODRL instrument`)."
     )
     operation["requestBody"] = {
         "required": True,

@@ -51,6 +51,7 @@ class ExchangeFlowTests(unittest.TestCase):
             "EXCHANGE_SESSION_TOKEN_SECRET": "test-session-secret",
             "EXCHANGE_DEFAULT_ALLOWED_SCOPES": "dataconv.upload dataconv.read",
             "EXCHANGE_ALLOW_API_KEY": "true",
+            "EXCHANGE_ALLOW_API_KEY_EXCEPTION": "true",
             "EXCHANGE_API_KEYS": "demo-key",
             "EXCHANGE_API_KEY_SUBJECT_DEFAULT": "did:web:globaldatacare.es:employee:controller",
             "EXCHANGE_API_KEY_ORG_DEFAULT": "VATES-A00000001",
@@ -227,3 +228,18 @@ class ExchangeFlowTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 401)
         self.assertIn("subject_token", str(response.text))
+
+    def test_exchange_allows_explicit_api_key_exception_profile_without_id_token(self) -> None:
+        response = self.client.post(
+            "/exchange",
+            json={
+                "api_key_profile": "api-key-exception.v1",
+                "scope": "dataconv.upload",
+                "organization": "VATES-A00000001",
+            },
+            headers={"X-API-Key": "demo-key"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("access_token", payload)
+        self.assertEqual(payload.get("organization"), "VATES-A00000001")

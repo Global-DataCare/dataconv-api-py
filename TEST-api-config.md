@@ -1,9 +1,12 @@
+# API config test flow
 
-Tras arrancar el servicio en modo demo (sin requerir token de exchange)
+After starting the service in demo mode, without requiring an exchange token:
 
+```bash
 DEMO_MODE=true env PYTHONPATH=src python -m adapter_ingestion.service.main
+```
 
-Usa este helper en otra terminal:
+Use this helper in another terminal:
 
 ```bash
 IAT=$(date +%s)
@@ -11,7 +14,7 @@ EXP=$((IAT + 300))
 THID="appmypets-$(date +%Y%m%d%H%M%S)"
 ```
 
-Upload de AppMyPets-api-config.xlsx:
+## Upload `AppMyPets-api-config.xlsx`
 
 ```bash
 IAT=$(date +%s)
@@ -27,11 +30,11 @@ curl -sS -X POST \
   -F "exp=${EXP}" \
   -H "Authorization: Bearer eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0.eyJpc3MiOiAiZGlkOndlYjp0ZXN0LmV4YW1wbGU6ZW1wbG95ZWU6bG9hZGVyIiwgInN1YiI6ICJkaWQ6d2ViOnRlc3QuZXhhbXBsZTplbXBsb3llZTpsb2FkZXIifQ." \
   -F "file=@/Users/fernando/GITS/gdc-workspace/examples/AppMyPets-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-
 ```
 
 Polling:
 
+```bash
 curl -sS -X POST \
   "http://127.0.0.1:8080/acme01/cds-es/v1/onehealth-research/digitaltwin/api-config/excel/_upload-response?thid=${THID}" \
   -H "content-type: application/didcomm-plain+json" \
@@ -42,8 +45,11 @@ curl -sS -X POST \
     \"iat\":${IAT},
     \"exp\":${EXP}
   }"
-Para Qvet-api-config.xlsx:
+```
 
+## Upload `Qvet-api-config.xlsx`
+
+```bash
 IAT=$(date +%s)
 EXP=$((IAT + 300))
 THID="qvet-$(date +%Y%m%d%H%M%S)"
@@ -56,6 +62,7 @@ curl -sS -X POST \
   -F "iat=${IAT}" \
   -F "exp=${EXP}" \
   -F "file=@/Users/fernando/GITS/gdc-workspace/examples/Qvet-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
 curl -sS -X POST \
   "http://127.0.0.1:8080/acme01/cds-es/v1/onehealth-research/digitaltwin/api-config/excel/_upload-response?thid=${THID}" \
   -H "content-type: application/didcomm-plain+json" \
@@ -66,8 +73,11 @@ curl -sS -X POST \
     \"iat\":${IAT},
     \"exp\":${EXP}
   }"
-Para Wakyma-api-config.xlsx:
+```
 
+## Upload `Wakyma-api-config.xlsx`
+
+```bash
 IAT=$(date +%s)
 EXP=$((IAT + 300))
 THID="wakyma-$(date +%Y%m%d%H%M%S)"
@@ -80,6 +90,7 @@ curl -sS -X POST \
   -F "iat=${IAT}" \
   -F "exp=${EXP}" \
   -F "file=@/Users/fernando/GITS/gdc-workspace/examples/Wakyma-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
 curl -sS -X POST \
   "http://127.0.0.1:8080/acme01/cds-es/v1/onehealth-research/digitaltwin/api-config/excel/_upload-response?thid=${THID}" \
   -H "content-type: application/didcomm-plain+json" \
@@ -90,18 +101,19 @@ curl -sS -X POST \
     \"iat\":${IAT},
     \"exp\":${EXP}
   }"
+```
 
-Puntos importantes:
+Important points:
 
-uso software_id=api-config porque esos ficheros llevan filas API-CONFIG
-el path correcto para esta API es .../digitaltwin/api-config/excel/_upload
-el polling va a .../_upload-response?thid=...
+- Use `software_id=api-config` because these spreadsheets contain API-CONFIG rows.
+- The correct route for this API is `.../digitaltwin/api-config/excel/_upload`.
+- Polling uses `.../_upload-response?thid=...`.
 
-Si quieres ver también el JSON convertido en disco, para cada fichero puedes usar además el CLI:
+If you also want the converted JSON saved on disk, use the CLI for each file:
 
 ```bash
 cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
-env PYTHONPATH=src python3 -m adapter_ingestion.cli \
+env PYTHONPATH=src python3.11 -m adapter_ingestion.cli \
   --manufacturer api-config \
   --input /Users/fernando/GITS/gdc-workspace/examples/AppMyPets-api-config.xlsx \
   --issuer-did did:web:test.example:employee:loader \
@@ -112,8 +124,9 @@ env PYTHONPATH=src python3 -m adapter_ingestion.cli \
   --output-dir ./artifacts
 ```
 
-Eso te deja:
+This generates:
 
-composition-message.json
-summary.json
-Y lo mismo para Qvet/Wakyma, cambiando el --input.
+- `composition-message.json`
+- `summary.json`
+
+Repeat the same CLI flow for Qvet and Wakyma by changing only the `--input` path.

@@ -93,10 +93,12 @@ class TenantApiKeyTests(unittest.TestCase):
             json={
                 "data": [
                     {
-                        "@context": "https://schema.org",
-                        "@type": "UpdateAction",
-                        "agent": {"email": "alice@example.com"},
-                        "scope": ["dataconv.upload"],
+                        "resource": {
+                            "@context": "https://schema.org",
+                            "@type": "UpdateAction",
+                            "agent": {"email": "alice@example.com"},
+                            "scope": ["dataconv.upload"],
+                        },
                     }
                 ]
             },
@@ -110,16 +112,18 @@ class TenantApiKeyTests(unittest.TestCase):
             json={
                 "data": [
                     {
-                        "@context": "https://schema.org",
-                        "@type": "UpdateAction",
-                        "agent": {"email": "alice@example.com"},
-                        "target": f"{self.tenant_id.lower()}/cds-*/v1/*/digitaltwin/*/*/_update",
-                        "scope": [
-                            "dataconv.upload",
-                            f"{self.tenant_id.lower()}/cds-*/v1/*/digitaltwin/*/*/_update",
-                        ],
-                        "instrument": {"permission": [{"action": "update"}]},
-                        "actionStatus": "active",
+                        "resource": {
+                            "@context": "https://schema.org",
+                            "@type": "UpdateAction",
+                            "agent": {"email": "alice@example.com"},
+                            "target": f"{self.tenant_id.lower()}/cds-*/v1/*/digitaltwin/*/*/_update",
+                            "scope": [
+                                "dataconv.upload",
+                                f"{self.tenant_id.lower()}/cds-*/v1/*/digitaltwin/*/*/_update",
+                            ],
+                            "instrument": {"permission": [{"action": "update"}]},
+                            "actionStatus": "active",
+                        },
                     }
                 ],
             },
@@ -127,7 +131,9 @@ class TenantApiKeyTests(unittest.TestCase):
         self.assertEqual(create_response.status_code, 200)
         response_data = create_response.json().get("data")
         self.assertTrue(isinstance(response_data, list) and len(response_data) > 0)
-        api_key = str(response_data[0].get("apiKey") or "")
+        first_entry = response_data[0] if isinstance(response_data[0], dict) else {}
+        resource = first_entry.get("resource") if isinstance(first_entry.get("resource"), dict) else {}
+        api_key = str(resource.get("apiKey") or first_entry.get("apiKey") or "")
         self.assertTrue(api_key)
 
         exchange_response = self.client.post(

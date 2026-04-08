@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 2026-04-08 14:02:09 PDT
+- Environment templates: translated the remaining Spanish comments in example `.env` files to English so the public-facing configuration templates are language-consistent.
+
+## 2026-04-08 14:00:59 PDT
+- Environment templates: made `EXCHANGE_ALLOW_API_KEY_EXCEPTION` explicit by environment policy, enabled in local and staging examples and disabled in production example.
+- Documentation hygiene: replaced personal absolute home paths in the root README with `$HOME`-based shell examples.
+
 ## 2026-04-08 13:47:43 PDT
 - Documentation: consolidated the root README into a single English operational guide and removed the separate `README_es.md` entry point.
 - Documentation: promoted the English docset under `docs/en/` as the canonical reference set while keeping `docs/es/` as the Spanish archive.

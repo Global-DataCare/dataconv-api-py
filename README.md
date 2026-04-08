@@ -14,7 +14,7 @@ Activate a virtual environment before running the API locally.
 Recommended local Python version: use `python3.11` so development matches the current Docker deployment runtime. If you run `python3 -m venv`, the virtual environment will inherit whatever interpreter your shell resolves at that moment.
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+cd "$HOME"/GITS/gdc-workspace/dataconv-api-py
 
 python3.11 --version
 python3.11 -m venv .venv
@@ -182,7 +182,7 @@ Operational settings already integrated in the runtime:
 ### 7.1 Docker local (without `venv`)
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+cd "$HOME"/GITS/gdc-workspace/dataconv-api-py
 ./docker_build_local.sh
 ```
 

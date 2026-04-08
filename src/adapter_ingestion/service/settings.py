@@ -188,13 +188,13 @@ def load_settings() -> ServiceSettings:
         "yes",
         "on",
     }
-    exchange_allow_api_key = _getenv("EXCHANGE_ALLOW_API_KEY", "false").lower() in {
+    exchange_allow_api_key = _getenv("LOCAL_EXCHANGE_ALLOW_API_KEY", "false").lower() in {
         "1",
         "true",
         "yes",
         "on",
     }
-    exchange_allow_api_key_exception = _getenv("EXCHANGE_ALLOW_API_KEY_EXCEPTION", "false").lower() in {
+    exchange_allow_api_key_exception = _getenv("LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION", "false").lower() in {
         "1",
         "true",
         "yes",
@@ -269,9 +269,9 @@ def load_settings() -> ServiceSettings:
         exchange_default_allowed_scopes=_getenv("EXCHANGE_DEFAULT_ALLOWED_SCOPES", "dataconv.upload"),
         exchange_allow_insecure_assertions=exchange_allow_insecure_assertions,
         exchange_allow_api_key=exchange_allow_api_key,
-        exchange_api_keys=_split_csv(_getenv("EXCHANGE_API_KEYS", "")),
-        exchange_api_key_subject_default=_getenv("EXCHANGE_API_KEY_SUBJECT_DEFAULT", ""),
-        exchange_api_key_org_default=_getenv("EXCHANGE_API_KEY_ORG_DEFAULT", ""),
+        exchange_api_keys=_split_csv(_getenv("LOCAL_EXCHANGE_API_KEYS", "")),
+        exchange_api_key_subject_default=_getenv("LOCAL_EXCHANGE_API_KEY_SUBJECT_DEFAULT", ""),
+        exchange_api_key_org_default=_getenv("LOCAL_EXCHANGE_API_KEY_ORG_DEFAULT", ""),
         job_result_ttl_seconds=_getenv_int("PRECONV_JOB_RESULT_TTL_SECONDS", 3600),
         supported_jurisdictions=_parse_supported_values(_getenv("SUPPORTED_JURISDICTIONS", "*"), upper=True),
         supported_sectors=_parse_supported_values(_getenv("SUPPORTED_SECTORS", "*"), upper=False),

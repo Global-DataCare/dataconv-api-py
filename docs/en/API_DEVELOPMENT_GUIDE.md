@@ -203,9 +203,10 @@ The V2 contract uses `Authorization: Bearer <access_token>` for business endpoin
 - `id_token` belongs to identity and exchange, not to DIDComm business payloads.
 - If `DEMO_MODE=false`, Bearer tokens from `/exchange` are mandatory.
 - If `DEMO_MODE=true`, legacy compatibility remains temporarily available, but Bearer is still the recommended path.
+- Generic exchange runtime settings such as OIDC, session token, scopes, and insecure assertions remain under `EXCHANGE_*` env names.
 - API key exchange is controlled:
-  - `EXCHANGE_ALLOW_API_KEY=true` enables API key mode.
-  - `EXCHANGE_ALLOW_API_KEY_EXCEPTION=true` enables explicit exceptional profile `api_key_profile=api-key-exception.v1` for non-confidential desktop clients.
+  - `LOCAL_EXCHANGE_ALLOW_API_KEY=true` enables local static API key mode.
+  - `LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION=true` enables explicit exceptional profile `api_key_profile=api-key-exception.v1` for non-confidential desktop clients.
 
 Full reference:
 

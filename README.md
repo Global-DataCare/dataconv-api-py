@@ -112,11 +112,16 @@ Behavior:
 Exchange profile note:
 
 - The default `/exchange` flow expects `subject_token` (`id_token`) and standard validations.
-- `api_key` mode is available when `EXCHANGE_ALLOW_API_KEY=true`.
+- Generic exchange runtime settings such as OIDC, session token, scopes, and insecure assertions remain under `EXCHANGE_*` env names.
+- Static/local `api_key` mode is available only when `LOCAL_EXCHANGE_ALLOW_API_KEY=true`.
 - Exceptional desktop or non-confidential mode is explicit and disabled by default:
-  - set `EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`
+  - set `LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`
   - send `api_key_profile=api-key-exception.v1`
   - send `api_key` (or `X-API-Key`) plus `organization` and preferably `operational_subject`
+- Static API key list/defaults for local mode:
+  - `LOCAL_EXCHANGE_API_KEYS`
+  - `LOCAL_EXCHANGE_API_KEY_SUBJECT_DEFAULT`
+  - `LOCAL_EXCHANGE_API_KEY_ORG_DEFAULT`
 
 ## 5. Local API and worker against real Google Cloud
 

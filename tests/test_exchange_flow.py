@@ -50,11 +50,11 @@ class ExchangeFlowTests(unittest.TestCase):
             "EXCHANGE_ALLOW_INSECURE_ASSERTIONS": "true",
             "EXCHANGE_SESSION_TOKEN_SECRET": "test-session-secret",
             "EXCHANGE_DEFAULT_ALLOWED_SCOPES": "dataconv.upload dataconv.read",
-            "EXCHANGE_ALLOW_API_KEY": "true",
-            "EXCHANGE_ALLOW_API_KEY_EXCEPTION": "true",
-            "EXCHANGE_API_KEYS": "demo-key",
-            "EXCHANGE_API_KEY_SUBJECT_DEFAULT": "did:web:globaldatacare.es:employee:controller",
-            "EXCHANGE_API_KEY_ORG_DEFAULT": "VATES-A00000001",
+            "LOCAL_EXCHANGE_ALLOW_API_KEY": "true",
+            "LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION": "true",
+            "LOCAL_EXCHANGE_API_KEYS": "demo-key",
+            "LOCAL_EXCHANGE_API_KEY_SUBJECT_DEFAULT": "did:web:globaldatacare.es:employee:controller",
+            "LOCAL_EXCHANGE_API_KEY_ORG_DEFAULT": "VATES-A00000001",
             "DEMO_MODE": "false",
         }
         self._env_patcher = patch.dict(os.environ, env, clear=False)

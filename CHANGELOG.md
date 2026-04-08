@@ -1,5 +1,8 @@
 # CHANGELOG
 
+## 2026-04-08 15:39:55 PDT
+- Release: bumped package version to `0.7.1` after the `0.7.0` branch release line had already accumulated additional documentation and exchange-configuration cleanup changes.
+
 ## 2026-04-08 15:02:00 PDT
 - Auth exchange: added explicit exceptional profile `api-key-exception.v1` for non-confidential desktop clients, gated by `LOCAL_EXCHANGE_ALLOW_API_KEY_EXCEPTION=true`.
 - Security behavior: API-key-only exchange is now rejected unless the explicit profile is requested and enabled.

@@ -7,6 +7,20 @@ Clinical pre-conversion repository with two execution modes:
 
 This README is the single root entry point in English. Spanish operational material remains available under [docs/es/README.md](docs/es/README.md).
 
+## Start here
+
+Roadmap and briefing:
+
+- [BRIEFING_DATASPACE_EN.md](BRIEFING_DATASPACE_EN.md)
+- [TODO_ROADMAP.md](TODO_ROADMAP.md)
+
+Repository documentation:
+
+- Main English docs index: [docs/en/README.md](docs/en/README.md)
+- Spanish operational archive: [docs/es/README.md](docs/es/README.md)
+- Integrator runbook: [INTEGRATORS_GUIDE.md](INTEGRATORS_GUIDE.md)
+- API walkthrough: [docs/en/API_DEVELOPMENT_GUIDE.md](docs/en/API_DEVELOPMENT_GUIDE.md)
+
 ## 1. Local API setup
 
 Activate a virtual environment before running the API locally.

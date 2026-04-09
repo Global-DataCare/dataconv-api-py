@@ -44,6 +44,11 @@ private-cloudsql.env
 private-staging-notes.md
 private-preconversion-runtime-sa.json
 private-deploy.config
+gcp-service-account.json
+gcp-service-account*.json
+*service-account*.json
+*service_account*.json
+*application-default*.json
 secrets/
 *.secrets
 _private_/

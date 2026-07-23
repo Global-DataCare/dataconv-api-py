@@ -7,7 +7,7 @@ Guía para probar la API en local de extremo a extremo usando:
 ## 1) Preparar entorno local
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+cd $HOME/GITS/gdc-workspace/dataconv-api-py
 source .venv/bin/activate
 python -m pip install -e ".[api,excel]"
 cp .env.local.example .env.local

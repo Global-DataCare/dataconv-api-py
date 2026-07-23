@@ -29,7 +29,7 @@ curl -sS -X POST \
   -F "iat=${IAT}" \
   -F "exp=${EXP}" \
   -H "Authorization: Bearer eyJhbGciOiAibm9uZSIsICJ0eXAiOiAiSldUIn0.eyJpc3MiOiAiZGlkOndlYjp0ZXN0LmV4YW1wbGU6ZW1wbG95ZWU6bG9hZGVyIiwgInN1YiI6ICJkaWQ6d2ViOnRlc3QuZXhhbXBsZTplbXBsb3llZTpsb2FkZXIifQ." \
-  -F "file=@/Users/fernando/GITS/gdc-workspace/examples/AppMyPets-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  -F "file=@$HOME/GITS/gdc-workspace/examples/AppMyPets-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 ```
 
 Polling:
@@ -61,7 +61,7 @@ curl -sS -X POST \
   -F "thid=${THID}" \
   -F "iat=${IAT}" \
   -F "exp=${EXP}" \
-  -F "file=@/Users/fernando/GITS/gdc-workspace/examples/Qvet-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  -F "file=@$HOME/GITS/gdc-workspace/examples/Qvet-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 curl -sS -X POST \
   "http://127.0.0.1:8080/acme01/cds-es/v1/onehealth-research/digitaltwin/api-config/excel/_upload-response?thid=${THID}" \
@@ -89,7 +89,7 @@ curl -sS -X POST \
   -F "thid=${THID}" \
   -F "iat=${IAT}" \
   -F "exp=${EXP}" \
-  -F "file=@/Users/fernando/GITS/gdc-workspace/examples/Wakyma-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  -F "file=@$HOME/GITS/gdc-workspace/examples/Wakyma-api-config.xlsx;type=application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 curl -sS -X POST \
   "http://127.0.0.1:8080/acme01/cds-es/v1/onehealth-research/digitaltwin/api-config/excel/_upload-response?thid=${THID}" \
@@ -112,10 +112,10 @@ Important points:
 If you also want the converted JSON saved on disk, use the CLI for each file:
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+cd $HOME/GITS/gdc-workspace/dataconv-api-py
 env PYTHONPATH=src python3.11 -m adapter_ingestion.cli \
   --manufacturer api-config \
-  --input /Users/fernando/GITS/gdc-workspace/examples/AppMyPets-api-config.xlsx \
+  --input $HOME/GITS/gdc-workspace/examples/AppMyPets-api-config.xlsx \
   --issuer-did did:web:test.example:employee:loader \
   --audience-did did:web:test.example \
   --subject-did-prefix did:web:test.example \

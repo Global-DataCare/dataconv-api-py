@@ -38,7 +38,7 @@ Recommended flow for demos and CLI screenshots:
 ### 1) Prepare the CLI environment
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-client-sdk-ts
+cd $HOME/GITS/gdc-workspace/dataconv-client-sdk-ts
 
 export DATACONV_BASE_URL="http://127.0.0.1:8080"
 export DATACONV_TENANT_ID="VATES-A00000001"
@@ -131,7 +131,7 @@ If the requested jurisdiction or sector is not allowed, the API returns `404`.
 Run this in a third terminal:
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+cd $HOME/GITS/gdc-workspace/dataconv-api-py
 
 BASE_URL="http://127.0.0.1:8080"
 ALT="acme"
@@ -249,7 +249,7 @@ Included script:
 Example:
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+cd $HOME/GITS/gdc-workspace/dataconv-api-py
 
 BASE_URL="http://127.0.0.1:8080" \
 ALT="clinic-demo" \

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 2026-07-23
+- Aligned integrator guides, examples and GCP bootstrap documentation with the
+  current Data Space artifact and configuration backlog.
+
 ## 2026-04-08 16:01:44 PDT
 - Documentation navigation: moved roadmap/briefing references and the primary docs entry points to the top of the root README so repo orientation appears before operational details.
 - Repository guidance: added publishable root-level roadmap and briefing references without machine-specific absolute paths.

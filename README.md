@@ -20,6 +20,7 @@ Repository documentation:
 - Spanish operational archive: [docs/es/README.md](docs/es/README.md)
 - Integrator runbook: [INTEGRATORS_GUIDE.md](INTEGRATORS_GUIDE.md)
 - API walkthrough: [docs/en/API_DEVELOPMENT_GUIDE.md](docs/en/API_DEVELOPMENT_GUIDE.md)
+- Data space artifacts TODO (Gaia-X): [docs/en/TODO_DATA_SPACE_ARTIFACTS.md](docs/en/TODO_DATA_SPACE_ARTIFACTS.md)
 
 ## 1. Local API setup
 

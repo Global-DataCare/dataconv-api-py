@@ -60,7 +60,7 @@ Files added for this flow:
 Typical flow:
 
 ```bash
-cd /Users/fernando/GITS/gdc-workspace/dataconv-api-py
+cd $HOME/GITS/gdc-workspace/dataconv-api-py
 
 cp private-gcp-bootstrap.config.example private-gcp-bootstrap.config
 $EDITOR private-gcp-bootstrap.config

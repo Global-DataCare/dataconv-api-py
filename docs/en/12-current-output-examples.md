@@ -7,7 +7,7 @@ Generated on **2026-03-01** with:
 ```bash
 PYTHONPATH=src python3.11 -m adapter_ingestion \
   --manufacturer wakyma \
-  --input "/Users/fernando/GITS/gdc-workspace/Informes - Explorador de Visitas (Wakyma).xlsx" \
+  --input "$HOME/GITS/gdc-workspace/Informes - Explorador de Visitas (Wakyma).xlsx" \
   --tenant-id demo \
   --jurisdiction es \
   --sector veterinary \

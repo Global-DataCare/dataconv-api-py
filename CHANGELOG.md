@@ -6,6 +6,8 @@
 
 - Unified the package and OpenAPI runtime version so immutable Canada staging
   deployment evidence identifies the actual DataConv release.
+- Repaired the production image build after the obsolete separate Spanish
+  README had been removed from the repository.
 
 - Added a route-scoped controller research exchange that revalidates the fresh
   OIDC plus Connect ICA proof and returns only a short-lived

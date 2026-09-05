@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md README_es.md /app/
+COPY pyproject.toml README.md /app/
 COPY configs /app/configs
 COPY examples /app/examples
 COPY scripts /app/scripts

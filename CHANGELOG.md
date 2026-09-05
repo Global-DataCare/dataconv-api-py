@@ -8,6 +8,9 @@
   deployment evidence identifies the actual DataConv release.
 - Repaired the production image build after the obsolete separate Spanish
   README had been removed from the repository.
+- Pinned the separately released Apache-2.0 `gdc-data-utils-py` wheel and its
+  SHA-256 in the production image instead of relying on an unpublished PyPI
+  dependency.
 
 - Added a route-scoped controller research exchange that revalidates the fresh
   OIDC plus Connect ICA proof and returns only a short-lived

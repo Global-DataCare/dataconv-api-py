@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+
+from gdc_data_utils import CLAIMS_BY_RESOURCE
 import hashlib
 import re
 import uuid
@@ -49,6 +51,11 @@ _DEFAULT_OWNER_EXCLUDE_CONTAINS = (
     "mercantil",
 )
 _DEFAULT_OWNER_IDENTIFIER_REGEX = r"^(?:[A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])$"
+_CANONICAL_FLAT_CLAIMS = frozenset(
+    claim
+    for resource_claims in CLAIMS_BY_RESOURCE.values()
+    for claim in resource_claims
+)
 
 
 def _is_base58btc_text(text: str) -> bool:
@@ -435,6 +442,19 @@ class TabularXlsxAdapter(ManufacturerAdapter):
             return normalize_gender_status(text)
         return strip_list_artifacts(text)
 
+    def _flat_claim_values(
+        self,
+        row: dict[str, str],
+        field_map: dict[str, str],
+        field_defaults: dict[str, str],
+    ) -> dict[str, str]:
+        values: dict[str, str] = {}
+        for claim_key in sorted(_CANONICAL_FLAT_CLAIMS.intersection(field_map)):
+            value = self._field_value(row, field_map, field_defaults, claim_key)
+            if value:
+                values[claim_key] = value
+        return values
+
     def _source_column(
         self,
         field_map: dict[str, str],
@@ -518,6 +538,22 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         token_value = (subject_token or "").strip()
         if not token_value:
             return None
+
+        if str(context.data_use or "").strip().lower() == "secondary":
+            raw_uuid = token_value.removeprefix("urn:uuid:")
+            try:
+                return f"urn:uuid:{uuid.UUID(raw_uuid)}"
+            except ValueError:
+                if callable(getattr(context, "personal_id_resolver", None)):
+                    resolved = str(context.personal_id_resolver(token_value)).strip()
+                    if resolved:
+                        try:
+                            return f"urn:uuid:{uuid.UUID(resolved.removeprefix('urn:uuid:'))}"
+                        except ValueError as error:
+                            raise ValueError("secondary subject resolver must return a UUID") from error
+                raise ValueError(
+                    "secondary identifying subject values require a confidential subject identifier resolver"
+                )
 
         prefix = context.subject_did_prefix.strip().rstrip(":") or "did:web:example.org"
         subject_kind = (context.subject_kind or "animal").strip().lower()
@@ -725,6 +761,7 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                     owner_public_hash=owner_public_hash,
                     owner_public_name=owner_public_name,
                     owner_public_relationship=str(owner_public_rules.get("relationship") or "organization-owner"),
+                    flat_claims=self._flat_claim_values(row, field_map, field_defaults),
                 )
             )
 

@@ -11,6 +11,7 @@ import uuid
 
 from ..models import ConfigKey, JobRecord, JobRequest, StoredConfig
 from ..ports import BlobStore, ConfigStore, IVaultRepository, JobQueue, JobStore
+from ...subject_links import ProtectedSubjectLinkRecord
 
 
 def _is_pubsub_deadline_exceeded(exc: Exception) -> bool:
@@ -233,6 +234,57 @@ class FirestoreVaultRepository(IVaultRepository):
             import logging
             logging.error("FirestoreVaultRepository 'query' failed: %s", exc)
             return []
+
+
+class FirestoreSubjectLinkRecordStore:
+    """Dedicated confidential store for encrypted external-id to twin UUID links."""
+
+    def __init__(self, *, project_id: str, collection: str) -> None:
+        try:
+            from google.cloud import firestore
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError(
+                "Missing dependency google-cloud-firestore. Install with: "
+                "pip install 'adapter-ingestion-py[gcp]'"
+            ) from exc
+
+        self._client = firestore.Client(project=project_id or None)
+        self._collection = str(collection or "preconversion-subject-links")
+
+    @staticmethod
+    def _from_dict(record_id: str, payload: dict[str, Any]) -> ProtectedSubjectLinkRecord:
+        return ProtectedSubjectLinkRecord(
+            id=record_id,
+            nonce_base64url=str(payload.get("nonceBase64url", "")),
+            ciphertext_base64url=str(payload.get("ciphertextBase64url", "")),
+            key_version=str(payload.get("keyVersion", "v1")),
+        )
+
+    def get(self, record_id: str) -> ProtectedSubjectLinkRecord | None:
+        snap = self._client.collection(self._collection).document(_safe_token(record_id)).get()
+        if not snap.exists:
+            return None
+        payload = snap.to_dict()
+        return self._from_dict(record_id, payload) if isinstance(payload, dict) else None
+
+    def create_if_absent(self, record: ProtectedSubjectLinkRecord) -> ProtectedSubjectLinkRecord:
+        from google.api_core.exceptions import AlreadyExists
+
+        doc_ref = self._client.collection(self._collection).document(_safe_token(record.id))
+        try:
+            doc_ref.create(
+                {
+                    "nonceBase64url": record.nonce_base64url,
+                    "ciphertextBase64url": record.ciphertext_base64url,
+                    "keyVersion": record.key_version,
+                }
+            )
+            return record
+        except AlreadyExists:
+            existing = self.get(record.id)
+            if existing is None:  # pragma: no cover - defensive race guard
+                raise RuntimeError("subject link disappeared after concurrent create")
+            return existing
 
 
 class FirestoreConfigStore(ConfigStore):

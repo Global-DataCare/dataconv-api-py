@@ -58,6 +58,7 @@ class CanonicalRecord:
     owner_public_hash: str = ""
     owner_public_name: str = ""
     owner_public_relationship: str = ""
+    flat_claims: dict[str, str] = field(default_factory=dict)
 
 
 def now_iso() -> str:

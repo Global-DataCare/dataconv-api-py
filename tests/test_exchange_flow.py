@@ -1,3 +1,5 @@
+# Flow contract: exchanged DataConv tokens authorize only their own tenant and granted operation scopes.
+
 from __future__ import annotations
 
 import base64
@@ -144,7 +146,7 @@ class ExchangeFlowTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertIn("sameAs", str(response.text))
 
-    def test_upload_authorized_with_exchange_token(self) -> None:
+    def test_upload_rejects_exchange_token_for_a_different_tenant(self) -> None:
         payload = self._build_exchange_payload(same_as_hash=hash_email_same_as("alice@example.com"), scope="dataconv.upload")
         exchange_response = self.client.post("/exchange", json=payload)
         self.assertEqual(exchange_response.status_code, 200)
@@ -165,7 +167,8 @@ class ExchangeFlowTests(unittest.TestCase):
             json=upload_payload,
             headers={"Authorization": f"Bearer {access_token}"},
         )
-        self.assertEqual(upload_response.status_code, 202)
+        self.assertEqual(upload_response.status_code, 403)
+        self.assertIn("organization", str(upload_response.text).lower())
 
     def test_upload_denied_with_insufficient_scope(self) -> None:
         payload = self._build_exchange_payload(same_as_hash=hash_email_same_as("alice@example.com"), scope="dataconv.read")
@@ -183,7 +186,7 @@ class ExchangeFlowTests(unittest.TestCase):
             "inputRef": "mem://uploads/input.xlsx",
         }
         upload_response = self.client.post(
-            "/tenant-a/cds-es/v1/onehealth-research/digitaltwin/qvet/Composition/_upload",
+            "/VATES-A00000001/cds-es/v1/onehealth-research/digitaltwin/qvet/Composition/_upload",
             json=upload_payload,
             headers={"Authorization": f"Bearer {access_token}"},
         )

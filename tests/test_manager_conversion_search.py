@@ -1,3 +1,4 @@
+# Flow contract: search resolves the same network-scoped tenant namespace used by ingestion.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -70,7 +71,7 @@ class TestConversionSearchManager(unittest.TestCase):
 
     def test_search_reads_from_search_repository(self) -> None:
         search_repo = InMemorySearchRepository()
-        vault_id = "onehealth-research_VAT-ESB12345678"
+        vault_id = "test__es__onehealth-research__vat-esb12345678"
         encounter = {
             "resourceType": "Encounter",
             "id": "enc-1",

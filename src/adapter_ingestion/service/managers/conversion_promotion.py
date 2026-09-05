@@ -17,7 +17,7 @@ from ..api_support import (
     _validate_public_iss,
 )
 from ..observability import log_event
-from ..research import build_vault_id
+from ..research import build_storage_namespace
 from .dependencies import ApiManagerDependencies
 
 
@@ -101,7 +101,12 @@ def promote_resources(
         auth_header = str(request.headers.get("authorization", "") or "")
     except Exception:
         auth_header = ""
-    _enforce_auth_context(payload, deps.settings, authorization_header=auth_header)
+    _enforce_auth_context(
+        payload,
+        deps.settings,
+        authorization_header=auth_header,
+        expected_organization=tenant_id,
+    )
 
     payload_thid = str(payload.get("thid", "")).strip()
     query_thid = _extract_query_value(request, "thid")
@@ -111,7 +116,12 @@ def promote_resources(
     if not thid:
         raise HTTPException(status_code=400, detail="thid is required in DIDComm payload or query")
 
-    vault_id = build_vault_id(sector=sector, tenant_id=tenant_id)
+    vault_id = build_storage_namespace(
+        network_kind=deps.settings.network_mode,
+        jurisdiction=jurisdiction,
+        sector=sector,
+        tenant_id=tenant_id,
+    )
     governed_resource_type = str(resource_type or "Composition").strip() or "Composition"
 
     compositions = deps.vault_repo.query(
@@ -153,15 +163,23 @@ def promote_resources(
             continue
         link_section = f"{subject}_{section}"
 
-        subject_res = deps.vault_repo.get(vault_id, subject, "Subject")
+        subject_resource_type = "ResearchSubject"
+        subject_res = deps.vault_repo.get(vault_id, subject, subject_resource_type)
+        if not subject_res:
+            subject_resource_type = "Subject"
+            subject_res = deps.vault_repo.get(vault_id, subject, subject_resource_type)
         if subject_res:
-            subject_claim_key = "Subject.userSelected"
+            subject_claim_key = f"{subject_resource_type}.userSelected"
             is_subject_draft = str(subject_res.get("meta", {}).get("claims", {}).get(subject_claim_key, "")).lower()
             if is_subject_draft == "true":
                 subject_res.setdefault("meta", {}).setdefault("claims", {})[subject_claim_key] = "false"
-                deps.vault_repo.put(vault_id, [subject_res], "Subject")
-                deps.search_repo.upsert(vault_id=vault_id, resource_type="Subject", resource=subject_res)
-                _mark_promoted("Subject")
+                deps.vault_repo.put(vault_id, [subject_res], subject_resource_type)
+                deps.search_repo.upsert(
+                    vault_id=vault_id,
+                    resource_type=subject_resource_type,
+                    resource=subject_res,
+                )
+                _mark_promoted(subject_resource_type)
 
         raw_entries = str(comp.get("meta", {}).get("claims", {}).get("Composition.entry", "")).strip()
         if not raw_entries:

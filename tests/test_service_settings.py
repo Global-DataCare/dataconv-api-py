@@ -1,3 +1,4 @@
+# Flow contract: deployment profiles derive separate resource names and an explicit network storage boundary.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -42,6 +43,8 @@ class ServiceSettingsTests(unittest.TestCase):
         self.assertEqual(settings.search_provider, "mem")
         self.assertEqual(settings.firestore_config_collection, "dev-preconvert-animal-configs")
         self.assertEqual(settings.firestore_job_collection, "dev-preconvert-animal-jobs")
+        self.assertEqual(settings.firestore_subject_link_collection, "dev-preconvert-animal-subject-links")
+        self.assertEqual(settings.network_mode, "test")
         self.assertEqual(settings.pubsub_topic_id, "dev-preconvert-animal-jobs")
         self.assertEqual(settings.pubsub_subscription_id, "dev-preconvert-animal-jobs-worker")
         self.assertEqual(settings.gcs_prefix, "dev-preconvert-animal")
@@ -65,6 +68,7 @@ class ServiceSettingsTests(unittest.TestCase):
 
         self.assertEqual(settings.firestore_config_collection, "staging-preconvert-health-configs")
         self.assertEqual(settings.firestore_job_collection, "staging-preconvert-health-jobs")
+        self.assertEqual(settings.firestore_subject_link_collection, "staging-preconvert-health-subject-links")
         self.assertEqual(settings.pubsub_topic_id, "staging-preconvert-health-jobs")
         self.assertEqual(settings.pubsub_subscription_id, "staging-preconvert-health-jobs-worker")
         self.assertEqual(settings.gcs_prefix, "staging-preconvert-health")
@@ -87,6 +91,7 @@ class ServiceSettingsTests(unittest.TestCase):
 
         self.assertEqual(settings.firestore_config_collection, "prod-preconvert-animal-configs")
         self.assertEqual(settings.firestore_job_collection, "prod-preconvert-animal-jobs")
+        self.assertEqual(settings.firestore_subject_link_collection, "prod-preconvert-animal-subject-links")
         self.assertEqual(settings.pubsub_topic_id, "prod-preconvert-animal-jobs")
         self.assertEqual(settings.pubsub_subscription_id, "prod-preconvert-animal-jobs-worker")
         self.assertEqual(settings.gcs_prefix, "prod-preconvert-animal")

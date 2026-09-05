@@ -1,3 +1,4 @@
+# Flow contract: reuse canonical claim catalogs; keep API-CONFIG logical fields separate from database keys.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -139,20 +140,32 @@ class ApiConfigTests(unittest.TestCase):
             "Departamento o sección: tienda, clínica, farmacia, etc. (service-reference)",
         )
         self.assertEqual(
-            payload["supportedFields"]["coverage_insurer"],
-            "Identificador o nombre de la aseguradora",
+            payload["pendingFields"]["coverage_insurer"],
+            "A name is not a safe Coverage.payor reference.",
         )
         self.assertEqual(
-            payload["supportedFields"]["procedure_followup-date"],
-            "Fecha recomendada para el siguiente tratamiento",
+            payload["pendingFields"]["procedure_followup-date"],
+            "No canonical Procedure search claim exists.",
         )
         self.assertEqual(
-            payload["supportedFields"]["procedure_subpotent-date"],
-            "Fecha en la que expira el efecto del tratamiento",
+            payload["pendingFields"]["procedure_subpotent-date"],
+            "No canonical Procedure search claim exists.",
         )
         self.assertEqual(
-            payload["supportedFields"]["procedure_target-display"],
-            "Problemas que cubre este tratamiento",
+            payload["pendingFields"]["procedure_target-display"],
+            "Requires a governed coded target.",
+        )
+        self.assertEqual(
+            payload["supportedFields"]["DiagnosticReport.code-text"],
+            "Nombre o diagnóstico local sin código terminológico",
+        )
+        self.assertEqual(
+            payload["supportedFields"]["ChargeItem.supporting-information"],
+            "Supporting Invoice reference; never encoded as ChargeItem.part-of",
+        )
+        self.assertEqual(
+            payload["fieldAliases"]["invoice_date"],
+            "Invoice.date",
         )
         self.assertEqual(payload["language"], "es")
         self.assertEqual(payload["allowedJurisdictions"], ["ES", "PT"])

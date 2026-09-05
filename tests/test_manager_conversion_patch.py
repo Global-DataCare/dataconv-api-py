@@ -1,3 +1,4 @@
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -23,7 +24,7 @@ class TestConversionPatchManager(unittest.TestCase):
     def test_handle_updates_user_selected(self) -> None:
         vault_repo = InMemoryVaultRepository()
         search_repo = InMemorySearchRepository()
-        vault_id = "onehealth-research_test-tenant-123"
+        vault_id = "test__es__onehealth-research__test-tenant-123"
         
         # Insert a Composition that points to an Encounter
         composition = {
@@ -40,6 +41,19 @@ class TestConversionPatchManager(unittest.TestCase):
             }
         }
         vault_repo.put(vault_id, [composition], "Composition")
+
+        research_subject = {
+            "resourceType": "ResearchSubject",
+            "id": "pat-1",
+            "meta": {
+                "claims": {
+                    "ResearchSubject.identifier": "urn:uuid:pat-1",
+                    "ResearchSubject.status": "candidate",
+                    "ResearchSubject.userSelected": "true",
+                }
+            },
+        }
+        vault_repo.put(vault_id, [research_subject], "ResearchSubject")
         
         # Insert the actual target resource
         encounter = {
@@ -136,7 +150,7 @@ class TestConversionPatchManager(unittest.TestCase):
         )
         
         self.assertEqual(res["body"]["status"], "success")
-        self.assertEqual(res["body"]["promotedCount"], 2)
+        self.assertEqual(res["body"]["promotedCount"], 3)
         self.assertEqual(res["body"]["issues"]["resourceType"], "OperationOutcome")
         self.assertEqual(res["body"]["issues"]["issue"][0]["severity"], "information")
         self.assertNotIn("publication", res["body"])
@@ -153,6 +167,11 @@ class TestConversionPatchManager(unittest.TestCase):
         
         promoted_enc = vault_repo.get(vault_id, "enc-1", "Encounter")
         self.assertEqual(promoted_enc["meta"]["claims"]["Encounter.userSelected"], "false")
+        promoted_research_subject = vault_repo.get(vault_id, "pat-1", "ResearchSubject")
+        self.assertEqual(
+            promoted_research_subject["meta"]["claims"]["ResearchSubject.userSelected"],
+            "false",
+        )
 
         indexed_comp = search_repo.search(
             vault_id=vault_id,
@@ -164,10 +183,16 @@ class TestConversionPatchManager(unittest.TestCase):
             resource_type="Encounter",
             search_params={"userSelected": "false"},
         )
+        indexed_research_subject = search_repo.search(
+            vault_id=vault_id,
+            resource_type="ResearchSubject",
+            search_params={"identifier": "urn:uuid:pat-1"},
+        )
         self.assertEqual(len(indexed_comp), 1)
         self.assertEqual(indexed_comp[0]["id"], "comp-1")
         self.assertEqual(len(indexed_enc), 1)
         self.assertEqual(indexed_enc[0]["id"], "enc-1")
+        self.assertEqual(len(indexed_research_subject), 1)
 
 if __name__ == "__main__":
     unittest.main()

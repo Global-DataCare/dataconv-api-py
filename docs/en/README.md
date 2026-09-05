@@ -20,5 +20,6 @@ Core guides:
 - [11 - Release pipeline: staging to production](11-release-staging-production.md)
 - [12 - Current output examples](12-current-output-examples.md)
 - [13 - GCP bootstrap for One Health](13-gcp-bootstrap-onehealth.md)
+- [Accuro API-CONFIG workbook flow](13-accuro-api-config.md)
 
 Spanish originals remain available under [docs/es](../es/README.md).

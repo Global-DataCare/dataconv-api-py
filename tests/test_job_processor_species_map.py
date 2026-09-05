@@ -1,3 +1,4 @@
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -15,7 +16,6 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from adapter_ingestion.service.job_processor import (
-    PERSONAL_ID_ALIAS_SECTION,
     _build_context,
     _language_from_country,
     _species_catalog_from_file,
@@ -23,6 +23,8 @@ from adapter_ingestion.service.job_processor import (
 )
 from adapter_ingestion.service.settings import ServiceSettings
 from adapter_ingestion.runtime.adapters import InMemoryVaultRepository
+from adapter_ingestion.subject_links import InMemorySubjectLinkRecordStore, ProtectedSubjectLinkStore
+import base64
 
 
 class JobProcessorSpeciesMapTests(unittest.TestCase):
@@ -184,8 +186,11 @@ class JobProcessorSpeciesMapTests(unittest.TestCase):
         )
         self.assertEqual(context.language, "ca-ES")
 
-    def test_build_context_personal_id_resolver_persists_uuid_by_hash(self) -> None:
+    def test_build_context_personal_id_resolver_uses_protected_network_scoped_store(self) -> None:
         vault_repo = InMemoryVaultRepository()
+        records = InMemorySubjectLinkRecordStore()
+        key = base64.urlsafe_b64encode(bytes(range(32))).decode("ascii").rstrip("=")
+        subject_links = ProtectedSubjectLinkStore(records=records, key_base64url=key)
         context = _build_context(
             settings=self._settings(),
             request_alternate_name="acme",
@@ -193,6 +198,8 @@ class JobProcessorSpeciesMapTests(unittest.TestCase):
             request_manufacturer="qvet",
             config_payload={},
             vault_repo=vault_repo,
+            subject_link_store=subject_links,
+            network_kind="test-network",
             settings_target_sector="onehealth-research",
         )
 
@@ -201,14 +208,15 @@ class JobProcessorSpeciesMapTests(unittest.TestCase):
 
         self.assertTrue(first)
         self.assertEqual(first, second)
-        vault_id = "onehealth-research_acme"
-        alias_bucket = vault_repo._collections.get(vault_id, {}).get(PERSONAL_ID_ALIAS_SECTION, {})
-        self.assertEqual(len(alias_bucket), 1)
-        stored = next(iter(alias_bucket.values()))
-        self.assertEqual(stored.get("uuid"), first)
+        self.assertEqual(len(records.list_records()), 1)
+        self.assertNotIn("12345678A", repr(records.list_records()[0]))
+        self.assertNotIn(first, repr(records.list_records()[0]))
 
     def test_build_context_personal_id_resolver_returns_empty_for_blank_input(self) -> None:
         vault_repo = InMemoryVaultRepository()
+        records = InMemorySubjectLinkRecordStore()
+        key = base64.urlsafe_b64encode(bytes(range(32))).decode("ascii").rstrip("=")
+        subject_links = ProtectedSubjectLinkStore(records=records, key_base64url=key)
         context = _build_context(
             settings=self._settings(),
             request_alternate_name="acme",
@@ -216,13 +224,13 @@ class JobProcessorSpeciesMapTests(unittest.TestCase):
             request_manufacturer="qvet",
             config_payload={},
             vault_repo=vault_repo,
+            subject_link_store=subject_links,
+            network_kind="test-network",
             settings_target_sector="onehealth-research",
         )
 
         self.assertEqual(context.personal_id_resolver(""), "")
-        vault_id = "onehealth-research_acme"
-        alias_bucket = vault_repo._collections.get(vault_id, {}).get(PERSONAL_ID_ALIAS_SECTION, {})
-        self.assertEqual(alias_bucket, {})
+        self.assertEqual(records.list_records(), [])
 
 
 if __name__ == "__main__":

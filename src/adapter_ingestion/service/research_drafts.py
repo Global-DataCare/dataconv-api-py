@@ -10,7 +10,7 @@ from typing import Any
 from ..runtime import IVaultRepository
 from ..runtime.models import now_iso_utc
 from .api_support import _compose_software_id_token
-from .research import build_vault_id
+from .research import build_storage_namespace
 import re
 
 def _safe_token(value: str) -> str:
@@ -91,11 +91,17 @@ def persist_research_drafts(
     *,
     vault_repo: IVaultRepository,
     job: Any,
+    network_kind: str,
     jurisdiction: str,
     composition_message: dict[str, Any],
 ) -> int:
     tenant_id = str(job.request.alternate_name or "").strip()
-    vault_id = build_vault_id(sector=str(job.request.sector or "onehealth-research"), tenant_id=tenant_id)
+    vault_id = build_storage_namespace(
+        network_kind=network_kind,
+        jurisdiction=jurisdiction,
+        sector=str(job.request.sector or "onehealth-research"),
+        tenant_id=tenant_id,
+    )
     body = composition_message.get("body")
     if not isinstance(body, dict):
         return 0

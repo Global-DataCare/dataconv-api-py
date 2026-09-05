@@ -120,6 +120,7 @@ class ConversionUploadManager:
             authorization_header=auth_header,
             require_token=True,
             required_scopes={"dataconv.upload"},
+            expected_organization=tenant_id,
         )
         thid = str(_extract_payload_value(payload, "thid") or "").strip()
         if not thid:

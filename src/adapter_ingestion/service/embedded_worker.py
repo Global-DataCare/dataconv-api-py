@@ -20,7 +20,7 @@ def should_enable_embedded_worker(settings) -> bool:  # type: ignore[no-untyped-
     )
 
 
-def install_embedded_worker(app, *, control_plane, blob_store, vault_repo, settings) -> None:  # type: ignore[no-untyped-def]
+def install_embedded_worker(app, *, control_plane, blob_store, vault_repo, subject_link_store, settings) -> None:  # type: ignore[no-untyped-def]
     if not should_enable_embedded_worker(settings):
         return
 
@@ -34,6 +34,7 @@ def install_embedded_worker(app, *, control_plane, blob_store, vault_repo, setti
                 control_plane=control_plane,
                 blob_store=blob_store,
                 vault_repo=vault_repo,
+                subject_link_store=subject_link_store,
                 settings=settings,
                 worker_id=worker_id,
             )

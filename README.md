@@ -21,6 +21,52 @@ Repository documentation:
 - Integrator runbook: [INTEGRATORS_GUIDE.md](INTEGRATORS_GUIDE.md)
 - API walkthrough: [docs/en/API_DEVELOPMENT_GUIDE.md](docs/en/API_DEVELOPMENT_GUIDE.md)
 - Data space artifacts TODO (Gaia-X): [docs/en/TODO_DATA_SPACE_ARTIFACTS.md](docs/en/TODO_DATA_SPACE_ARTIFACTS.md)
+- Accuro API-CONFIG workbook flow: [docs/en/13-accuro-api-config.md](docs/en/13-accuro-api-config.md)
+
+FHIR-like flat claims, physical indexes, and FHIR queries are separate layers:
+
+```text
+API-CONFIG:          DiagnosticReport.code-text
+resource.meta.claims DiagnosticReport.code-text
+database index:      diagnosticreport_code-text
+FHIR search:         DiagnosticReport?code:text=diagnóstico
+```
+
+DataConv imports the canonical flat claim from `API-CONFIG`, materializes a
+`DiagnosticReport`, and translates the FHIR `code:text` modifier only at the
+search boundary. The physical index key is internal and preserves the hyphen.
+Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
+whose catalog is generated from `gdc-common-utils-ts`.
+
+Financial API-CONFIG columns use the same dotted contract. DataConv groups rows
+by `Invoice.identifier`, creates one `Invoice` and its separate `ChargeItem`
+resources, writes `Invoice.lineItem[].chargeItemReference`, and links every line
+back with `ChargeItem.supporting-information`. `ChargeItem.part-of` is never an
+invoice link.
+
+The standard financial search subset currently enforced by DataConv is:
+
+- `Invoice`: `date`, `identifier`, `issuer`, `recipient`, `status`, `subject`;
+- `ChargeItem`: `code`, `identifier`, `occurrence`, `subject`.
+
+Other financial flat claims can be persisted but are not advertised as HL7 R4
+search parameters. Unsupported parameters return HTTP 400 instead of silently
+pretending to implement an HL7 search.
+
+Within one resource search, repeated parameters are AND constraints and
+comma-separated values are OR alternatives. Multi-resource twin criteria such
+as `ChargeItem.code` plus `DiagnosticReport.code-text` belong to the GW CORE
+ResearchSubject search boundary and remain pending there; DataConv does not
+claim that local per-resource `_search` already proves that gateway behavior.
+
+The legacy Excel `BaseConfig` vocabulary is classified as control fields,
+canonical claims, DataConv extensions or pending mappings. Generate a governed
+copy without overwriting the source:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/reconcile-base-config.py \
+  "/path/to/mapping.xlsx" "/path/to/mapping-reconciled.xlsx"
+```
 
 ## 1. Local API setup
 

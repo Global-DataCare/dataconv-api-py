@@ -8,22 +8,18 @@ from tempfile import NamedTemporaryFile
 from typing import Any
 import json
 import unicodedata
-import uuid
-from hashlib import sha256
 
 from ..ai.base import NoopCodingAssistant
 from ..models import AdapterContext
 from ..manufacturers import get_adapter
 from ..pipeline import run_pipeline
 from ..runtime import BlobStore, ConfigKey, IVaultRepository, PreconversionControlPlane
+from ..subject_links import ProtectedSubjectLinkStore, SubjectLinkScope
 from .api_support import _compose_software_id_token
 from .observability import log_event
-from .research import DEFAULT_SECTOR, build_vault_id
+from .research import DEFAULT_SECTOR, build_storage_namespace
 from .research_drafts import annotate_composition_message_for_research, persist_research_drafts
 from .settings import ServiceSettings
-
-PERSONAL_ID_ALIAS_SECTION = "personal-id-alias"
-
 
 def _species_catalog_from_config(raw: dict[str, Any]) -> tuple[str, dict[str, str]]:
     if not isinstance(raw, dict):
@@ -128,6 +124,8 @@ def _build_context(
     request_manufacturer: str,
     config_payload: dict[str, Any],
     vault_repo: IVaultRepository | None = None,
+    subject_link_store: ProtectedSubjectLinkStore | None = None,
+    network_kind: str = "test",
     settings_target_sector: str = DEFAULT_SECTOR,
 ) -> AdapterContext:
     runtime_defaults = (
@@ -165,36 +163,20 @@ def _build_context(
             subject_kind = "species"
         else:
             subject_kind = "person"
-    vault_id = build_vault_id(
-        sector=resolved_sector,
-        tenant_id=request_alternate_name,
-    )
-
     def _personal_id_resolver(raw_personal_id: str) -> str:
         personal_id = str(raw_personal_id or "").strip()
-        if not personal_id or vault_repo is None:
+        if not personal_id or subject_link_store is None:
             return ""
-        seed = f"urn:globaldatacare:{resolved_sector}:{request_alternate_name}:personal-id:{personal_id}"
-        lookup_hash = sha256(seed.encode("utf-8")).hexdigest()
-        found = vault_repo.get(vault_id, lookup_hash, PERSONAL_ID_ALIAS_SECTION)
-        if isinstance(found, dict):
-            found_uuid = str(found.get("uuid", "")).strip()
-            if found_uuid:
-                return found_uuid
-        pseudonym_uuid = str(uuid.uuid4())
-        vault_repo.put(
-            vault_id,
-            [
-                {
-                    "id": lookup_hash,
-                    "type": "personal-id-alias",
-                    "lookupHash": lookup_hash,
-                    "uuid": pseudonym_uuid,
-                }
-            ],
-            PERSONAL_ID_ALIAS_SECTION,
+        return subject_link_store.resolve_or_create(
+            scope=SubjectLinkScope(
+                network_kind=network_kind,
+                jurisdiction=request_country,
+                sector=resolved_sector,
+                tenant_id=request_alternate_name,
+            ),
+            source_system=request_manufacturer,
+            external_identifier=personal_id,
         )
-        return pseudonym_uuid
 
     return AdapterContext(
         manufacturer=request_manufacturer,
@@ -214,7 +196,7 @@ def _build_context(
         species_local_to_fhir=species_local_map,
         strict_species_mapping=False,
         schema_config=schema_config if isinstance(schema_config, dict) else {},
-        personal_id_resolver=_personal_id_resolver if vault_repo is not None else None,
+        personal_id_resolver=_personal_id_resolver if subject_link_store is not None else None,
         embed_xhtml_content=bool(runtime_defaults.get("embedXhtmlContent", False)),
         data_use=str(runtime_defaults.get("dataUse", "secondary")).strip() or "secondary",
         log_composition=log_composition,
@@ -267,6 +249,7 @@ def process_one_job(
     control_plane: PreconversionControlPlane,
     blob_store: BlobStore,
     vault_repo: IVaultRepository,
+    subject_link_store: ProtectedSubjectLinkStore | None = None,
     settings: ServiceSettings,
     worker_id: str,
 ) -> str | None:
@@ -299,6 +282,8 @@ def process_one_job(
             request_manufacturer=job.request.manufacturer,
             config_payload=config_payload,
             vault_repo=vault_repo,
+            subject_link_store=subject_link_store,
+            network_kind=settings.network_mode,
             settings_target_sector=job.request.sector,
         )
         adapter = get_adapter(job.request.manufacturer)
@@ -317,11 +302,17 @@ def process_one_job(
         draft_count = persist_research_drafts(
             vault_repo=vault_repo,
             job=job,
+            network_kind=settings.network_mode,
             jurisdiction=job.request.country,
             composition_message=annotated_message,
         )
         result.summary["researchDraftsPersisted"] = int(draft_count)
-        result.summary["vaultId"] = build_vault_id(sector=job.request.sector, tenant_id=job.request.alternate_name)
+        result.summary["vaultId"] = build_storage_namespace(
+            network_kind=settings.network_mode,
+            jurisdiction=job.request.country,
+            sector=job.request.sector,
+            tenant_id=job.request.alternate_name,
+        )
         result.summary["softwareId"] = _compose_software_id_token(
             job.request.manufacturer,
             job.request.manufacturer_version,

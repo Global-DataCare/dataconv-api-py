@@ -7,7 +7,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from gdc_data_utils import ChargeItemClaim, DiagnosticReportClaim, InvoiceClaim
+
 from .api_support import HTMLResponse, build_api_docs_html
+from ..base_config_contract import BASE_CONFIG_FIELDS, BaseConfigFieldKind
 
 
 def register_system_routes(app, settings) -> None:  # type: ignore[no-untyped-def]
@@ -59,10 +62,40 @@ def register_system_routes(app, settings) -> None:  # type: ignore[no-untyped-de
             "procedure_followup-date": "Fecha recomendada para el siguiente tratamiento",
             "procedure_subpotent-date": "Fecha en la que expira el efecto del tratamiento",
             "procedure_target-display": "Problemas que cubre este tratamiento",
+            DiagnosticReportClaim.CODE_TEXT: "Nombre o diagnóstico local sin código terminológico",
         }
+        pending_fields = {
+            name: entry.note
+            for name, entry in BASE_CONFIG_FIELDS.items()
+            if entry.kind is BaseConfigFieldKind.PENDING
+        }
+        field_aliases = {
+            name: entry.canonical_claim
+            for name, entry in BASE_CONFIG_FIELDS.items()
+            if entry.kind is BaseConfigFieldKind.CANONICAL_CLAIM
+        }
+        for pending_name in pending_fields:
+            supported_fields.pop(pending_name, None)
+        for alias_name, claim_name in field_aliases.items():
+            description = supported_fields.pop(alias_name, "Canonical flat FHIR-like claim")
+            supported_fields.setdefault(claim_name, description)
+        supported_fields.update({
+            InvoiceClaim.IDENTIFIER: "Stable business invoice identifier",
+            InvoiceClaim.DATE: "Invoice issue date/time",
+            ChargeItemClaim.IDENTIFIER: "Stable invoice-line identifier",
+            ChargeItemClaim.CODE: "Public product or service code",
+            ChargeItemClaim.CODE_TEXT: "Local-language product or service text",
+            ChargeItemClaim.QUANTITY_NUMBER: "Numeric charged quantity",
+            ChargeItemClaim.QUANTITY_UNIT: "UCUM-like charged quantity unit",
+            ChargeItemClaim.SUPPORTING_INFORMATION: (
+                "Supporting Invoice reference; never encoded as ChargeItem.part-of"
+            ),
+        })
         payload = {
             "language": settings.iclaims_locale,
             "supportedFields": supported_fields,
+            "fieldAliases": field_aliases,
+            "pendingFields": pending_fields,
             "allowedJurisdictions": list(getattr(settings, "supported_jurisdictions", ("*",))),
             "allowedSectors": list(getattr(settings, "supported_sectors", ("*",))),
             "auth": {

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Inject the exact OIDC issuer/audience and session-token secret into GKE so staging cannot silently accept insecure ID-token assertions.
+
 ## 0.7.4 - 2026-09-05
 
 - Unified the package and OpenAPI runtime version so immutable Canada staging

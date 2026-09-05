@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.7.4 - 2026-09-05
+
+- Unified the package and OpenAPI runtime version so immutable Canada staging
+  deployment evidence identifies the actual DataConv release.
+
 - Added a route-scoped controller research exchange that revalidates the fresh
   OIDC plus Connect ICA proof and returns only a short-lived
   `dataconv.upload` token bound to the legal tenant identifier.

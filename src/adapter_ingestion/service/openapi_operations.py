@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .. import __version__
 from .openapi_constants import (
     API_KEY_CREATE_PATH,
     API_KEY_DISABLE_PATH,
@@ -44,7 +45,7 @@ def configure_schema_metadata(schema: dict[str, Any]) -> None:
     info = schema.get("info")
     if isinstance(info, dict):
         info["title"] = "Preconversion DIDComm API"
-        info["version"] = "0.6.3"
+        info["version"] = __version__
         info["description"] = (
             "Public DIDComm/FAPI contract for tenant configuration and conversion jobs.\n\n"
             "**Functional groups**\n\n"

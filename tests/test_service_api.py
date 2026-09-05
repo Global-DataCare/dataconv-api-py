@@ -1,3 +1,4 @@
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -271,6 +272,7 @@ class ServiceApiTests(unittest.TestCase):
         schema = self.app.openapi()
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
+        self.assertEqual(schema.get("info", {}).get("version"), "0.7.4")
         tag_names = [tag.get("name") for tag in schema.get("tags", []) if isinstance(tag, dict)]
         self.assertIn("3.1 Publisher Config Request", tag_names)
         self.assertIn("3.2 Publisher Config Response", tag_names)

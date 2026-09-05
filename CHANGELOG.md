@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Documented and regression-guarded the research lifecycle from GCS upload to
+  Firestore review draft and human-confirmed PostgreSQL search promotion.
+- Clarified that PostgreSQL duplicates the same processed promoted resource as
+  a read optimization, while queries operate on normalized flat-claim search
+  fields.
+- Recorded the coding-assistance safety boundary: inferred terminology codes
+  remain human-reviewed proposals; the deployed worker still uses
+  `NoopCodingAssistant`, and remote inference plus durable review-decision
+  capture remain pending.
+- Defined the future terminology boundary around FHIR R4 text-filtered
+  ValueSet expansion, code validation, and explicit ConceptMap translation;
+  general intent or question-answering model endpoints do not substitute for
+  an authoritative terminology service.
+
 ## 0.7.5 - 2026-09-05
 
 - Scope private Cloud SQL settings to the selected deployment environment so a

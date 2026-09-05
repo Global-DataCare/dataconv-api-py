@@ -22,6 +22,9 @@ from adapter_ingestion.service.settings import ServiceSettings
 
 class TestConversionPatchManager(unittest.TestCase):
     def test_handle_updates_user_selected(self) -> None:
+        # This PATCH represents explicit human review: it promotes the same
+        # processed Firestore resource into the search repository rather than
+        # creating a separately transformed resource.
         vault_repo = InMemoryVaultRepository()
         search_repo = InMemorySearchRepository()
         vault_id = "test__es__onehealth-research__test-tenant-123"
@@ -189,10 +192,11 @@ class TestConversionPatchManager(unittest.TestCase):
             search_params={"identifier": "urn:uuid:pat-1"},
         )
         self.assertEqual(len(indexed_comp), 1)
-        self.assertEqual(indexed_comp[0]["id"], "comp-1")
+        self.assertEqual(indexed_comp[0], promoted_comp)
         self.assertEqual(len(indexed_enc), 1)
-        self.assertEqual(indexed_enc[0]["id"], "enc-1")
+        self.assertEqual(indexed_enc[0], promoted_enc)
         self.assertEqual(len(indexed_research_subject), 1)
+        self.assertEqual(indexed_research_subject[0], promoted_research_subject)
 
 if __name__ == "__main__":
     unittest.main()

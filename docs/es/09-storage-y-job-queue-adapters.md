@@ -77,7 +77,59 @@ Siempre puedes sobrescribir esos nombres con variables explícitas (`PRECONV_FIR
 
 Este servicio es el núcleo reusable para una API HTTP (FastAPI, Flask, etc.).
 
-## 6) Camino a producción (GCP/Kubernetes)
+## 6) Revisión de research y promoción al índice
+
+El ciclo persistente es:
+
+```text
+GCS -> Firestore draft -> human review -> PostgreSQL search index
+```
+
+1. GCS guarda el archivo de origen y los artefactos generados por el job.
+2. DataConv genera recursos procesados de forma FHIR-like con flat claims
+   canónicas.
+3. Firestore guarda esos recursos como borradores `userSelected=true` y las
+   relaciones necesarias para revisarlos.
+4. Una persona revisa los códigos terminológicos inferidos y confirma o rechaza
+   el borrador. La confirmación cambia `userSelected` a `false`.
+5. El mismo recurso procesado y confirmado se copia a PostgreSQL; no es una
+   segunda versión extraída o transformada.
+6. PostgreSQL guarda `claims`, `search_fields` normalizados y el `resource`
+   completo. Las consultas filtran `search_fields` y devuelven `resource`.
+
+La copia completa en ambas bases evita releer Firestore por cada resultado de
+búsqueda, a cambio de duplicación. Cualquier rediseño debe definir primero una
+única fuente autoritativa para recursos promovidos y su reconciliación.
+
+La inferencia de texto a código solo puede producir propuestas. La IA puede
+devolver sistema, código, display, confianza y evidencia, pero solo una decisión
+human-reviewed puede promover datos. Las propuestas aceptadas y rechazadas
+pueden alimentar un conjunto gobernado, desidentificado y revisado por personas
+para evaluación o entrenamiento; la salida del modelo nunca es verdad de terreno
+automática. El worker desplegado utiliza actualmente `NoopCodingAssistant`, por
+lo que todavía no integra un servicio remoto de IA.
+
+Un runtime de modelo reutilizable puede exponer contratos independientes para
+intents de aplicación, resolución de dudas y codificación clínica. El endpoint de
+intents existente no constituye por sí mismo un servicio terminológico. Para
+codificar, DataConv necesita restringir la consulta a los sistemas y value sets
+aplicables mediante:
+
+- [`ValueSet/$expand?filter=`](https://hl7.org/fhir/R4/valueset-operation-expand.html)
+  para obtener candidatos filtrados por texto;
+- [`ValueSet/$validate-code`](https://hl7.org/fhir/R4/valueset-operation-validate-code.html)
+  para validar que el código elegido pertenece al value set gobernado;
+- [`ConceptMap/$translate`](https://hl7.org/fhir/R4/conceptmap-operation-translate.html)
+  para traducir un código ya identificado mediante un ConceptMap explícito si
+  se necesita otro sistema de codificación.
+
+El modelo puede normalizar el texto libre y ordenar los candidatos devueltos
+por el servicio terminológico. No puede inventar el código, elegir en silencio
+el sistema ni saltarse la revisión humana. Los textos de condition,
+observation/test y procedure deben resolverse con los value sets y restricciones
+de perfil o jurisdicción correspondientes.
+
+## 7) Camino a producción (GCP/Kubernetes)
 
 La misma API puede desplegarse en Kubernetes con adapters productivos:
 
@@ -87,9 +139,15 @@ La misma API puede desplegarse en Kubernetes con adapters productivos:
 
 La lógica de negocio no cambia; solo se reemplazan adapters.
 
-## 7) Estado actual
+## 8) Estado actual
 
-- Ya implementado: in-memory + filesystem + Firestore + Pub/Sub + GCS.
+- Ya implementado: in-memory + filesystem + Firestore + Pub/Sub + GCS +
+  repositorio de búsqueda PostgreSQL.
 - Tests automáticos normales: cubren `mem`, `fs` y resolución de naming/config.
 - Tests de integración GCP real: `tests/test_runtime_gcp_integration.py` y `scripts/run-gcp-adapter-integration.sh` (solo se ejecutan si defines `RUN_GCP_INTEGRATION=1` y tienes credenciales GCP válidas).
+- `tests/test_manager_conversion_patch.py` prueba la promoción tras revisión y
+  `tests/test_runtime_postgres_search_integration.py` prueba la persistencia y
+  devolución desde PostgreSQL.
+- La integración remota del asistente de codificación y el registro duradero de
+  decisiones de revisión están pendientes; el worker usa `NoopCodingAssistant`.
 - En evolución: variante push con Cloud Tasks (si se prefiere callback worker).

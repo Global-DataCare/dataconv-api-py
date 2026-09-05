@@ -1,4 +1,4 @@
-# Flow contract: job processing persists research drafts only in the canonical deployment-scoped tenant namespace.
+# Flow contract: processing keeps uploaded bytes in blob storage and persists generated resources as human-review drafts, never as searchable approved data.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -87,6 +87,9 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         )
 
     def test_process_one_job_persists_research_drafts_and_marks_docref_preliminary(self) -> None:
+        # Terminology inference may require human correction, so conversion ends
+        # in Firestore-equivalent draft storage with userSelected=true. Search
+        # indexing belongs only to the later confirmation/promotion flow.
         control_plane = PreconversionControlPlane(
             config_store=InMemoryConfigStore(),
             job_store=InMemoryJobStore(),

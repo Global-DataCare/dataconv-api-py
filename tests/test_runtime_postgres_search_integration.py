@@ -1,3 +1,4 @@
+# Flow contract: PostgreSQL indexes flat claims and returns the same complete human-reviewed resource promoted from draft storage.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -43,6 +44,9 @@ class PostgresSearchIntegrationTests(unittest.TestCase):
             conn.commit()
 
     def test_upsert_search_and_delete_roundtrip(self) -> None:
+        # A promoted row deliberately carries claims, normalized search fields,
+        # and the complete processed resource so a search needs no Firestore
+        # hydration read. It is not a second conversion stage.
         composition = {
             "resourceType": "Composition",
             "id": f"comp-{uuid.uuid4().hex[:8]}",
@@ -70,7 +74,7 @@ class PostgresSearchIntegrationTests(unittest.TestCase):
             search_params={"userselected": "false"},
         )
         self.assertEqual(len(by_user_selected), 1)
-        self.assertEqual(by_user_selected[0]["id"], composition["id"])
+        self.assertEqual(by_user_selected[0], composition)
 
         by_target = self.repo.search(
             vault_id=self.vault_id,

@@ -18,7 +18,13 @@ from .api_support import (
     _diagnostics_from_error_detail,
     _error_issue_code,
 )
-from .factory import build_blob_store, build_control_plane, build_search_repository, build_vault_repository
+from .factory import (
+    build_blob_store,
+    build_control_plane,
+    build_search_repository,
+    build_subject_link_store,
+    build_vault_repository,
+)
 from .embedded_worker import install_embedded_worker
 from .managers import (
     ApiManagerDependencies,
@@ -27,6 +33,8 @@ from .managers import (
     ConversionSearchManager,
     ConversionUploadManager,
     ConversionUploadPollManager,
+    ConnectIcaOrganizationProofVerifierClient,
+    OrganizationTenantActivationManager,
     TenantApiKeyManager,
     TenantConfigCreateManager,
     TenantConfigPollManager,
@@ -39,6 +47,7 @@ from .routes_digital_twin import register_digital_twin_routes
 from .routes_exchange import register_exchange_routes
 from .routes_system import register_system_routes
 from .routes_tenant_auth import register_tenant_auth_routes
+from .routes_organization_tenant import register_organization_tenant_routes
 from .settings import load_settings
 
 _LOGGER = logging.getLogger(__name__)
@@ -58,6 +67,7 @@ def create_app():
     control_plane = build_control_plane(settings)
     blob_store = build_blob_store(settings)
     vault_repo = build_vault_repository(settings)
+    subject_link_store = build_subject_link_store(settings)
     search_repo = build_search_repository(settings)
     config_create_responses: dict[str, dict[str, Any]] = {}
 
@@ -78,6 +88,19 @@ def create_app():
     search_manager = ConversionSearchManager(deps)
     tenant_api_key_manager = TenantApiKeyManager(deps)
     exchange_manager = TokenExchangeManager(settings, tenant_api_key_manager=tenant_api_key_manager)
+    organization_tenant_activation_manager = (
+        OrganizationTenantActivationManager(
+            settings=settings,
+            control_plane=control_plane,
+            verifier=ConnectIcaOrganizationProofVerifierClient(
+                base_url=settings.ica_base_url,
+                api_key=settings.ica_api_key,
+                timeout_seconds=settings.ica_timeout_seconds,
+            ),
+        )
+        if settings.ica_base_url and settings.ica_api_key
+        else None
+    )
 
     app = FastAPI(
         title="Preconversion DIDComm API",
@@ -172,6 +195,7 @@ def create_app():
     app.state.control_plane = control_plane
     app.state.blob_store = blob_store
     app.state.vault_repo = vault_repo
+    app.state.subject_link_store = subject_link_store
     app.state.search_repo = search_repo
     app.state.settings = settings
 
@@ -180,6 +204,7 @@ def create_app():
         control_plane=control_plane,
         blob_store=blob_store,
         vault_repo=vault_repo,
+        subject_link_store=subject_link_store,
         settings=settings,
     )
 
@@ -259,6 +284,8 @@ def create_app():
     app.include_router(pkce_router)
     register_exchange_routes(app, exchange_manager=exchange_manager)
     register_tenant_auth_routes(app, tenant_api_key_manager=tenant_api_key_manager, settings=settings)
+    if organization_tenant_activation_manager is not None:
+        register_organization_tenant_routes(app, activation_manager=organization_tenant_activation_manager)
 
     app.openapi = build_custom_openapi(app)
 

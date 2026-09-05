@@ -701,6 +701,7 @@ def _enforce_auth_context(
     *,
     require_token: bool = False,
     required_scopes: set[str] | None = None,
+    expected_organization: str = "",
 ) -> None:
     demo_mode = bool(getattr(settings, "demo_mode", True))
     bearer_token = _extract_bearer_token(authorization_header)
@@ -708,6 +709,10 @@ def _enforce_auth_context(
     if bearer_token:
         try:
             session_claims = validate_session_access_token(bearer_token, settings)
+            token_organization = str(session_claims.get("organization") or "").strip().lower()
+            required_organization = str(expected_organization or "").strip().lower()
+            if required_organization and token_organization != required_organization:
+                raise HTTPException(status_code=403, detail="Bearer token organization does not match tenant")
             if required_scopes and not demo_mode:
                 available = {item for item in str(session_claims.get("scope") or "").split(" ") if item}
                 available.update({item for item in session_claims.get("scopes", []) if isinstance(item, str) and item})

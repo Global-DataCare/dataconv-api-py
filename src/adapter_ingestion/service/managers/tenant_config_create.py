@@ -178,6 +178,7 @@ class TenantConfigCreateManager:
                 self._deps.settings,
                 authorization_header=auth_header,
                 require_token=True,
+                expected_organization=tenant_id,
             )
             if is_reserved_api_config_software_id(software_id):
                 raise HTTPException(

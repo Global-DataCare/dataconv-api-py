@@ -12,6 +12,13 @@ from typing import Any
 import uuid
 import re
 
+from gdc_data_utils import (
+    ChargeItemClaim,
+    DiagnosticReportClaim,
+    FHIR_API_CONTEXT,
+    InvoiceClaim,
+)
+
 from .ai.base import CodingAssistant
 from .fhir_claims import (
     AnimalClaim,
@@ -27,6 +34,7 @@ from .fhir_claims import (
     RelatedPersonClaims,
     SubjectClaim,
     SubjectClaims,
+    ResearchSubjectClaim,
 )
 from .models import (
     AdapterContext,
@@ -316,6 +324,168 @@ def _doc_resource(document_id: str, claims: DocumentReferenceClaims) -> dict[str
     }
 
 
+def _diagnostic_report_resource(
+    *,
+    context: AdapterContext,
+    record: CanonicalRecord,
+) -> dict[str, Any] | None:
+    claims = {
+        key: str(value or "").strip()
+        for key, value in record.flat_claims.items()
+        if str(key or "").startswith("DiagnosticReport.") and str(value or "").strip()
+    }
+    if not claims:
+        return None
+    report_id = stable_uuid(
+        context.manufacturer,
+        context.tenant_id,
+        record.subject_id,
+        "diagnostic-report",
+        record.source_id,
+        record.timestamp,
+        claims.get(DiagnosticReportClaim.CODE_TEXT, ""),
+    )
+    return {
+        "resourceType": "DiagnosticReport",
+        "id": report_id,
+        "meta": {
+            "claims": {
+                "@context": FHIR_API_CONTEXT,
+                **claims,
+            }
+        },
+    }
+
+
+def _claims_for_resource(record: CanonicalRecord, resource_type: str) -> dict[str, str]:
+    prefix = f"{resource_type}."
+    return {
+        str(key): str(value or "").strip()
+        for key, value in record.flat_claims.items()
+        if str(key or "").startswith(prefix) and str(value or "").strip()
+    }
+
+
+def _codeable_concept(code: str, text: str) -> dict[str, Any]:
+    token = str(code or "").strip()
+    label = str(text or "").strip()
+    concept: dict[str, Any] = {}
+    if token:
+        if "|" in token:
+            system, value = token.split("|", 1)
+            concept["coding"] = [{"system": system, "code": value}]
+        else:
+            concept["coding"] = [{"code": token}]
+    if label:
+        concept["text"] = label
+    return concept
+
+
+def _financial_resources(
+    *,
+    context: AdapterContext,
+    subject: str,
+    records: list[CanonicalRecord],
+) -> tuple[dict[str, Any], list[dict[str, Any]]] | None:
+    invoice_claims: dict[str, str] = {}
+    for record in records:
+        for key, value in _claims_for_resource(record, "Invoice").items():
+            invoice_claims.setdefault(key, value)
+    invoice_identifier = invoice_claims.get(InvoiceClaim.IDENTIFIER, "").strip()
+    if not invoice_identifier:
+        return None
+
+    invoice_id = stable_uuid(
+        context.manufacturer,
+        context.tenant_id,
+        subject,
+        "invoice",
+        invoice_identifier,
+    )
+    charge_items: list[dict[str, Any]] = []
+    for record in records:
+        claims = _claims_for_resource(record, "ChargeItem")
+        if not claims:
+            continue
+        charge_identifier = claims.get(ChargeItemClaim.IDENTIFIER, "").strip() or stable_uuid(
+            context.manufacturer,
+            context.tenant_id,
+            subject,
+            invoice_identifier,
+            "charge-item",
+            record.source_id,
+        )
+        charge_id = stable_uuid(
+            context.manufacturer,
+            context.tenant_id,
+            subject,
+            invoice_identifier,
+            "charge-item",
+            charge_identifier,
+        )
+        claims.setdefault(ChargeItemClaim.IDENTIFIER, charge_identifier)
+        claims.setdefault(ChargeItemClaim.STATUS, "billable")
+        claims.setdefault(ChargeItemClaim.SUBJECT, subject)
+        claims[ChargeItemClaim.SUPPORTING_INFORMATION] = f"urn:uuid:{invoice_id}"
+        resource: dict[str, Any] = {
+            "resourceType": "ChargeItem",
+            "id": charge_id,
+            "meta": {"claims": {"@context": FHIR_API_CONTEXT, **claims}},
+            "identifier": [{"value": charge_identifier}],
+            "status": claims[ChargeItemClaim.STATUS],
+            "code": _codeable_concept(
+                claims.get(ChargeItemClaim.CODE, ""),
+                claims.get(ChargeItemClaim.CODE_TEXT, ""),
+            ),
+            "subject": {"reference": claims[ChargeItemClaim.SUBJECT]},
+            "supportingInformation": [{"reference": f"urn:uuid:{invoice_id}"}],
+        }
+        occurrence = claims.get(ChargeItemClaim.OCCURRENCE, "").strip()
+        if occurrence:
+            resource["occurrenceDateTime"] = occurrence
+        part_of = claims.get(ChargeItemClaim.PART_OF, "").strip()
+        if part_of:
+            resource["partOf"] = [{"reference": part_of}]
+        quantity_number = claims.get(ChargeItemClaim.QUANTITY_NUMBER, "").strip()
+        quantity_unit = claims.get(ChargeItemClaim.QUANTITY_UNIT, "").strip()
+        if quantity_number or quantity_unit:
+            quantity: dict[str, Any] = {}
+            if quantity_number:
+                try:
+                    quantity["value"] = float(quantity_number)
+                except ValueError:
+                    quantity["value"] = quantity_number
+            if quantity_unit:
+                quantity["unit"] = quantity_unit
+                quantity["code"] = quantity_unit
+                quantity["system"] = "http://unitsofmeasure.org"
+            resource["quantity"] = quantity
+        charge_items.append(resource)
+
+    charge_items.sort(key=lambda item: str(item.get("id", "")))
+    invoice_claims.setdefault(InvoiceClaim.STATUS, "issued")
+    invoice_claims.setdefault(InvoiceClaim.SUBJECT, subject)
+    invoice: dict[str, Any] = {
+        "resourceType": "Invoice",
+        "id": invoice_id,
+        "meta": {"claims": {"@context": FHIR_API_CONTEXT, **invoice_claims}},
+        "identifier": [{"value": invoice_identifier}],
+        "status": invoice_claims[InvoiceClaim.STATUS],
+        "subject": {"reference": invoice_claims[InvoiceClaim.SUBJECT]},
+        "lineItem": [
+            {
+                "sequence": index,
+                "chargeItemReference": {"reference": f"urn:uuid:{item['id']}"},
+            }
+            for index, item in enumerate(charge_items, start=1)
+        ],
+    }
+    issued_at = invoice_claims.get(InvoiceClaim.DATE, "").strip()
+    if issued_at:
+        invoice["date"] = issued_at
+    return (invoice, charge_items)
+
+
 def _encounter_claims(
     *,
     context: AdapterContext,
@@ -457,6 +627,37 @@ def _subject_resource(
     }
 
 
+def _research_subject_resource(
+    subject_resource_id: str,
+    subject_identifier: str,
+    subject_claims: SubjectClaims,
+    contained: list[dict[str, Any]],
+) -> dict[str, Any]:
+    compositions = [
+        item for item in contained
+        if isinstance(item, dict) and item.get("resourceType") == "Composition"
+    ]
+    claims = dict(subject_claims)
+    claims[ResearchSubjectClaim.IDENTIFIER] = subject_identifier
+    claims[ResearchSubjectClaim.STATUS] = "candidate"
+    logical_id = (
+        subject_identifier.removeprefix("urn:uuid:")
+        if subject_identifier.startswith("urn:uuid:")
+        else subject_resource_id
+    )
+    resource: dict[str, Any] = {
+        "resourceType": "ResearchSubject",
+        "id": logical_id,
+        "meta": {"claims": claims},
+        ResearchSubjectClaim.IDENTIFIER: subject_identifier,
+        ResearchSubjectClaim.STATUS: "candidate",
+        "contained": contained,
+    }
+    if compositions:
+        resource["composition"] = compositions[0]
+    return resource
+
+
 def _composition_resource(claims: CompositionClaims) -> dict[str, Any]:
     return {
         "resourceType": "Composition",
@@ -543,11 +744,19 @@ def run_pipeline(
     row_issues: list[dict[str, Any]] | None = None,
 ) -> PipelineResult:
     document_entries_count = 0
+    diagnostic_report_entries_count = 0
+    invoice_entries_count = 0
+    charge_item_entries_count = 0
     encounter_entries_count = 0
     related_person_entries_count = 0
     subject_entries_count = 0
+    research_subject_entries_count = 0
     composition_entries_count = 0
     grouped_doc_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_diagnostic_report_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_invoice_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_charge_item_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_financial_records: dict[tuple[str, str, str], list[CanonicalRecord]] = defaultdict(list)
     grouped_encounter_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_related_resources: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_subject_link_identifiers: dict[str, set[str]] = defaultdict(set)
@@ -564,6 +773,16 @@ def run_pipeline(
         document_entries_count += 1
         key = (record.subject_id, record.composition_section)
         grouped_doc_resources[key][doc_id] = _doc_resource(doc_id, doc_claims)
+
+        diagnostic_report = _diagnostic_report_resource(context=context, record=record)
+        if diagnostic_report is not None:
+            diagnostic_report_id = str(diagnostic_report["id"])
+            grouped_diagnostic_report_resources[key][diagnostic_report_id] = diagnostic_report
+            diagnostic_report_entries_count += 1
+
+        invoice_identifier = record.flat_claims.get(InvoiceClaim.IDENTIFIER, "").strip()
+        if invoice_identifier:
+            grouped_financial_records[(record.subject_id, record.composition_section, invoice_identifier)].append(record)
 
         if _record_has_encounter_signal(record):
             encounter_id, encounter_claims = _encounter_claims(context=context, record=record)
@@ -601,6 +820,22 @@ def run_pipeline(
 
     related_person_entries_count = len(all_related_person_ids)
 
+    for (subject, section, _), financial_records in grouped_financial_records.items():
+        resources = _financial_resources(
+            context=context,
+            subject=subject,
+            records=financial_records,
+        )
+        if resources is None:
+            continue
+        invoice, charge_items = resources
+        key = (subject, section)
+        grouped_invoice_resources[key][str(invoice["id"])] = invoice
+        for item in charge_items:
+            grouped_charge_item_resources[key][str(item["id"])] = item
+        invoice_entries_count += 1
+        charge_item_entries_count += len(charge_items)
+
     subject_entries: list[dict[str, Any]] = []
     for subject in sorted(subjects):
         contained_resources: list[dict[str, Any]] = []
@@ -609,10 +844,16 @@ def run_pipeline(
         for section in sorted(subject_sections[subject]):
             key = (subject, section)
             doc_resources_map = grouped_doc_resources[key]
+            diagnostic_report_resources_map = grouped_diagnostic_report_resources[key]
+            invoice_resources_map = grouped_invoice_resources[key]
+            charge_item_resources_map = grouped_charge_item_resources[key]
             encounter_resources_map = grouped_encounter_resources[key]
             doc_ids = sorted(doc_resources_map.keys())
+            diagnostic_report_ids = sorted(diagnostic_report_resources_map.keys())
+            invoice_ids = sorted(invoice_resources_map.keys())
+            charge_item_ids = sorted(charge_item_resources_map.keys())
             encounter_ids = sorted(encounter_resources_map.keys())
-            entry_ids = encounter_ids + doc_ids
+            entry_ids = encounter_ids + diagnostic_report_ids + invoice_ids + charge_item_ids + doc_ids
             claims = _composition_claims(
                 context=context,
                 subject=subject,
@@ -625,6 +866,12 @@ def run_pipeline(
 
             for resource_id in encounter_ids:
                 contained_resources.append(encounter_resources_map[resource_id])
+            for resource_id in diagnostic_report_ids:
+                contained_resources.append(diagnostic_report_resources_map[resource_id])
+            for resource_id in invoice_ids:
+                contained_resources.append(invoice_resources_map[resource_id])
+            for resource_id in charge_item_ids:
+                contained_resources.append(charge_item_resources_map[resource_id])
             for resource_id in doc_ids:
                 contained_resources.append(doc_resources_map[resource_id])
 
@@ -637,15 +884,28 @@ def run_pipeline(
             record=subject_record,
             subject_link_identifiers=sorted(grouped_subject_link_identifiers[subject]),
         )
-        subject_entries.append(
-            jsonapi_resource_entry(
-                _subject_resource(
-                    subject_resource_id=subject_resource_id,
-                    claims=subject_claims,
-                    contained=contained_resources,
+        if str(context.data_use or "").strip().lower() == "secondary":
+            subject_entries.append(
+                jsonapi_resource_entry(
+                    _research_subject_resource(
+                        subject_resource_id=subject_resource_id,
+                        subject_identifier=subject,
+                        subject_claims=subject_claims,
+                        contained=contained_resources,
+                    )
                 )
             )
-        )
+            research_subject_entries_count += 1
+        else:
+            subject_entries.append(
+                jsonapi_resource_entry(
+                    _subject_resource(
+                        subject_resource_id=subject_resource_id,
+                        claims=subject_claims,
+                        contained=contained_resources,
+                    )
+                )
+            )
         subject_entries_count += 1
 
     outcome_entries = _operation_outcome_entries(
@@ -669,10 +929,14 @@ def run_pipeline(
         "recordsTotal": len(records),
         "subjectsTotal": len(subjects),
         "documentReferenceEntries": document_entries_count,
+        "diagnosticReportEntries": diagnostic_report_entries_count,
+        "invoiceEntries": invoice_entries_count,
+        "chargeItemEntries": charge_item_entries_count,
         "encounterEntries": encounter_entries_count,
         "relatedPersonEntries": related_person_entries_count,
         "subjectEntries": subject_entries_count,
-        "patientEntries": subject_entries_count,
+        "researchSubjectEntries": research_subject_entries_count,
+        "patientEntries": subject_entries_count - research_subject_entries_count,
         "compositionEntries": composition_entries_count,
         "operationOutcomeEntries": len(outcome_entries),
         "resourceTypeCounts": _resource_type_counts_from_entries(bundle_entries),

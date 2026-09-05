@@ -172,6 +172,13 @@ class ServiceSettings:
     supported_jurisdictions: tuple[str, ...] = ("*",)
     supported_sectors: tuple[str, ...] = ("*",)
     exchange_allow_api_key_exception: bool = False
+    network_mode: str = "test"
+    firestore_subject_link_collection: str = ""
+    subject_link_protection_key: str = ""
+    subject_link_key_version: str = "v1"
+    ica_base_url: str = ""
+    ica_api_key: str = ""
+    ica_timeout_seconds: int = 15
 
 
 def load_settings() -> ServiceSettings:
@@ -276,4 +283,16 @@ def load_settings() -> ServiceSettings:
         supported_jurisdictions=_parse_supported_values(_getenv("SUPPORTED_JURISDICTIONS", "*"), upper=True),
         supported_sectors=_parse_supported_values(_getenv("SUPPORTED_SECTORS", "*"), upper=False),
         exchange_allow_api_key_exception=exchange_allow_api_key_exception,
+        network_mode=_getenv("NETWORK_MODE", "test").lower(),
+        firestore_subject_link_collection=_env_or_profiled_default(
+            "PRECONV_FIRESTORE_SUBJECT_LINK_COLLECTION",
+            "subject-links",
+            node_env,
+            sector_scope,
+        ),
+        subject_link_protection_key=_getenv("SUBJECT_LINK_PROTECTION_KEY", ""),
+        subject_link_key_version=_getenv("SUBJECT_LINK_KEY_VERSION", "v1"),
+        ica_base_url=_getenv("PRECONV_ICA_BASE_URL", ""),
+        ica_api_key=_getenv("PRECONV_ICA_API_KEY", ""),
+        ica_timeout_seconds=_getenv_int("PRECONV_ICA_TIMEOUT_SECONDS", 15),
     )

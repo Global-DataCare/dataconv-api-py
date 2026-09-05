@@ -263,7 +263,8 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Tenant-scoped FHIR API search",
         response_class=JSONResponse,
         description=(
-            "Executes tenant-scoped FHIR-like search over the SQL search projection.\n\n"
+            "Executes tenant-scoped FHIR search over the SQL search projection. The request body accepts a FHIR "
+            "`Parameters` resource and the response is a `Bundle` with `type=searchset`.\n\n"
             "This is intentionally published under `org.hl7.fhir.api` and not under `digitaltwin`, because the current "
             "phase does not yet expose final `org.hl7.fhir.r4` / `org.hl7.fhir.r5` conversion outputs.\n\n"
             "Supported comparator syntax today is value-prefix based: `ge`, `gt`, `le`, `lt`."
@@ -275,7 +276,8 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Tenant-scoped FHIR API search",
         response_class=JSONResponse,
         description=(
-            "Executes tenant-scoped FHIR-like search over the SQL search projection.\n\n"
+            "Executes tenant-scoped FHIR search over the SQL search projection. The request body accepts a FHIR "
+            "`Parameters` resource and the response is a `Bundle` with `type=searchset`.\n\n"
             "This is intentionally published under `org.hl7.fhir.api` and not under `digitaltwin`, because the current "
             "phase does not yet expose final `org.hl7.fhir.r4` / `org.hl7.fhir.r5` conversion outputs.\n\n"
             "Supported comparator syntax today is value-prefix based: `ge`, `gt`, `le`, `lt`."

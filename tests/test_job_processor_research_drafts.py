@@ -1,3 +1,4 @@
+# Flow contract: job processing persists research drafts only in the canonical deployment-scoped tenant namespace.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -189,7 +190,7 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         self.assertIsNotNone(stored_job)
         self.assertEqual(stored_job.status, "succeeded")
 
-        vault_id = "onehealth-research_ESB12345678"
+        vault_id = "test__es__onehealth-research__esb12345678"
         vault_data = vault_repo._collections.get(vault_id, {})
         
         resource_types = sorted(list(k for k in vault_data.keys() if "_" not in k))
@@ -209,7 +210,7 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
 
         summary_payload = json.loads(blob_store.get_bytes(f"jobs/{queued.job_id}/summary.json").decode("utf-8"))
         self.assertEqual(summary_payload.get("researchDraftsPersisted"), 4)
-        self.assertEqual(summary_payload.get("vaultId"), "onehealth-research_ESB12345678")
+        self.assertEqual(summary_payload.get("vaultId"), vault_id)
         self.assertEqual(summary_payload.get("softwareId"), "qvet-v1.0")
 
         composition_payload = json.loads(

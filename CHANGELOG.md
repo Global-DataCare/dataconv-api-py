@@ -1,5 +1,57 @@
 # CHANGELOG
 
+## Unreleased
+
+- Added Connect ICA-backed organization tenant activation using signed OIDC and
+  controller VP evidence; tenant-scoped Bearer tokens can no longer cross into
+  another tenant route.
+- Separated searchable twin storage by network, jurisdiction, sector and legal
+  tenant identifier without changing the public `tenant_id`.
+- Replaced plaintext/deterministic subject aliases with a dedicated encrypted
+  external-identifier-to-random-twin-UUID store. Firestore deployments require
+  an independently managed 32-byte protection key; twin resources remain
+  ordinary searchable FHIR-like data.
+- Removed identifying Accuro columns from prepared secondary-use workbooks and
+  fail closed when a non-UUID secondary subject has no confidential resolver.
+
+- Accuro Excel preparation now adds one embedded `API-CONFIG` mapping per
+  organization sheet, repairs missing or duplicate headers, assigns reusable
+  private-namespace UUIDs, and emits one uploadable workbook per tenant.
+- Secondary-use conversion now exposes `ResearchSubject` as the public twin
+  aggregate while preserving `Subject` for individual data flows.
+- Research search accepts a FHIR `Parameters` resource and returns a FHIR
+  `Bundle` of type `searchset`; confirmed `ResearchSubject` resources are
+  promoted and indexed idempotently.
+- Added executable per-sheet contracts and full-source preparation/validation
+  commands for the 13 supplied Accuro datasets.
+- Accuro mappings now preserve last appointment as
+  `appointment_lastoccurrencedate`, derive an estimated `subject_birthyear`
+  from appointment year and age when needed, and replace full birth dates with
+  the year before writing prepared workbooks.
+- Animal and clinic names are redacted from prepared secondary-use sheets,
+  `origin` is intentionally left unmapped, and Spanish free-text diagnoses are
+  mapped to `DiagnosticReport.code-text` rather than `subfamily` or
+  code-display.
+- API-CONFIG flat DiagnosticReport claims are now transported into canonical
+  resources and searchable with the FHIR `code:text` modifier. The internal
+  index maps `DiagnosticReport.code-text` to `diagnosticreport_code-text`,
+  preserving the field-name hyphen.
+- DataConv now consumes canonical claim catalogs and boundary normalizers from
+  `gdc-data-utils-py` instead of defining the DiagnosticReport contract locally.
+- Added governed BaseConfig classification and a reconciler that separates
+  control, canonical, DataConv-extension and pending mappings without
+  overwriting the supplied workbook.
+- Added Invoice and ChargeItem materialization with deterministic identifiers,
+  native Invoice line-item references and `ChargeItem.supporting-information`;
+  `ChargeItem.part-of` is reserved for parent ChargeItems.
+- Enforced the documented HL7 R4 financial search subset and reject unsupported
+  extension fields with HTTP 400.
+- Map applied-line dates to `ChargeItem.occurrence`; repeated search parameters
+  are AND constraints, comma-separated alternatives are OR within one
+  parameter, and `code:text` supports case-insensitive contains matching.
+- Document that multi-resource twin AND remains a GW CORE gap and that
+  cross-family OR is a high-level SDK union rather than one ambiguous request.
+
 ## 2026-07-23
 - Aligned integrator guides, examples and GCP bootstrap documentation with the
   current Data Space artifact and configuration backlog.

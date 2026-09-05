@@ -3,10 +3,14 @@
 
 from __future__ import annotations
 
+import base64
+import os
+
 from ..runtime import BlobStore, ConfigStore, ISearchRepository, IVaultRepository, JobQueue, JobStore, PreconversionControlPlane
 from ..runtime.adapters import (
     FirestoreConfigStore,
     FirestoreJobStore,
+    FirestoreSubjectLinkRecordStore,
     FirestoreVaultRepository,
     GCSBlobStore,
     InMemoryBlobStore,
@@ -18,6 +22,7 @@ from ..runtime.adapters import (
     PostgresSearchRepository,
     PubSubJobQueue,
 )
+from ..subject_links import InMemorySubjectLinkRecordStore, ProtectedSubjectLinkStore
 from .settings import ServiceSettings
 
 
@@ -60,6 +65,27 @@ def build_vault_repository(settings: ServiceSettings) -> IVaultRepository:
     if provider == "mem":
         return InMemoryVaultRepository()
     raise ValueError(f"unsupported DB_PROVIDER for vaults: {provider}")
+
+
+def build_subject_link_store(settings: ServiceSettings) -> ProtectedSubjectLinkStore:
+    if not settings.subject_link_protection_key and settings.db_provider == "firestore":
+        raise ValueError("SUBJECT_LINK_PROTECTION_KEY is required")
+    provider = settings.db_provider
+    if provider == "firestore":
+        records = FirestoreSubjectLinkRecordStore(
+            project_id=settings.gcp_project_id,
+            collection=settings.firestore_subject_link_collection,
+        )
+    elif provider in {"mem", "fs"}:
+        records = InMemorySubjectLinkRecordStore()
+    else:
+        raise ValueError(f"unsupported DB_PROVIDER for subject links: {provider}")
+    return ProtectedSubjectLinkStore(
+        records=records,
+        key_base64url=settings.subject_link_protection_key
+        or base64.urlsafe_b64encode(os.urandom(32)).decode("ascii").rstrip("="),
+        key_version=settings.subject_link_key_version,
+    )
 
 
 def build_search_repository(settings: ServiceSettings) -> ISearchRepository:

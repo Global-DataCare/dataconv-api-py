@@ -7,7 +7,7 @@ import argparse
 import os
 import time
 
-from .factory import build_blob_store, build_control_plane, build_vault_repository
+from .factory import build_blob_store, build_control_plane, build_subject_link_store, build_vault_repository
 from .job_processor import process_one_job
 from .observability import configure_logging, log_event
 from .settings import load_settings
@@ -37,6 +37,7 @@ def main() -> int:
     control_plane = build_control_plane(settings)
     blob_store = build_blob_store(settings)
     vault_repo = build_vault_repository(settings)
+    subject_link_store = build_subject_link_store(settings)
     worker_id = args.worker_id.strip() or os.getenv("HOSTNAME", "preconv-worker")
     log_event(
         "worker_started",
@@ -50,6 +51,7 @@ def main() -> int:
             control_plane=control_plane,
             blob_store=blob_store,
             vault_repo=vault_repo,
+            subject_link_store=subject_link_store,
             settings=settings,
             worker_id=worker_id,
         )
@@ -61,6 +63,7 @@ def main() -> int:
             control_plane=control_plane,
             blob_store=blob_store,
             vault_repo=vault_repo,
+            subject_link_store=subject_link_store,
             settings=settings,
             worker_id=worker_id,
         )

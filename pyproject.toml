@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "adapter-ingestion-py"
-version = "0.7.1"
+version = "0.7.2"
 description = "External multi-vendor ingestion adapters for gwtemplate"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = ["gdc-data-utils-py>=0.1.0,<0.2.0"]
 
 [project.optional-dependencies]
 excel = ["openpyxl>=3.1"]

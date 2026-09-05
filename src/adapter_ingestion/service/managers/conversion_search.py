@@ -8,7 +8,67 @@ from typing import Any
 from ..api_support import HTTPException, _enforce_auth_context, _enforce_supported_scope, _extract_bearer_token
 from ..observability import log_event
 from .dependencies import ApiManagerDependencies
-from ..research import build_vault_id
+from ..research import build_storage_namespace
+
+
+FHIR_R4_FINANCIAL_SEARCH_PARAMETERS: dict[str, frozenset[str]] = {
+    "Invoice": frozenset({"date", "identifier", "issuer", "recipient", "status", "subject"}),
+    "ChargeItem": frozenset({"code", "identifier", "occurrence", "subject"}),
+}
+
+
+def _validate_financial_search_parameters(
+    resource_type: str,
+    search_params: dict[str, Any],
+) -> None:
+    supported = FHIR_R4_FINANCIAL_SEARCH_PARAMETERS.get(str(resource_type or "").strip())
+    if supported is None:
+        return
+    unsupported = sorted(set(search_params) - supported)
+    if unsupported:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"'{unsupported[0]}' is not a supported FHIR R4 search parameter "
+                f"for {resource_type}; supported: {', '.join(sorted(supported))}"
+            ),
+        )
+
+
+def _search_params_from_fhir_parameters(body: dict[str, Any]) -> dict[str, Any]:
+    if str(body.get("resourceType", "") or "").strip() != "Parameters":
+        return {
+            str(key or "").strip().lower(): value
+            for key, value in body.items()
+            if str(key or "").strip() and not str(key or "").strip().startswith("_")
+        }
+
+    raw_parameters = body.get("parameter", [])
+    if not isinstance(raw_parameters, list):
+        raise HTTPException(status_code=400, detail="FHIR Parameters.parameter must be an array")
+
+    search_params: dict[str, Any] = {}
+    for parameter in raw_parameters:
+        if not isinstance(parameter, dict):
+            continue
+        name = str(parameter.get("name", "") or "").strip().lower()
+        if not name or name.startswith("_"):
+            continue
+        value_keys = [key for key in parameter if str(key).startswith("value")]
+        if len(value_keys) != 1:
+            raise HTTPException(
+                status_code=400,
+                detail=f"FHIR search parameter '{name}' must contain exactly one value[x]",
+            )
+        value = parameter[value_keys[0]]
+        existing = search_params.get(name)
+        if existing is None:
+            search_params[name] = value
+        elif isinstance(existing, list):
+            existing.append(value)
+        else:
+            search_params[name] = [existing, value]
+    return search_params
 
 
 class ConversionSearchManager:
@@ -44,24 +104,37 @@ class ConversionSearchManager:
                 authorization_header=auth_header, 
                 require_token=True,
                 required_scopes={"dataconv.read"},
+                expected_organization=tenant_id,
             )
 
         # Combine query parameters and JSON body for search arguments.
         # Ignore control/meta params (FHIR-style underscore keys like _count, _sort, etc.)
         # because repository filtering expects business claim fields.
         search_params = {}
-        for k, v in request.query_params.items():
+        query_params = request.query_params
+        items = query_params.multi_items() if hasattr(query_params, "multi_items") else query_params.items()
+        for k, v in items:
             normalized_key = str(k or "").strip().lower()
             if normalized_key and not normalized_key.startswith("_"):
-                search_params[normalized_key] = v
+                existing = search_params.get(normalized_key)
+                if existing is None:
+                    search_params[normalized_key] = v
+                elif isinstance(existing, list):
+                    existing.append(v)
+                else:
+                    search_params[normalized_key] = [existing, v]
         
         if isinstance(body, dict):
-            for k, v in body.items():
-                normalized_key = str(k or "").strip().lower()
-                if normalized_key and not normalized_key.startswith("_"):
-                    search_params[normalized_key] = v
+            search_params.update(_search_params_from_fhir_parameters(body))
 
-        vault_id = build_vault_id(sector=sector, tenant_id=tenant_id)
+        _validate_financial_search_parameters(resource_type, search_params)
+
+        vault_id = build_storage_namespace(
+            network_kind=self._deps.settings.network_mode,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            tenant_id=tenant_id,
+        )
 
         filtered_results = self._deps.search_repo.search(
             vault_id=vault_id,

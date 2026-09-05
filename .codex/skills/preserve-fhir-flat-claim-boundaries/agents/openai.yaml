@@ -1,0 +1,4 @@
+interface:
+  display_name: "Preserve FHIR Claim Boundaries"
+  short_description: "Keep claims, indexes, and FHIR search aligned"
+  default_prompt: "Use $preserve-fhir-flat-claim-boundaries to implement or review a DataConv FHIR-like claim mapping."

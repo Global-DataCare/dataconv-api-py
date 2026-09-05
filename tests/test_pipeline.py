@@ -1,3 +1,4 @@
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -275,8 +276,9 @@ class PipelineTests(unittest.TestCase):
             attributes={"SECCION": "clinica", "FAMILIA": "vacunas"},
         )
         result = run_pipeline(records=[record], context=context, coding_assistant=NoopCodingAssistant())
-        subject = self._subject_entries(result)[0]["resource"]
-        docref = self._contained_by_type(subject, "DocumentReference")[0]
+        research_subject = result.composition_message["body"]["data"][0]["resource"]
+        self.assertEqual(research_subject["resourceType"], "ResearchSubject")
+        docref = self._contained_by_type(research_subject, "DocumentReference")[0]
         claims = docref["meta"]["claims"]
         self.assertNotIn("DocumentReference.text", claims)
 

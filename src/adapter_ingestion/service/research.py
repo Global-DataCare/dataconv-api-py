@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from urllib.parse import quote
 
 
 DEFAULT_SECTOR = "onehealth-research"
@@ -27,6 +28,28 @@ def build_vault_id(*, sector: str, tenant_id: str) -> str:
     if not tenant_token:
         raise ValueError("tenant_id is required")
     return f"{normalize_sector(sector)}_{tenant_token}"
+
+
+def build_storage_namespace(
+    *,
+    network_kind: str,
+    jurisdiction: str,
+    sector: str,
+    tenant_id: str,
+) -> str:
+    """Internal namespace only; the public tenant_id remains the legal identifier."""
+
+    values = {
+        "network_kind": str(network_kind or "").strip(),
+        "jurisdiction": str(jurisdiction or "").strip(),
+        "sector": str(sector or "").strip(),
+        "tenant_id": normalize_tenant_id(tenant_id),
+    }
+    for field, value in values.items():
+        if not value:
+            raise ValueError(f"{field} is required")
+    tokens = [quote(value.lower(), safe="._-") for value in values.values()]
+    return "__".join(tokens)
 
 
 def build_research_draft_id(*, vault_id: str, resource_type: str, resource_id: str) -> str:

@@ -12,6 +12,10 @@ from .conversion_patch import ConversionPatchManager
 from .conversion_search import ConversionSearchManager
 from .tenant_api_keys import TenantApiKeyManager
 from .token_exchange import TokenExchangeManager
+from .organization_tenant_activation import (
+    ConnectIcaOrganizationProofVerifierClient,
+    OrganizationTenantActivationManager,
+)
 
 __all__ = [
     "ApiManagerDependencies",
@@ -24,4 +28,6 @@ __all__ = [
     "TenantConfigCreateManager",
     "TenantConfigPollManager",
     "TokenExchangeManager",
+    "ConnectIcaOrganizationProofVerifierClient",
+    "OrganizationTenantActivationManager",
 ]

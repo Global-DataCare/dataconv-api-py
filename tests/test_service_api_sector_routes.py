@@ -1,3 +1,5 @@
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+# Flow contract: sector routes isolate tenant data by network and jurisdiction while preserving the public tenant identifier.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -12,8 +14,10 @@ from unittest.mock import patch
 
 try:
     from fastapi import Response
+    from fastapi.testclient import TestClient
 except Exception:  # pragma: no cover
     Response = None  # type: ignore[assignment]
+    TestClient = None  # type: ignore[assignment]
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -73,6 +77,38 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         self.assertIn("/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software-id}/{resource-type}/_upload", paths)
         self.assertIn("/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software-id}/{resource-type}/_patch", paths)
         self.assertIn("/host/cds-{jurisdiction}/v1/{sector}/{tenant-id}/org.hl7.fhir.api/{resource-type}/_search", paths)
+
+    def test_research_subject_search_route_accepts_fhir_parameters(self) -> None:
+        self.assertIsNotNone(TestClient)
+        identifier = "urn:uuid:11111111-1111-4111-8111-111111111111"
+        self.app.state.search_repo.upsert(
+            vault_id="test__es__onehealth-research__clinic-a",
+            resource_type="ResearchSubject",
+            resource={
+                "resourceType": "ResearchSubject",
+                "id": identifier.removeprefix("urn:uuid:"),
+                "meta": {
+                    "claims": {
+                        "ResearchSubject.identifier": identifier,
+                        "ResearchSubject.status": "candidate",
+                    }
+                },
+            },
+        )
+
+        response = TestClient(self.app).post(
+            "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/ResearchSubject/_search",
+            json={
+                "resourceType": "Parameters",
+                "parameter": [{"name": "identifier", "valueUri": identifier}],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        bundle = response.json()
+        self.assertEqual(bundle["resourceType"], "Bundle")
+        self.assertEqual(bundle["type"], "searchset")
+        self.assertEqual(bundle["total"], 1)
 
 
 if __name__ == "__main__":

@@ -52,7 +52,12 @@ class TenantConfigPollManager:
             auth_header = str(request.headers.get("authorization", "") or "")
         except Exception:
             auth_header = ""
-        _enforce_auth_context(payload, self._deps.settings, authorization_header=auth_header)
+        _enforce_auth_context(
+            payload,
+            self._deps.settings,
+            authorization_header=auth_header,
+            expected_organization=tenant_id,
+        )
 
         payload_thid = str(_extract_payload_value(payload, "thid") or "").strip()
         query_thid = _extract_query_value(request, "thid")

@@ -58,7 +58,12 @@ class ConversionUploadPollManager:
             auth_header = str(request.headers.get("authorization", "") or "")
         except Exception:
             auth_header = ""
-        _enforce_auth_context(payload, self._deps.settings, authorization_header=auth_header)
+        _enforce_auth_context(
+            payload,
+            self._deps.settings,
+            authorization_header=auth_header,
+            expected_organization=tenant_id,
+        )
         payload_thid = str(payload.get("thid", "")).strip()
         query_thid = _extract_query_value(request, "thid")
         if payload_thid and query_thid and payload_thid != query_thid:

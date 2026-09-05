@@ -55,6 +55,11 @@ class SubjectClaim:
     BIRTHSEX = "Subject.birthsex"
 
 
+class ResearchSubjectClaim:
+    IDENTIFIER = "ResearchSubject.identifier"
+    STATUS = "ResearchSubject.status"
+
+
 class AnimalClaim:
     SPECIES = "Subject.animal-species"
     BREED = "Subject.animal-breed"

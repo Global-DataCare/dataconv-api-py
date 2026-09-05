@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from .. import __version__
 from ..runtime import ConfigKey
 from .api_support import (
     DIDCOMM_PLAINTEXT_MEDIA_TYPE,
@@ -104,7 +105,7 @@ def create_app():
 
     app = FastAPI(
         title="Preconversion DIDComm API",
-        version="0.6.3",
+        version=__version__,
         docs_url=None,
         description=(
             "Public DIDComm/FAPI contract for adapter configuration and conversion jobs.\n\n"

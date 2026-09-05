@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added a route-scoped controller research exchange that revalidates the fresh
+  OIDC plus Connect ICA proof and returns only a short-lived
+  `dataconv.upload` token bound to the legal tenant identifier.
+
 - Added Connect ICA-backed organization tenant activation using signed OIDC and
   controller VP evidence; tenant-scoped Bearer tokens can no longer cross into
   another tenant route.

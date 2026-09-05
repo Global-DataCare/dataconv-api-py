@@ -5,6 +5,12 @@ Clinical pre-conversion repository with two execution modes:
 - `API`: main runtime for integrators and client applications.
 - `LEGACY_CLI`: internal/manual validation flow.
 
+Organization controllers exchange a fresh signed OIDC token plus the exact
+Connect ICA controller VP at
+`/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/organization/research/auth/_exchange`.
+The short-lived result is limited to `dataconv.upload` and that public legal
+`tenant_id`; network, jurisdiction and sector stay separate storage dimensions.
+
 This README is the single root entry point in English. Spanish operational material remains available under [docs/es/README.md](docs/es/README.md).
 
 ## Start here

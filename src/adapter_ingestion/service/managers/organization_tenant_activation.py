@@ -8,7 +8,7 @@ from urllib import error, request
 import json
 
 from ...runtime import ConfigKey, PreconversionControlPlane
-from ..auth_exchange import validate_id_token
+from ..auth_exchange import issue_session_access_token, validate_id_token
 
 
 class OrganizationProofVerifierClient(Protocol):
@@ -75,7 +75,7 @@ class OrganizationTenantActivationManager:
         self._verifier = verifier
         self._identity_validator = identity_validator or (lambda token: validate_id_token(token, settings))
 
-    def activate(
+    def _authorize(
         self,
         *,
         tenant_id: str,
@@ -83,7 +83,7 @@ class OrganizationTenantActivationManager:
         sector: str,
         id_token: str,
         vp_token: str,
-    ) -> dict[str, Any]:
+    ) -> tuple[str, str, str, str, Any, dict[str, Any]]:
         normalized_tenant = str(tenant_id or "").strip()
         normalized_jurisdiction = str(jurisdiction or "").strip().upper()
         normalized_sector = str(sector or "").strip().lower()
@@ -100,6 +100,70 @@ class OrganizationTenantActivationManager:
             sector=normalized_sector,
             network_kind=network_kind,
             audience=audience,
+            vp_token=vp_token,
+        )
+        return (
+            normalized_tenant,
+            normalized_jurisdiction,
+            normalized_sector,
+            network_kind,
+            identity,
+            verification,
+        )
+
+    def exchange_upload_token(
+        self,
+        *,
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        id_token: str,
+        vp_token: str,
+    ) -> dict[str, Any]:
+        normalized_tenant, _, _, _, identity, verification = self._authorize(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            id_token=id_token,
+            vp_token=vp_token,
+        )
+        subject = str(verification.get("controller") or getattr(identity, "subject", "") or "").strip()
+        token, expires_in, _ = issue_session_access_token(
+            subject=subject,
+            organization=normalized_tenant,
+            scopes=["dataconv.upload"],
+            settings=self._settings,
+        )
+        return {
+            "access_token": token,
+            "token_type": "Bearer",
+            "expires_in": expires_in,
+            "scope": "dataconv.upload",
+            "organization": normalized_tenant,
+            "subject": subject,
+        }
+
+    def activate(
+        self,
+        *,
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        id_token: str,
+        vp_token: str,
+    ) -> dict[str, Any]:
+        (
+            normalized_tenant,
+            normalized_jurisdiction,
+            normalized_sector,
+            network_kind,
+            identity,
+            verification,
+        ) = self._authorize(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            id_token=id_token,
             vp_token=vp_token,
         )
         content = {

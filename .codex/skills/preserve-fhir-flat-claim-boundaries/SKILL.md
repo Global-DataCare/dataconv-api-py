@@ -46,6 +46,57 @@ DataConv physical search key:       diagnosticreport_code-text
    `Bundle` of type `searchset` with the expected resource.
 6. Run catalog parity, focused DataConv tests, and the full affected suites.
 
+## Research review and storage lifecycle
+
+Preserve this explicit lifecycle in code, tests, and high-level docs:
+
+```text
+GCS -> Firestore draft -> human review -> PostgreSQL search index
+```
+
+- GCS owns the uploaded workbook and generated job artifacts.
+- Firestore receives the processed FHIR-like resources as review drafts with
+  `userSelected=true`; it does not represent the raw side of a raw/processed
+  database split.
+- Human review is mandatory when terminology codes are inferred from text.
+- Confirmation updates those same resources to `userSelected=false` and copies
+  them to the PostgreSQL search repository.
+- PostgreSQL stores the exact `claims`, derived `search_fields`, and the same
+  complete processed `resource`; searches filter `search_fields` and return
+  `resource`.
+- Describe the duplicated promoted resource as a read optimization, never as a
+  distinct semantic version. Any change to this duplication requires an
+  explicit source-of-truth and reconciliation contract.
+
+Coding assistance is proposal-only. A model may suggest `system`, `code`,
+`display`, `confidence`, and `evidence`, but it must never approve a proposal or
+promote a draft. Persist accepted and rejected human decisions before treating
+them as a governed, de-identified, human-reviewed evaluation or training
+corpus. Never treat model output as its own label.
+
+Verify the runtime constructor before claiming AI integration. The current
+service worker uses `NoopCodingAssistant`; remote inference and durable review
+decision capture remain pending until executable boundary tests prove them.
+
+Treat a reusable model runtime as infrastructure behind separate, scoped
+adapters. Intent classification, question answering, and terminology coding are
+not interchangeable API contracts. For clinical coding, require an
+authoritative terminology service and preserve the FHIR R4 operations in docs,
+JSDoc, snippets, and boundary tests:
+
+- [`ValueSet/$expand?filter=`](https://hl7.org/fhir/R4/valueset-operation-expand.html)
+  discovers text-filtered candidates within an explicit value set;
+- [`ValueSet/$validate-code`](https://hl7.org/fhir/R4/valueset-operation-validate-code.html)
+  validates the reviewed candidate;
+- [`ConceptMap/$translate`](https://hl7.org/fhir/R4/conceptmap-operation-translate.html)
+  maps an identified code to another governed coding system.
+
+Allow a model to normalize source text and rank returned candidates. Never let
+it invent an authoritative code, choose an unconstrained system, or replace
+terminology validation. Apply separately configured value sets and profile or
+jurisdiction restrictions for condition, observation/test, procedure, and
+other resource families.
+
 For Invoice and ChargeItem imports:
 
 1. Require `Invoice.identifier` before grouping invoice lines.

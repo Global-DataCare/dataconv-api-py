@@ -44,6 +44,54 @@ search boundary. The physical index key is internal and preserves the hyphen.
 Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
 whose catalog is generated from `gdc-common-utils-ts`.
 
+## Research review, persistence, and coding-assistance boundary
+
+The persistent research lifecycle is deliberately:
+
+```text
+GCS -> Firestore draft -> human review -> PostgreSQL search index
+```
+
+- GCS stores the uploaded workbook and generated job artifacts.
+- The conversion pipeline produces FHIR-like resources with canonical flat
+  claims in `resource.meta.claims`.
+- Firestore stores those processed resources as review drafts with
+  `userSelected=true`, including the relationships needed to review a complete
+  `ResearchSubject`, its `Composition`, and linked resources.
+- Human confirmation changes those same processed resources to
+  `userSelected=false` and promotes them to PostgreSQL.
+- PostgreSQL stores the promoted resource, its exact `claims`, and derived
+  `search_fields`. Searches filter `search_fields` and return the stored
+  resource in a `Bundle` with `type=searchset`.
+
+Firestore and PostgreSQL do not contain raw versus processed variants: during
+promotion PostgreSQL receives a searchable copy of the same processed resource
+kept in Firestore. This duplication is a read optimization and must not be
+described as two semantic resource versions.
+
+Human review is required because free text may need terminology-code
+inference. An AI coding assistant may only propose codes, confidence, and
+evidence; it cannot approve or promote a resource. Accepted and rejected
+proposals may become a governed, de-identified, human-reviewed evaluation or
+training corpus, but must never be collected as automatic ground truth.
+
+The deployed worker currently uses `NoopCodingAssistant`, so it performs no AI
+inference. A remote model service and durable review-decision capture are
+future integrations, not current runtime behavior.
+
+A general model runtime can support separate intent, question-answering, and
+clinical-coding adapters, but an intent endpoint must not be reused as if it
+were already a terminology API. For coding, DataConv needs a terminology
+service constrained by the target system and value set. The standard FHIR R4
+building blocks are
+[`ValueSet/$expand?filter=`](https://hl7.org/fhir/R4/valueset-operation-expand.html)
+for text-filtered candidates,
+[`ValueSet/$validate-code`](https://hl7.org/fhir/R4/valueset-operation-validate-code.html)
+for membership validation, and
+[`ConceptMap/$translate`](https://hl7.org/fhir/R4/conceptmap-operation-translate.html)
+for mappings between coding systems. A model may normalize the user's text and
+rank the returned candidates, but must not invent the authoritative code.
+
 Financial API-CONFIG columns use the same dotted contract. DataConv groups rows
 by `Invoice.identifier`, creates one `Invoice` and its separate `ChargeItem`
 resources, writes `Invoice.lineItem[].chargeItemReference`, and links every line

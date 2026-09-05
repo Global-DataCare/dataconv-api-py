@@ -5,7 +5,8 @@ ENV_NAME="${1:-production}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILE="${REPO_DIR}/.env.deploy.${ENV_NAME}"
-PRIVATE_ENV_FILE="${REPO_DIR}/private-cloudsql.env"
+PRIVATE_ENV_FILE="${REPO_DIR}/private-cloudsql.${ENV_NAME}.env"
+LEGACY_PRIVATE_ENV_FILE="${REPO_DIR}/private-cloudsql.env"
 
 if [[ ! -f "${ENV_FILE}" ]]; then
   echo "ERROR: missing env file: ${ENV_FILE}"
@@ -18,6 +19,11 @@ source "${ENV_FILE}"
 if [[ -f "${PRIVATE_ENV_FILE}" ]]; then
   # shellcheck source=/dev/null
   source "${PRIVATE_ENV_FILE}"
+elif [[ "${ENV_NAME}" == "staging" || "${ENV_NAME}" == "production" ]] && [[ -f "${LEGACY_PRIVATE_ENV_FILE}" ]]; then
+  # Backward compatibility for the original Europe-only deployment file. New
+  # environments must never inherit another deployment's Cloud SQL target.
+  # shellcheck source=/dev/null
+  source "${LEGACY_PRIVATE_ENV_FILE}"
 fi
 
 required_vars=(
@@ -328,6 +334,8 @@ fi
 
 kubectl -n "${K8S_NAMESPACE}" set image deployment/"${DEPLOY_API_NAME}" api="${IMAGE_REF}"
 kubectl -n "${K8S_NAMESPACE}" set image deployment/"${DEPLOY_WORKER_NAME}" worker="${IMAGE_REF}"
+kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/"${DEPLOY_API_NAME}"
+kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/"${DEPLOY_WORKER_NAME}"
 
 kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${DEPLOY_API_NAME}" --timeout=300s
 kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${DEPLOY_WORKER_NAME}" --timeout=300s

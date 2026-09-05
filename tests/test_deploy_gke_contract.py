@@ -10,6 +10,16 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DeployGkeContractTests(unittest.TestCase):
+    def test_cloud_sql_secret_file_is_scoped_to_the_deployment_environment(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        self.assertIn('private-cloudsql.${ENV_NAME}.env', deploy_script)
+        self.assertIn('[[ "${ENV_NAME}" == "staging" || "${ENV_NAME}" == "production" ]]', deploy_script)
+
+    def test_deployment_restarts_pods_after_config_or_secret_rotation(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        self.assertIn('rollout restart deployment/"${DEPLOY_API_NAME}"', deploy_script)
+        self.assertIn('rollout restart deployment/"${DEPLOY_WORKER_NAME}"', deploy_script)
+
     def test_secure_oidc_exchange_settings_are_injected_into_runtime(self) -> None:
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
         for setting in (

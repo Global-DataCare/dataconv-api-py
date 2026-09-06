@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+- Require every new `onehealth-research` conversion to carry and persist one stable FHIR
+  ResearchStudy reference; poll, review patch and ResearchSubject search are
+  checked or filtered by that reference.
+- Store the public relationship only as the standard `ResearchSubject.study`
+  claim. The reference grants no DataConv-local authority and never replaces
+  GW Consent or SMART evaluation; legacy unscoped jobs remain pollable but
+  cannot be promoted.
+- Preserve non-research upload and review compatibility: `researchStudy` is
+  optional outside the explicit `onehealth-research` sector.
+- Inject the optional terminology and coding-model endpoints, audiences,
+  identifiers, timeouts and secret tokens into both GKE workloads through the
+  generated ConfigMap and Secret.
+- Load the environment-scoped private deployment file before the public
+  profile so required secret placeholders can fail closed without forcing
+  operators to export credentials into the parent shell.
+- Bind review promotion to the conversion job's tenant, jurisdiction, sector
+  and software identifier before evaluating its ResearchStudy context.
+
+- Added terminology-service and coding-model HTTP adapters. DataConv sends the
+  complete governed candidate set plus allowlisted row context, rejects model-
+  invented candidates, and preserves every result for human selection.
+- Added provisional `Condition` coding proposals outside authoritative flat
+  claims. Human `_patch` review materializes only the selected `Condition.code`
+  and English `Condition.code-display`, then emits accepted/rejected feedback
+  with the optional reviewer reason.
+- Corrected Accuro diagnosis and pathology fields from
+  `DiagnosticReport.code-text` to unconfirmed `Condition.code` coding inputs.
+- Added proposal and ambiguity counts for portal prioritization and made FHIR
+  `code:text` search use confirmed English `code-display` when available.
 - Documented and regression-guarded the research lifecycle from GCS upload to
   Firestore review draft and human-confirmed PostgreSQL search promotion.
 - Clarified that PostgreSQL duplicates the same processed promoted resource as
@@ -10,7 +39,8 @@
 - Recorded the coding-assistance safety boundary: inferred terminology codes
   remain human-reviewed proposals; the deployed worker still uses
   `NoopCodingAssistant`, and remote inference plus durable review-decision
-  capture remain pending.
+  capture are now configurable; they remain disabled when the service URLs are
+  absent.
 - Defined the future terminology boundary around FHIR R4 text-filtered
   ValueSet expansion, code validation, and explicit ConceptMap translation;
   general intent or question-answering model endpoints do not substitute for

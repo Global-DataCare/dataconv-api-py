@@ -64,6 +64,7 @@ class ServiceApiTests(unittest.TestCase):
     )
     _DEFAULT_IAT = 1760000000
     _DEFAULT_EXP = 1760003600
+    _RESEARCH_STUDY_REFERENCE = "ResearchStudy/study-service-api"
 
     def setUp(self) -> None:
         env = {
@@ -135,6 +136,18 @@ class ServiceApiTests(unittest.TestCase):
         body_thid = ""
         if isinstance(body, dict):
             body_thid = str(body.get("thid") or "").strip()
+            request_query_thid = ""
+            try:
+                request_query_thid = str(
+                    getattr(kwargs.get("request"), "query_params", {}).get("thid", "") or ""
+                ).strip()
+            except Exception:
+                request_query_thid = ""
+            if body_thid or request_query_thid:
+                body.setdefault(
+                    "researchStudy",
+                    {"reference": self._RESEARCH_STUDY_REFERENCE},
+                )
 
         if "manufacturer" not in kwargs:
             if body_thid and body_thid in self._thid_software:
@@ -272,7 +285,8 @@ class ServiceApiTests(unittest.TestCase):
         schema = self.app.openapi()
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
-        self.assertEqual(schema.get("info", {}).get("version"), "0.7.5")
+        # The exact literal is the release/OpenAPI synchronization contract.
+        self.assertEqual(schema.get("info", {}).get("version"), "0.7.6")
         tag_names = [tag.get("name") for tag in schema.get("tags", []) if isinstance(tag, dict)]
         self.assertIn("3.1 Publisher Config Request", tag_names)
         self.assertIn("3.2 Publisher Config Response", tag_names)
@@ -701,6 +715,7 @@ class ServiceApiTests(unittest.TestCase):
                         "jti": "job-attachment-link-001",
                         "iat": self._DEFAULT_IAT,
                         "exp": self._DEFAULT_EXP,
+                        "researchStudy": {"reference": self._RESEARCH_STUDY_REFERENCE},
                         "body": {"resourceType": "Bundle", "type": "batch", "data": [], "total": 0},
                         "attachments": [
                             {
@@ -762,6 +777,7 @@ class ServiceApiTests(unittest.TestCase):
                         "jti": "job-http-didcomm-001",
                         "iat": self._DEFAULT_IAT,
                         "exp": self._DEFAULT_EXP,
+                        "researchStudy": {"reference": self._RESEARCH_STUDY_REFERENCE},
                         "body": {"resourceType": "Bundle", "type": "batch", "data": [], "total": 0},
                         "attachments": [
                             {
@@ -786,6 +802,57 @@ class ServiceApiTests(unittest.TestCase):
         job = self._control_plane().get_job_by_thid("job-http-didcomm-001")
         self.assertIsNotNone(job)
         self.assertEqual(self._blob_store().get_bytes(job.request.input_ref), b"xlsx-from-http-didcomm")
+
+    def test_http_upload_rejects_a_research_conversion_without_research_study(self) -> None:
+        self.assertIsNotNone(TestClient)
+        response = TestClient(self.app).post(
+            "/tenant-a/cds-es/v1/onehealth-research/digitaltwin/qvet/excel/_upload",
+            headers={
+                "Content-Type": "application/didcomm-plain+json",
+                "Authorization": "Bearer demo-token",
+            },
+            content=json.dumps({
+                "iss": "did:web:test.example:employee:loader",
+                "type": "https://didcomm.org/plaintext/2.0/message",
+                "thid": "job-missing-study-001",
+                "jti": "job-missing-study-001",
+                "iat": self._DEFAULT_IAT,
+                "exp": self._DEFAULT_EXP,
+                "inputRef": "mem://uploads/input.xlsx",
+                "body": {"resourceType": "Bundle", "type": "batch", "data": [], "total": 0},
+            }),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["body"]["issues"]["issue"][0]["diagnostics"],
+            "researchStudy.reference is required",
+        )
+
+    def test_http_upload_preserves_non_research_compatibility_without_research_study(self) -> None:
+        self.assertIsNotNone(TestClient)
+        response = TestClient(self.app).post(
+            "/tenant-a/cds-es/v1/animal-care/digitaltwin/qvet/excel/_upload",
+            headers={
+                "Content-Type": "application/didcomm-plain+json",
+                "Authorization": "Bearer demo-token",
+            },
+            content=json.dumps({
+                "iss": "did:web:test.example:employee:loader",
+                "type": "https://didcomm.org/plaintext/2.0/message",
+                "thid": "job-non-research-001",
+                "jti": "job-non-research-001",
+                "iat": self._DEFAULT_IAT,
+                "exp": self._DEFAULT_EXP,
+                "inputRef": "mem://uploads/input.xlsx",
+                "body": {"resourceType": "Bundle", "type": "batch", "data": [], "total": 0},
+            }),
+        )
+
+        self.assertEqual(response.status_code, 202)
+        job = self._control_plane().get_job_by_thid("job-non-research-001")
+        self.assertIsNotNone(job)
+        self.assertEqual(job.request.sector, "animal-care")
+        self.assertEqual(job.request.research_study_reference, "")
 
     def test_upload_rejects_multiple_links_in_one_attachment(self) -> None:
         upload_ep = self._endpoint(
@@ -1481,6 +1548,10 @@ class ServiceApiTests(unittest.TestCase):
         self.assertNotIn("Composition", diagnostics)
         self.assertIn("data", payload["body"])
         self.assertEqual(payload["body"]["data"][0]["response"]["status"], "200")
+        self.assertEqual(
+            payload["body"]["data"][0]["meta"]["researchStudy"]["reference"],
+            self._RESEARCH_STUDY_REFERENCE,
+        )
         self.assertEqual(
             payload["body"]["data"][0]["resource"]["resourceType"],
             "Bundle",
@@ -2347,6 +2418,9 @@ class ServiceApiTests(unittest.TestCase):
                         "thid": thid,
                         "iat": str(self._DEFAULT_IAT),
                         "exp": str(self._DEFAULT_EXP),
+                        "metadata": json.dumps({
+                            "researchStudy": {"reference": self._RESEARCH_STUDY_REFERENCE}
+                        }),
                     }
                 ),
                 response=response,

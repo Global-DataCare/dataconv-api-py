@@ -14,12 +14,13 @@ import re
 
 from gdc_data_utils import (
     ChargeItemClaim,
+    ConditionClaim,
     DiagnosticReportClaim,
     FHIR_API_CONTEXT,
     InvoiceClaim,
 )
 
-from .ai.base import CodingAssistant
+from .ai.base import CodingAssistant, CodingSuggestion
 from .fhir_claims import (
     AnimalClaim,
     CompositionClaim,
@@ -244,7 +245,6 @@ def _resource_type_counts_from_entries(entries: list[dict[str, Any]]) -> dict[st
 def _doc_claims(
     record: CanonicalRecord,
     context: AdapterContext,
-    coding_assistant: CodingAssistant,
 ) -> tuple[str, DocumentReferenceClaims]:
     document_id = stable_uuid(
         context.manufacturer,
@@ -255,8 +255,6 @@ def _doc_claims(
         record.family,
         record.subfamily,
     )
-
-    suggestions = coding_assistant.suggest_codes(record)
 
     claims: DocumentReferenceClaims = {
         DocumentReferenceClaim.IDENTIFIER: document_id,
@@ -271,11 +269,6 @@ def _doc_claims(
     if _should_include_narrative_text(context):
         # Custom claim: not in common-utils yet, but compatible with claims-first storage.
         claims[DocumentReferenceClaim.TEXT] = _to_xhtml_table(record.attributes)
-
-    if suggestions:
-        top = suggestions[0]
-        claims[DocumentReferenceClaim.EVENT_CODE] = f"{top.system}|{top.code}"
-        claims[DocumentReferenceClaim.MODALITY] = f"{top.display}|confidence:{top.confidence:.2f}"
 
     return document_id, claims
 
@@ -348,13 +341,120 @@ def _diagnostic_report_resource(
     return {
         "resourceType": "DiagnosticReport",
         "id": report_id,
-        "meta": {
-            "claims": {
-                "@context": FHIR_API_CONTEXT,
-                **claims,
-            }
-        },
+        "meta": {"claims": {"@context": FHIR_API_CONTEXT, **claims}},
     }
+
+
+def _coding_proposals(
+    *,
+    context: AdapterContext,
+    record: CanonicalRecord,
+    suggestions: list[CodingSuggestion],
+    resource_type: str,
+) -> list[dict[str, Any]]:
+    grouped: dict[str, list[CodingSuggestion]] = defaultdict(list)
+    for suggestion in suggestions:
+        if suggestion.resource_type == resource_type and suggestion.proposal_id:
+            grouped[suggestion.proposal_id].append(suggestion)
+    proposals: list[dict[str, Any]] = []
+    allowed = {value.strip() for value in context.coding_context_fields if value.strip()}
+    row_context = (
+        {
+            key: str(value or "").strip()
+            for key, value in record.attributes.items()
+            if key in allowed and str(value or "").strip()
+        }
+        if allowed
+        else {
+            "section": record.section,
+            "family": record.family,
+            "subfamily": record.subfamily,
+            "concept": record.concept,
+            "species": record.species_local,
+        }
+    )
+    for proposal_id, values in grouped.items():
+        field = values[0].field
+        proposals.append(
+            {
+                "id": proposal_id,
+                "status": "proposed",
+                "field": field,
+                "inputText": str(record.coding_inputs.get(field, "")),
+                "rowContext": row_context,
+                "candidates": [
+                    {
+                        "id": item.candidate_id,
+                        "system": item.system,
+                        "code": item.code,
+                        "display": item.display,
+                        "source": item.source,
+                        "recommendationPercent": item.recommendation_percent,
+                        "evidence": item.evidence,
+                    }
+                    for item in values
+                ],
+            }
+        )
+    represented_fields = {str(proposal["field"]) for proposal in proposals}
+    for field, raw_text in record.coding_inputs.items():
+        input_text = str(raw_text or "").strip()
+        if not str(field).startswith(f"{resource_type}.") or not input_text or field in represented_fields:
+            continue
+        proposals.append(
+            {
+                "id": stable_uuid(
+                    context.manufacturer,
+                    context.tenant_id,
+                    record.subject_id,
+                    "coding-proposal",
+                    resource_type,
+                    str(field),
+                    input_text,
+                ),
+                "status": "proposed",
+                "field": str(field),
+                "inputText": input_text,
+                "rowContext": row_context,
+                "candidates": [],
+            }
+        )
+    return proposals
+
+
+def _condition_resource(
+    *,
+    context: AdapterContext,
+    record: CanonicalRecord,
+    suggestions: list[CodingSuggestion],
+) -> dict[str, Any] | None:
+    proposals = _coding_proposals(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type="Condition",
+    )
+    if not proposals and ConditionClaim.CODE not in record.coding_inputs:
+        return None
+    condition_id = stable_uuid(
+        context.manufacturer,
+        context.tenant_id,
+        record.subject_id,
+        "condition",
+        record.source_id,
+        record.timestamp,
+        str(record.coding_inputs.get(ConditionClaim.CODE, "")),
+    )
+    claims = {
+        ConditionClaim.IDENTIFIER: condition_id,
+        ConditionClaim.SUBJECT: record.subject_id,
+        ConditionClaim.CLINICAL_STATUS: "active",
+        ConditionClaim.VERIFICATION_STATUS: "provisional",
+    }
+    meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
+    if proposals:
+        meta["codingProposals"] = proposals
+    return {"resourceType": "Condition", "id": condition_id, "meta": meta}
 
 
 def _claims_for_resource(record: CanonicalRecord, resource_type: str) -> dict[str, str]:
@@ -745,6 +845,7 @@ def run_pipeline(
 ) -> PipelineResult:
     document_entries_count = 0
     diagnostic_report_entries_count = 0
+    condition_entries_count = 0
     invoice_entries_count = 0
     charge_item_entries_count = 0
     encounter_entries_count = 0
@@ -754,6 +855,7 @@ def run_pipeline(
     composition_entries_count = 0
     grouped_doc_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_diagnostic_report_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_condition_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_invoice_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_charge_item_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_financial_records: dict[tuple[str, str, str], list[CanonicalRecord]] = defaultdict(list)
@@ -767,9 +869,14 @@ def run_pipeline(
     subjects: set[str] = set()
     all_related_person_ids: set[str] = set()
     latest_record_by_subject: dict[str, CanonicalRecord] = {}
+    coding_proposal_candidate_ids: dict[str, set[str]] = defaultdict(set)
 
     for record in records:
-        doc_id, doc_claims = _doc_claims(record, context, coding_assistant)
+        suggestions = coding_assistant.suggest_codes(record)
+        for suggestion in suggestions:
+            if suggestion.proposal_id and suggestion.candidate_id:
+                coding_proposal_candidate_ids[suggestion.proposal_id].add(suggestion.candidate_id)
+        doc_id, doc_claims = _doc_claims(record, context)
         document_entries_count += 1
         key = (record.subject_id, record.composition_section)
         grouped_doc_resources[key][doc_id] = _doc_resource(doc_id, doc_claims)
@@ -779,6 +886,12 @@ def run_pipeline(
             diagnostic_report_id = str(diagnostic_report["id"])
             grouped_diagnostic_report_resources[key][diagnostic_report_id] = diagnostic_report
             diagnostic_report_entries_count += 1
+
+        condition = _condition_resource(context=context, record=record, suggestions=suggestions)
+        if condition is not None:
+            condition_id = str(condition["id"])
+            grouped_condition_resources[key][condition_id] = condition
+            condition_entries_count += 1
 
         invoice_identifier = record.flat_claims.get(InvoiceClaim.IDENTIFIER, "").strip()
         if invoice_identifier:
@@ -845,15 +958,17 @@ def run_pipeline(
             key = (subject, section)
             doc_resources_map = grouped_doc_resources[key]
             diagnostic_report_resources_map = grouped_diagnostic_report_resources[key]
+            condition_resources_map = grouped_condition_resources[key]
             invoice_resources_map = grouped_invoice_resources[key]
             charge_item_resources_map = grouped_charge_item_resources[key]
             encounter_resources_map = grouped_encounter_resources[key]
             doc_ids = sorted(doc_resources_map.keys())
             diagnostic_report_ids = sorted(diagnostic_report_resources_map.keys())
+            condition_ids = sorted(condition_resources_map.keys())
             invoice_ids = sorted(invoice_resources_map.keys())
             charge_item_ids = sorted(charge_item_resources_map.keys())
             encounter_ids = sorted(encounter_resources_map.keys())
-            entry_ids = encounter_ids + diagnostic_report_ids + invoice_ids + charge_item_ids + doc_ids
+            entry_ids = encounter_ids + condition_ids + diagnostic_report_ids + invoice_ids + charge_item_ids + doc_ids
             claims = _composition_claims(
                 context=context,
                 subject=subject,
@@ -866,6 +981,8 @@ def run_pipeline(
 
             for resource_id in encounter_ids:
                 contained_resources.append(encounter_resources_map[resource_id])
+            for resource_id in condition_ids:
+                contained_resources.append(condition_resources_map[resource_id])
             for resource_id in diagnostic_report_ids:
                 contained_resources.append(diagnostic_report_resources_map[resource_id])
             for resource_id in invoice_ids:
@@ -930,6 +1047,11 @@ def run_pipeline(
         "subjectsTotal": len(subjects),
         "documentReferenceEntries": document_entries_count,
         "diagnosticReportEntries": diagnostic_report_entries_count,
+        "conditionEntries": condition_entries_count,
+        "codingProposalEntries": len(coding_proposal_candidate_ids),
+        "ambiguousCodingProposalEntries": sum(
+            1 for candidate_ids in coding_proposal_candidate_ids.values() if len(candidate_ids) > 1
+        ),
         "invoiceEntries": invoice_entries_count,
         "chargeItemEntries": charge_item_entries_count,
         "encounterEntries": encounter_entries_count,

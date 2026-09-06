@@ -59,6 +59,13 @@ def _search_fields(resource: dict[str, Any]) -> dict[str, str]:
 
 def _search_field_value(resource: dict[str, Any], resource_type: str, field_name: str) -> str:
     search_fields = _search_fields(resource)
+    if str(field_name or "").strip().endswith(":text"):
+        base_name = str(field_name or "").strip().split(":", 1)[0]
+        display_value = search_fields.get(
+            _search_field_name(resource_type, f"{base_name}-display"), ""
+        )
+        if display_value:
+            return str(display_value)
     direct = search_fields.get(_search_field_name(resource_type, field_name), "")
     if direct:
         return str(direct or "")

@@ -14,8 +14,6 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck source=/dev/null
-source "${ENV_FILE}"
 if [[ -f "${PRIVATE_ENV_FILE}" ]]; then
   # shellcheck source=/dev/null
   source "${PRIVATE_ENV_FILE}"
@@ -25,6 +23,10 @@ elif [[ "${ENV_NAME}" == "staging" || "${ENV_NAME}" == "production" ]] && [[ -f 
   # shellcheck source=/dev/null
   source "${LEGACY_PRIVATE_ENV_FILE}"
 fi
+# Load deployment-specific secrets first so the public profile may require
+# them with `${NAME:?message}` without storing their values in the profile.
+# shellcheck source=/dev/null
+source "${ENV_FILE}"
 
 required_vars=(
   GCP_PROJECT_ID
@@ -234,6 +236,12 @@ kubectl -n "${K8S_NAMESPACE}" create configmap "${CONFIGMAP_NAME}" \
   --from-literal=SUBJECT_LINK_KEY_VERSION="${SUBJECT_LINK_KEY_VERSION:-v1}" \
   --from-literal=PRECONV_ICA_BASE_URL="${PRECONV_ICA_BASE_URL}" \
   --from-literal=PRECONV_ICA_TIMEOUT_SECONDS="${PRECONV_ICA_TIMEOUT_SECONDS:-15}" \
+  --from-literal=PRECONV_TERMINOLOGY_BASE_URL="${PRECONV_TERMINOLOGY_BASE_URL:-}" \
+  --from-literal=PRECONV_TERMINOLOGY_TIMEOUT_SECONDS="${PRECONV_TERMINOLOGY_TIMEOUT_SECONDS:-15}" \
+  --from-literal=PRECONV_CODING_MODEL_BASE_URL="${PRECONV_CODING_MODEL_BASE_URL:-}" \
+  --from-literal=PRECONV_CODING_MODEL_AUDIENCE="${PRECONV_CODING_MODEL_AUDIENCE:-}" \
+  --from-literal=PRECONV_CODING_MODEL_ID="${PRECONV_CODING_MODEL_ID:-}" \
+  --from-literal=PRECONV_CODING_MODEL_TIMEOUT_SECONDS="${PRECONV_CODING_MODEL_TIMEOUT_SECONDS:-30}" \
   --from-literal=PRECONV_PUBSUB_TOPIC_ID="${PRECONV_PUBSUB_TOPIC_ID:-}" \
   --from-literal=PRECONV_PUBSUB_SUBSCRIPTION_ID="${PRECONV_PUBSUB_SUBSCRIPTION_ID:-}" \
   --from-literal=PRECONV_GCS_PREFIX="${PRECONV_GCS_PREFIX:-}" \
@@ -262,6 +270,8 @@ kubectl -n "${K8S_NAMESPACE}" create secret generic "${SECRET_NAME}" \
   --from-literal=GCS_BUCKET_NAME="${GCS_BUCKET_NAME}" \
   --from-literal=SUBJECT_LINK_PROTECTION_KEY="${SUBJECT_LINK_PROTECTION_KEY}" \
   --from-literal=PRECONV_ICA_API_KEY="${PRECONV_ICA_API_KEY}" \
+  --from-literal=PRECONV_TERMINOLOGY_TOKEN="${PRECONV_TERMINOLOGY_TOKEN:-}" \
+  --from-literal=PRECONV_CODING_MODEL_TOKEN="${PRECONV_CODING_MODEL_TOKEN:-}" \
   --from-literal=EXCHANGE_SESSION_TOKEN_SECRET="${EXCHANGE_SESSION_TOKEN_SECRET}" \
   --from-literal=POSTGRES_DSN="${POSTGRES_DSN}" \
   --from-literal=POSTGRES_INSTANCE_CONNECTION_NAME="${POSTGRES_INSTANCE_CONNECTION_NAME}" \

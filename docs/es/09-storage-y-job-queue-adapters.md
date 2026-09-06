@@ -79,6 +79,16 @@ Este servicio es el núcleo reusable para una API HTTP (FastAPI, Flask, etc.).
 
 ## 6) Revisión de research y promoción al índice
 
+Los jobs nuevos del sector explícito `onehealth-research` conservan una referencia FHIR estable a
+`ResearchStudy` desde upload hasta la revisión. Poll y patch deben repetirla,
+y el ResearchSubject promovido la publica únicamente mediante la claim
+estándar `ResearchSubject.study`. `study` sirve para correlación y búsqueda, no
+es una regla local de autorización; Consent y SMART siguen perteneciendo al
+GW. Los jobs históricos sin esta referencia todavía se pueden consultar, pero
+no promover mediante el patch limitado al estudio.
+Los demás sectores conservan el contrato existente de upload y patch sin
+exigir este campo exclusivo de research.
+
 El ciclo persistente es:
 
 ```text
@@ -101,13 +111,20 @@ La copia completa en ambas bases evita releer Firestore por cada resultado de
 búsqueda, a cambio de duplicación. Cualquier rediseño debe definir primero una
 única fuente autoritativa para recursos promovidos y su reconciliación.
 
-La inferencia de texto a código solo puede producir propuestas. La IA puede
-devolver sistema, código, display, confianza y evidencia, pero solo una decisión
-human-reviewed puede promover datos. Las propuestas aceptadas y rechazadas
-pueden alimentar un conjunto gobernado, desidentificado y revisado por personas
-para evaluación o entrenamiento; la salida del modelo nunca es verdad de terreno
-automática. El worker desplegado utiliza actualmente `NoopCodingAssistant`, por
-lo que todavía no integra un servicio remoto de IA.
+La inferencia de texto a código solo puede producir propuestas. El servicio de
+terminología devuelve todos los candidatos gobernados y el modelo añade un
+porcentaje de recomendación y evidencia sin eliminar alternativas. Esos datos
+viven en `meta.codingProposals[]`, fuera de las flat claims autoritativas. La
+decisión human-reviewed escribe únicamente `<Resource>.code` y el
+`<Resource>.code-display` en inglés. La revisión envía candidatos aceptados y
+rechazados, junto con el motivo opcional, a `/v1/coding/feedback`; esto crea
+datos de evaluación o entrenamiento, no aprendizaje online automático. El
+worker usa `NoopCodingAssistant` solo si falta
+`PRECONV_TERMINOLOGY_BASE_URL` o `PRECONV_CODING_MODEL_BASE_URL`.
+El script de despliegue GKE guarda las URL de servicio, la audiencia, el
+identificador del modelo y los timeouts en el ConfigMap generado; guarda
+`PRECONV_TERMINOLOGY_TOKEN` y `PRECONV_CODING_MODEL_TOKEN` en el Secret
+generado. Tanto la API como el worker consumen esos recursos generados.
 
 Un runtime de modelo reutilizable puede exponer contratos independientes para
 intents de aplicación, resolución de dudas y codificación clínica. El endpoint de
@@ -148,6 +165,6 @@ La lógica de negocio no cambia; solo se reemplazan adapters.
 - `tests/test_manager_conversion_patch.py` prueba la promoción tras revisión y
   `tests/test_runtime_postgres_search_integration.py` prueba la persistencia y
   devolución desde PostgreSQL.
-- La integración remota del asistente de codificación y el registro duradero de
-  decisiones de revisión están pendientes; el worker usa `NoopCodingAssistant`.
+- La codificación remota y el feedback de revisión se activan solo cuando se
+  configuran sus URLs; en caso contrario el worker usa `NoopCodingAssistant`.
 - En evolución: variante push con Cloud Tasks (si se prefiere callback worker).

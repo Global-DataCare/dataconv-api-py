@@ -105,6 +105,7 @@ def _job_to_dict(job: JobRecord) -> dict[str, Any]:
             "mode": req.mode,
             "inlineConfig": req.inline_config,
             "thid": req.thid,
+            "researchStudyReference": req.research_study_reference,
         },
         "configKeyUsed": {
             "alternateName": job.config_key_used.alternate_name,
@@ -152,6 +153,7 @@ def _dict_to_job(data: dict[str, Any]) -> JobRecord:
         mode=str(req_raw.get("mode", "persistent")),
         inline_config=req_raw.get("inlineConfig", {}) if isinstance(req_raw.get("inlineConfig"), dict) else {},
         thid=str(req_raw.get("thid", "")),
+        research_study_reference=str(req_raw.get("researchStudyReference", "")),
     )
     return JobRecord(
         job_id=str(data.get("jobId", "")),

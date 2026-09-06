@@ -1,4 +1,4 @@
-# Flow contract: document the human-reviewed research lifecycle and never represent AI coding proposals as approved data.
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -21,6 +21,8 @@ def test_high_level_docs_and_skill_preserve_the_review_storage_boundary() -> Non
         content = contract_path.read_text(encoding="utf-8")
         assert LIFECYCLE_MARKER in content, contract_path
         assert "NoopCodingAssistant" in content, contract_path
+        assert "/v1/coding/feedback" in content, contract_path
+        assert "code-display" in content, contract_path
         assert "human-reviewed" in content, contract_path
         assert "ValueSet/$expand?filter=" in content, contract_path
         assert "ValueSet/$validate-code" in content, contract_path

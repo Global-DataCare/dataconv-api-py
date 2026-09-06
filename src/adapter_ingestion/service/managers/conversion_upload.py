@@ -40,6 +40,8 @@ from ..defaults import load_software_id_preset
 from ..defaults import resolve_software_id_default_template
 from ..observability import log_event
 from ..research import build_upload_response_path
+from ..research_study import research_study_reference as optional_research_study_reference
+from ..research_study import require_research_study_reference
 from .dependencies import ApiManagerDependencies
 
 
@@ -125,6 +127,14 @@ class ConversionUploadManager:
         thid = str(_extract_payload_value(payload, "thid") or "").strip()
         if not thid:
             raise HTTPException(status_code=400, detail="thid is required in DIDComm payload")
+        try:
+            research_study_reference = (
+                require_research_study_reference(payload)
+                if str(sector or "").strip().lower() == "onehealth-research"
+                else optional_research_study_reference(payload)
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
         input_ref = str(_extract_payload_value(payload, "inputRef") or "").strip()
         attachment_payload = None if file is not None else _extract_didcomm_attachment_payload(
@@ -284,6 +294,7 @@ class ConversionUploadManager:
                 mode=normalized_mode,
                 inline_config=payload.get("inlineConfig", {}) if isinstance(payload.get("inlineConfig"), dict) else {},
                 thid=effective_thid,
+                research_study_reference=research_study_reference,
             )
         )
         log_event(

@@ -23,6 +23,10 @@ from ..runtime.adapters import (
     PubSubJobQueue,
 )
 from ..subject_links import InMemorySubjectLinkRecordStore, ProtectedSubjectLinkStore
+from ..ai import HttpCodingModelClient, HttpTerminologyClient, TerminologyCodingAssistant
+from ..ai.base import NoopCodingAssistant
+from ..ai.http import google_audience_token_provider
+from .coding_review import NoopCodingFeedbackSink
 from .settings import ServiceSettings
 
 
@@ -147,3 +151,36 @@ def build_control_plane(settings: ServiceSettings) -> PreconversionControlPlane:
         job_store=build_job_store(settings),
         job_queue=build_job_queue(settings),
     )
+
+
+def _coding_model_client(settings: ServiceSettings):
+    if not settings.coding_model_base_url:
+        return None
+    token_provider = (
+        google_audience_token_provider(settings.coding_model_audience)
+        if settings.coding_model_audience and not settings.coding_model_token
+        else None
+    )
+    return HttpCodingModelClient(
+        base_url=settings.coding_model_base_url,
+        token=settings.coding_model_token,
+        token_provider=token_provider,
+        model=settings.coding_model_id,
+        timeout_seconds=settings.coding_model_timeout_seconds,
+    )
+
+
+def build_coding_assistant(settings: ServiceSettings, context):
+    model = _coding_model_client(settings)
+    if model is None or not settings.terminology_base_url:
+        return NoopCodingAssistant()
+    terminology = HttpTerminologyClient(
+        base_url=settings.terminology_base_url,
+        token=settings.terminology_token,
+        timeout_seconds=settings.terminology_timeout_seconds,
+    )
+    return TerminologyCodingAssistant(context=context, terminology=terminology, ranker=model)
+
+
+def build_coding_feedback_sink(settings: ServiceSettings):
+    return _coding_model_client(settings) or NoopCodingFeedbackSink()

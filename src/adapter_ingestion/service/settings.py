@@ -179,6 +179,14 @@ class ServiceSettings:
     ica_base_url: str = ""
     ica_api_key: str = ""
     ica_timeout_seconds: int = 15
+    terminology_base_url: str = ""
+    terminology_token: str = ""
+    terminology_timeout_seconds: int = 15
+    coding_model_base_url: str = ""
+    coding_model_audience: str = ""
+    coding_model_token: str = ""
+    coding_model_id: str = ""
+    coding_model_timeout_seconds: int = 30
 
 
 def load_settings() -> ServiceSettings:
@@ -295,4 +303,12 @@ def load_settings() -> ServiceSettings:
         ica_base_url=_getenv("PRECONV_ICA_BASE_URL", ""),
         ica_api_key=_getenv("PRECONV_ICA_API_KEY", ""),
         ica_timeout_seconds=_getenv_int("PRECONV_ICA_TIMEOUT_SECONDS", 15),
+        terminology_base_url=_getenv("PRECONV_TERMINOLOGY_BASE_URL", ""),
+        terminology_token=_getenv("PRECONV_TERMINOLOGY_TOKEN", ""),
+        terminology_timeout_seconds=_getenv_int("PRECONV_TERMINOLOGY_TIMEOUT_SECONDS", 15),
+        coding_model_base_url=_getenv("PRECONV_CODING_MODEL_BASE_URL", ""),
+        coding_model_audience=_getenv("PRECONV_CODING_MODEL_AUDIENCE", ""),
+        coding_model_token=_getenv("PRECONV_CODING_MODEL_TOKEN", ""),
+        coding_model_id=_getenv("PRECONV_CODING_MODEL_ID", ""),
+        coding_model_timeout_seconds=_getenv_int("PRECONV_CODING_MODEL_TIMEOUT_SECONDS", 30),
     )

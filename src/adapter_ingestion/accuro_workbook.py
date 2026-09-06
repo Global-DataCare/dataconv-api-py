@@ -10,7 +10,7 @@ from typing import Any, Iterable
 from uuid import UUID, uuid4, uuid5
 import re
 
-from gdc_data_utils import ChargeItemClaim, DiagnosticReportClaim, InvoiceClaim
+from gdc_data_utils import ChargeItemClaim, ConditionClaim, InvoiceClaim
 
 
 ACCURO_MAPPING_REVISION_DATE = "2026-03-19"
@@ -139,7 +139,7 @@ ACCURO_SHEET_CONFIGS = (
     AccuroSheetConfig(
         "Pinol Vepahi", "pinol-vepahi", "animal",
         ("FechaVisita", "TipoVisita", "ESPECIE", "RAZA", "Anamnesis", "tratamiento", "FECHANACIMIENTO", "EDAD", "CLINICA", "Diagnostico"),
-        ("date", "family", "subject_animal-species", "subject_animal-breeds", "concept", "procedure_code-display", "subject_birthyear", "", "", DiagnosticReportClaim.CODE_TEXT),
+        ("date", "family", "subject_animal-species", "subject_animal-breeds", "concept", "procedure_code-display", "subject_birthyear", "", "", f"coding-input:{ConditionClaim.CODE}"),
         output_header_overrides=(("FECHANACIMIENTO", "AÑO NACIMIENTO"),),
         birth_date_headers=("FECHANACIMIENTO",),
         redacted_headers=("CLINICA",),
@@ -172,21 +172,21 @@ ACCURO_SHEET_CONFIGS = (
     AccuroSheetConfig(
         "Dr Baron dentistas", "dr-baron-dentistas", "person",
         ("Fecha", "Sexo", "Edad", "Tratamiento", "Patologia Dental", "Num Visitas"),
-        ("date", "subject_birthsex", "", "family", DiagnosticReportClaim.CODE_TEXT, ""),
+        ("date", "subject_birthsex", "", "family", f"coding-input:{ConditionClaim.CODE}", ""),
         age_header="Edad",
         birthyear_reference_header="Fecha",
     ),
     AccuroSheetConfig(
         "Sanios", "sanios", "person",
         ("IDENTIFICADOR", "SEXO", "DIRECCIÓN", "EDAD", "PATOLOGÍA", "DETALLE"),
-        ("", "subject_birthsex", "", "", DiagnosticReportClaim.CODE_TEXT, ""),
+        ("", "subject_birthsex", "", "", f"coding-input:{ConditionClaim.CODE}", ""),
         subject_key_headers=("IDENTIFICADOR",),
         redacted_headers=("IDENTIFICADOR",),
     ),
     AccuroSheetConfig(
         "Centro creciendo", "centro-creciendo", "person",
         ("IDENTIFICADOR", "SEXO", "DIRECCIÓN", "EDAD", "PATOLOGÍA", "Visitas por cliente"),
-        ("", "subject_birthsex", "", "", DiagnosticReportClaim.CODE_TEXT, ""),
+        ("", "subject_birthsex", "", "", f"coding-input:{ConditionClaim.CODE}", ""),
         subject_key_headers=("IDENTIFICADOR",),
         redacted_headers=("IDENTIFICADOR",),
     ),

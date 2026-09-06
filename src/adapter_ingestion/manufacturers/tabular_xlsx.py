@@ -455,6 +455,25 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                 values[claim_key] = value
         return values
 
+    def _coding_input_values(
+        self,
+        row: dict[str, str],
+        field_map: dict[str, str],
+        field_defaults: dict[str, str],
+    ) -> dict[str, str]:
+        values: dict[str, str] = {}
+        prefix = "coding-input:"
+        for mapped_field in sorted(field_map):
+            if not mapped_field.startswith(prefix):
+                continue
+            target_claim = mapped_field[len(prefix) :].strip()
+            if not target_claim.endswith(".code"):
+                continue
+            value = self._field_value(row, field_map, field_defaults, mapped_field)
+            if value:
+                values[target_claim] = value
+        return values
+
     def _source_column(
         self,
         field_map: dict[str, str],
@@ -762,6 +781,7 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                     owner_public_name=owner_public_name,
                     owner_public_relationship=str(owner_public_rules.get("relationship") or "organization-owner"),
                     flat_claims=self._flat_claim_values(row, field_map, field_defaults),
+                    coding_inputs=self._coding_input_values(row, field_map, field_defaults),
                 )
             )
 

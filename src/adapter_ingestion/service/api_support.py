@@ -449,6 +449,7 @@ def _job_log_fields(job: Any) -> dict[str, Any]:
         "manufacturerVersion": manufacturer_version,
         "softwareId": software_id,
         "country": str(getattr(request, "country", "") or "").strip(),
+        "researchStudyReference": str(getattr(request, "research_study_reference", "") or "").strip(),
         "status": str(getattr(job, "status", "") or "").strip(),
         "requestedBy": str(getattr(request, "requested_by", "") or "").strip(),
         "createdAt": str(getattr(job, "created_at", "") or "").strip(),
@@ -1076,6 +1077,11 @@ def _job_poll_response(
         "type": "ConversionResult",
         "response": entry_response,
     }
+    research_study_reference = str(
+        getattr(getattr(job, "request", None), "research_study_reference", "") or ""
+    ).strip()
+    if research_study_reference:
+        entry["meta"] = {"researchStudy": {"reference": research_study_reference}}
     if isinstance(output_resource, dict):
         entry["resource"] = output_resource
 

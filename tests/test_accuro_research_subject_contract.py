@@ -50,6 +50,7 @@ def test_secondary_use_pipeline_exposes_research_subject_as_the_twin_aggregate()
 
 def test_research_subject_search_accepts_fhir_parameters_and_returns_searchset_bundle() -> None:
     subject_identifier = "urn:uuid:11111111-1111-4111-8111-111111111111"
+    study_reference = "ResearchStudy/study-accuro-1"
     repository = InMemorySearchRepository()
     repository.upsert(
         vault_id="test__es__onehealth-research__clinic-a",
@@ -61,6 +62,7 @@ def test_research_subject_search_accepts_fhir_parameters_and_returns_searchset_b
                 "claims": {
                     "ResearchSubject.identifier": subject_identifier,
                     "ResearchSubject.status": "candidate",
+                    "ResearchSubject.study": study_reference,
                 }
             },
         },
@@ -84,6 +86,7 @@ def test_research_subject_search_accepts_fhir_parameters_and_returns_searchset_b
             "parameter": [
                 {"name": "identifier", "valueUri": subject_identifier},
                 {"name": "status", "valueCode": "candidate"},
+                {"name": "study", "valueReference": {"reference": study_reference}},
                 {"name": "_count", "valueInteger": 10},
             ],
         },

@@ -1,4 +1,5 @@
-# Flow contract: PostgreSQL indexes flat claims and returns the same complete human-reviewed resource promoted from draft storage.
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+# PostgreSQL indexes flat claims and returns the same complete human-reviewed resource promoted from draft storage.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -99,6 +100,35 @@ class PostgresSearchIntegrationTests(unittest.TestCase):
             ),
             [],
         )
+
+    def test_research_subject_search_is_scoped_by_standard_study_reference(self) -> None:
+        study_reference = "ResearchStudy/study-postgres-1"
+        research_subject = {
+            "resourceType": "ResearchSubject",
+            "id": f"subject-{uuid.uuid4().hex[:8]}",
+            "meta": {
+                "claims": {
+                    "ResearchSubject.identifier": f"urn:uuid:{uuid.uuid4()}",
+                    "ResearchSubject.status": "candidate",
+                    "ResearchSubject.study": study_reference,
+                }
+            },
+        }
+        self.assertTrue(self.repo.upsert(
+            vault_id=self.vault_id,
+            resource_type="ResearchSubject",
+            resource=research_subject,
+        ))
+        self.assertEqual(self.repo.search(
+            vault_id=self.vault_id,
+            resource_type="ResearchSubject",
+            search_params={"study": study_reference},
+        ), [research_subject])
+        self.assertEqual(self.repo.search(
+            vault_id=self.vault_id,
+            resource_type="ResearchSubject",
+            search_params={"study": "ResearchStudy/another-study"},
+        ), [])
 
 
 if __name__ == "__main__":

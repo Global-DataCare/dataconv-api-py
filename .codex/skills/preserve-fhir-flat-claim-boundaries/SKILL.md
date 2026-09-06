@@ -16,12 +16,13 @@ description: Preserve canonical GDC flat FHIR-like claims across API-CONFIG impo
 
 ## Boundary contract
 
-Keep these representations distinct:
+Keep these representations distinct for terminology-assisted research import:
 
 ```text
-API-CONFIG and resource.meta.claims: DiagnosticReport.code-text
-FHIR query parameter:               code:text
-DataConv physical search key:       diagnosticreport_code-text
+API-CONFIG source mapping: coding-input:Condition.code
+Draft-only metadata:       meta.codingProposals[]
+Confirmed flat claims:     Condition.code + Condition.code-display
+FHIR query parameters:     code and code:text
 ```
 
 - Replace the claim's resource separator `.` with `_` only in the physical
@@ -31,8 +32,10 @@ DataConv physical search key:       diagnosticreport_code-text
 - Never emit `diagnosticreport_code_text` for this claim.
 - Never expose the physical key in `API-CONFIG`, `meta.claims`, an SDK, or a
   public search contract.
-- Use `code-display` only for a display derived from a coded terminology.
-  Preserve uncoded local-language diagnosis text as `code-text`.
+- Use `code-display` only for the English display returned with a governed
+  terminology code.
+- For research imports, keep uncoded local-language diagnosis text in the
+  proposal input, not in authoritative `<Resource>.code-text` claims.
 
 ## TDD workflow
 
@@ -68,15 +71,19 @@ GCS -> Firestore draft -> human review -> PostgreSQL search index
   distinct semantic version. Any change to this duplication requires an
   explicit source-of-truth and reconciliation contract.
 
-Coding assistance is proposal-only. A model may suggest `system`, `code`,
-`display`, `confidence`, and `evidence`, but it must never approve a proposal or
-promote a draft. Persist accepted and rejected human decisions before treating
-them as a governed, de-identified, human-reviewed evaluation or training
-corpus. Never treat model output as its own label.
+Coding assistance is proposal-only. The terminology service must return every
+candidate allowed by sector, jurisdiction, resource and field. The model may
+rank that closed set with `recommendationPercent` and `evidence`, but it must
+never add a candidate, approve a proposal or promote a draft. Persist accepted
+and rejected human decisions plus an optional reason through
+`/v1/coding/feedback` before treating them as a governed, de-identified,
+human-reviewed evaluation or training corpus. Never train online from a single
+review and never treat model output as its own label.
 
-Verify the runtime constructor before claiming AI integration. The current
-service worker uses `NoopCodingAssistant`; remote inference and durable review
-decision capture remain pending until executable boundary tests prove them.
+Verify the runtime constructor and environment before claiming AI integration.
+The worker uses `NoopCodingAssistant` whenever either the terminology URL or
+coding-model URL is absent. With both configured, require executable tests for
+candidate retrieval, closed-set ranking and review feedback delivery.
 
 Treat a reusable model runtime as infrastructure behind separate, scoped
 adapters. Intent classification, question answering, and terminology coding are

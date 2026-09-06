@@ -1,4 +1,5 @@
-# Flow contract: processing keeps uploaded bytes in blob storage and persists generated resources as human-review drafts, never as searchable approved data.
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+# Processing keeps uploaded bytes in blob storage and persists generated resources as human-review drafts, never as searchable approved data.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -114,6 +115,7 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
                 requested_by="did:web:clinic.example:employee:loader",
                 mode="demo-ephemeral",
                 thid="job-research-001",
+                research_study_reference="ResearchStudy/study-job-processor-1",
             )
         )
 

@@ -9,7 +9,6 @@ from typing import Any
 import json
 import unicodedata
 
-from ..ai.base import NoopCodingAssistant
 from ..models import AdapterContext
 from ..manufacturers import get_adapter
 from ..pipeline import run_pipeline
@@ -20,6 +19,7 @@ from .observability import log_event
 from .research import DEFAULT_SECTOR, build_storage_namespace
 from .research_drafts import annotate_composition_message_for_research, persist_research_drafts
 from .settings import ServiceSettings
+from .factory import build_coding_assistant
 
 def _species_catalog_from_config(raw: dict[str, Any]) -> tuple[str, dict[str, str]]:
     if not isinstance(raw, dict):
@@ -200,6 +200,16 @@ def _build_context(
         embed_xhtml_content=bool(runtime_defaults.get("embedXhtmlContent", False)),
         data_use=str(runtime_defaults.get("dataUse", "secondary")).strip() or "secondary",
         log_composition=log_composition,
+        coding_context_fields=tuple(
+            str(item).strip()
+            for item in (
+                schema_config.get("codingContextFields", [])
+                if isinstance(schema_config, dict)
+                and isinstance(schema_config.get("codingContextFields", []), list)
+                else []
+            )
+            if str(item).strip()
+        ),
     )
 
 
@@ -293,7 +303,7 @@ def process_one_job(
         result = run_pipeline(
             records=records,
             context=context,
-            coding_assistant=NoopCodingAssistant(),
+            coding_assistant=build_coding_assistant(settings, context),
             row_issues=row_issues if isinstance(row_issues, list) else [],
         )
         if isinstance(adapter_report, dict) and adapter_report:

@@ -72,6 +72,16 @@ This is the reusable domain service behind any HTTP API.
 
 ## 6) Research review and searchable promotion
 
+New jobs in the explicit `onehealth-research` sector persist one stable FHIR `ResearchStudy` Reference from
+upload through review. Poll and patch requests must repeat it, and promoted
+ResearchSubject resources expose it only through the standard
+`ResearchSubject.study` claim. `study` is a correlation/search boundary, not a
+local authorization rule; GW remains responsible for Consent and SMART. Jobs
+stored before this contract may be polled without the reference, but cannot be
+promoted through the study-scoped patch flow.
+Other sectors retain the existing upload and patch contract without requiring
+this research-only field.
+
 The persistent research lifecycle is:
 
 ```text
@@ -94,12 +104,19 @@ Firestore hydration read for every search result, at the cost of duplication.
 Any later redesign must define one authoritative promoted-resource store and a
 reconciliation rule before removing either copy.
 
-Text-to-code inference is proposal-only. The AI boundary may return a code,
-system, display, confidence, and evidence, but only a human-reviewed decision
-may promote data. Accepted and rejected proposals can feed a governed,
-de-identified, human-reviewed evaluation or training dataset; model output is
-never ground truth by itself. The deployed worker currently constructs
-`NoopCodingAssistant`, so no remote AI service is integrated into this runtime.
+Text-to-code inference is proposal-only. The terminology boundary returns every
+governed candidate and the coding model adds a recommendation percentage plus
+evidence without removing alternatives. These values live in
+`meta.codingProposals[]`, outside authoritative flat claims. A human-reviewed
+choice writes only `<Resource>.code` and the English `<Resource>.code-display`.
+The review sends accepted and rejected candidate identifiers plus the optional
+reason to `/v1/coding/feedback`; feedback is durable evaluation/training input,
+not automatic online learning. The worker uses `NoopCodingAssistant` only when
+`PRECONV_TERMINOLOGY_BASE_URL` or `PRECONV_CODING_MODEL_BASE_URL` is absent.
+The GKE deployment script places service URLs, audience, model identifier and
+timeouts in the generated ConfigMap; it places
+`PRECONV_TERMINOLOGY_TOKEN` and `PRECONV_CODING_MODEL_TOKEN` in the generated
+Secret. Both the API and worker consume those generated resources.
 
 A reusable model runtime may expose separate contracts for application intents,
 question answering, and clinical coding. Existing intent classification does
@@ -147,6 +164,6 @@ Testing status:
 - The human-review promotion contract is covered by
   `tests/test_manager_conversion_patch.py`; PostgreSQL storage and return
   behavior is covered by `tests/test_runtime_postgres_search_integration.py`.
-- Remote coding-assistant integration and durable review-decision capture are
-  pending; the service worker uses `NoopCodingAssistant`.
+- Remote coding and review feedback are enabled only when their service URLs
+  are configured; otherwise the service worker uses `NoopCodingAssistant`.
 - Cloud Tasks push-mode support remains an evolutionary path.

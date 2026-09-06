@@ -30,6 +30,7 @@ class ConversionBatchManager:
             tenant_id=tenant_id,
             jurisdiction=jurisdiction,
             sector=sector,
+            software_id=software_id,
             resource_type=resource_type,
             request=request,
             body=body,

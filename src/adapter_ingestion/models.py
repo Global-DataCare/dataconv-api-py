@@ -32,6 +32,7 @@ class AdapterContext:
     embed_xhtml_content: bool = False
     data_use: str = "individual"  # individual | secondary
     log_composition: bool = False
+    coding_context_fields: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,7 @@ class CanonicalRecord:
     owner_public_name: str = ""
     owner_public_relationship: str = ""
     flat_claims: dict[str, str] = field(default_factory=dict)
+    coding_inputs: dict[str, str] = field(default_factory=dict)
 
 
 def now_iso() -> str:

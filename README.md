@@ -32,19 +32,37 @@ Repository documentation:
 FHIR-like flat claims, physical indexes, and FHIR queries are separate layers:
 
 ```text
-API-CONFIG:          DiagnosticReport.code-text
-resource.meta.claims DiagnosticReport.code-text
-database index:      diagnosticreport_code-text
-FHIR search:         DiagnosticReport?code:text=diagnóstico
+API-CONFIG:          coding-input:Condition.code
+draft metadata:      meta.codingProposals[]
+confirmed claims:    Condition.code + Condition.code-display
+FHIR search:         Condition?code=<system>|<code> or Condition?code:text=<English display>
 ```
 
-DataConv imports the canonical flat claim from `API-CONFIG`, materializes a
-`DiagnosticReport`, and translates the FHIR `code:text` modifier only at the
-search boundary. The physical index key is internal and preserves the hyphen.
+DataConv imports diagnosis/pathology text as an unconfirmed coding input,
+obtains all governed candidates, and materializes a `Condition` draft without
+claiming that source text is an authoritative code. Human review selects one
+candidate; only then are `Condition.code` and its English
+`Condition.code-display` indexed. The physical index keys remain internal.
 Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
 whose catalog is generated from `gdc-common-utils-ts`.
 
 ## Research review, persistence, and coding-assistance boundary
+
+Every new upload whose sector is explicitly `onehealth-research` carries a literal FHIR Reference object such as
+`"researchStudy": {"reference": "ResearchStudy/study-2026-01"}`. DataConv
+persists that reference in the job, copies it to the standard
+`ResearchSubject.study` flat claim, requires the same reference when polling or
+patching the conversion, and requires the standard `study` parameter when
+searching ResearchSubject. This is correlation and dataset isolation only:
+DataConv does not infer Consent, SMART scope or employee authority from the
+reference; those controls remain in GW. Other conversion sectors keep their
+existing contract and may omit `researchStudy`.
+
+Firestore jobs created before this field existed can still be polled without
+it so an already-running conversion is not lost. That compatibility is
+read-only: an unscoped legacy conversion cannot be promoted through `_patch`.
+No personal source identifier is copied into the study reference or public
+search index.
 
 The persistent research lifecycle is deliberately:
 
@@ -75,9 +93,11 @@ evidence; it cannot approve or promote a resource. Accepted and rejected
 proposals may become a governed, de-identified, human-reviewed evaluation or
 training corpus, but must never be collected as automatic ground truth.
 
-The deployed worker currently uses `NoopCodingAssistant`, so it performs no AI
-inference. A remote model service and durable review-decision capture are
-future integrations, not current runtime behavior.
+The worker uses `NoopCodingAssistant` only when the terminology or coding-model
+URL is absent. With both configured it calls the terminology JSON:API, sends
+the closed candidate set and allowlisted row context to `/v1/coding/rank`, and
+posts explicit human corrections to `/v1/coding/feedback`. Feedback is an
+evaluation/training record; it never changes model weights online.
 
 A general model runtime can support separate intent, question-answering, and
 clinical-coding adapters, but an intent endpoint must not be reused as if it

@@ -24,6 +24,7 @@ from .dependencies import ApiManagerDependencies
 from ..coding_review import apply_coding_reviews
 from ..research_study import RESEARCH_SUBJECT_STUDY_CLAIM
 from ..research_study import research_study_reference as optional_research_study_reference
+from ..research_study import sector_requires_research_study
 
 
 def _build_operation_outcome(*, message: str, diagnostics: str) -> dict[str, Any]:
@@ -139,7 +140,7 @@ def promote_resources(
     ):
         raise HTTPException(status_code=404, detail="conversion thread not found")
     research_study_reference = str(job.request.research_study_reference or "").strip()
-    if str(sector or "").strip().lower() == "onehealth-research" and not research_study_reference:
+    if sector_requires_research_study(sector) and not research_study_reference:
         raise HTTPException(status_code=409, detail="legacy research conversion has no ResearchStudy context")
     if research_study_reference and not requested_study:
         raise HTTPException(status_code=400, detail="researchStudy.reference is required")

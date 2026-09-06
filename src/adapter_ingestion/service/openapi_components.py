@@ -451,7 +451,7 @@ def _conversion_schemas() -> dict[str, Any]:
                 "send": {"type": "boolean", "default": False},
                 "researchStudy": {
                     "type": "string",
-                    "description": "JSON-serialized FHIR Reference object; required when sector is onehealth-research.",
+                    "description": "JSON-serialized FHIR Reference object; required for onehealth-research and animal-research.",
                     "example": '{"reference":"ResearchStudy/study-2026-01"}',
                 },
             },
@@ -520,7 +520,7 @@ def _conversion_schemas() -> dict[str, Any]:
                 "send": {"type": "boolean", "default": False},
                 "researchStudy": {
                     "type": "object",
-                    "description": "Required when sector is onehealth-research; optional for other conversion sectors.",
+                    "description": "Required for onehealth-research and animal-research; optional for other conversion sectors.",
                     "required": ["reference"],
                     "properties": {"reference": {"type": "string", "example": "ResearchStudy/study-2026-01"}},
                     "additionalProperties": True,

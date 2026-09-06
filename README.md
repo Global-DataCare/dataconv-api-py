@@ -51,7 +51,8 @@ whose catalog is generated from `gdc-common-utils-ts`.
 
 ## Research review, persistence, and coding-assistance boundary
 
-Every new upload whose sector is explicitly `onehealth-research` carries a literal FHIR Reference object such as
+Every new upload whose sector is explicitly `onehealth-research` or
+`animal-research` carries a literal FHIR Reference object such as
 `"researchStudy": {"reference": "ResearchStudy/study-2026-01"}`. DataConv
 persists that reference in the job, copies it to the standard
 `ResearchSubject.study` flat claim, requires the same reference when polling or

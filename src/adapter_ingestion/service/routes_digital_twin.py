@@ -38,7 +38,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
             "`application/didcomm-plain+json` with top-level DIDComm `attachments[]` carrying the "
             "input file via `data.base64` or `data.links`.\n\n"
             "Use DIDComm metadata fields `iss`, `type`, `thid`, `jti`, `iat`, `exp`. "
-            "For `sector=onehealth-research`, `researchStudy.reference` is required and persists the literal FHIR ResearchStudy context. "
+            "For `sector=onehealth-research` or `sector=animal-research`, `researchStudy.reference` is required and persists the literal FHIR ResearchStudy context. "
             "`thid` is required for correlation and `exp >= iat` is required."
         ),
     )
@@ -53,7 +53,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
             "`application/didcomm-plain+json` with top-level DIDComm `attachments[]` carrying the "
             "input file via `data.base64` or `data.links`.\n\n"
             "Use DIDComm metadata fields `iss`, `type`, `thid`, `jti`, `iat`, `exp`. "
-            "For `sector=onehealth-research`, `researchStudy.reference` is required and persists the literal FHIR ResearchStudy context. "
+            "For `sector=onehealth-research` or `sector=animal-research`, `researchStudy.reference` is required and persists the literal FHIR ResearchStudy context. "
             "`thid` is required for correlation and `exp >= iat` is required."
         ),
     )

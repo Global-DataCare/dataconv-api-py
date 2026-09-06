@@ -120,13 +120,33 @@ class OrganizationTenantActivationManager:
         id_token: str,
         vp_token: str,
     ) -> dict[str, Any]:
-        normalized_tenant, _, _, _, identity, verification = self._authorize(
+        (
+            normalized_tenant,
+            normalized_jurisdiction,
+            normalized_sector,
+            network_kind,
+            identity,
+            verification,
+        ) = self._authorize(
             tenant_id=tenant_id,
             jurisdiction=jurisdiction,
             sector=sector,
             id_token=id_token,
             vp_token=vp_token,
         )
+        tenant = self._control_plane.resolve_config(ConfigKey(
+            alternate_name=normalized_tenant,
+            manufacturer="dataconv-tenant",
+            sector=normalized_sector,
+            manufacturer_version="v1",
+            country=normalized_jurisdiction,
+        ))
+        tenant_content = tenant.content if tenant is not None and isinstance(tenant.content, dict) else {}
+        if (
+            tenant_content.get("active") is not True
+            or str(tenant_content.get("networkKind") or "").strip().lower() != network_kind
+        ):
+            raise PermissionError("DataConv tenant is not active for this network, sector and jurisdiction")
         subject = str(verification.get("controller") or getattr(identity, "subject", "") or "").strip()
         token, expires_in, _ = issue_session_access_token(
             subject=subject,

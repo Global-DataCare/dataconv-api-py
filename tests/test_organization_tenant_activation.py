@@ -1,4 +1,4 @@
-# Flow contract: portal activation validates OIDC plus the controller VP with Connect ICA before persisting a scoped DataConv tenant record.
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 
 from __future__ import annotations
 
@@ -116,6 +116,14 @@ def test_controller_proof_exchanges_for_a_short_tenant_bound_upload_token() -> N
         identity_validator=lambda _: SimpleNamespace(subject="oidc-user"),
     )
 
+    manager.activate(
+        tenant_id="7654321",
+        jurisdiction="CA-BC",
+        sector="animal-research",
+        id_token="signed-id-token",
+        vp_token="signed-controller-vp",
+    )
+
     result = manager.exchange_upload_token(
         tenant_id="7654321",
         jurisdiction="CA-BC",
@@ -128,3 +136,30 @@ def test_controller_proof_exchanges_for_a_short_tenant_bound_upload_token() -> N
     assert claims["organization"] == "7654321"
     assert claims["scope"] == "dataconv.upload"
     assert result["expires_in"] == 300
+
+
+def test_controller_proof_cannot_exchange_before_the_scoped_tenant_is_active() -> None:
+    control_plane = PreconversionControlPlane(InMemoryConfigStore(), InMemoryJobStore(), InMemoryJobQueue())
+    settings = SimpleNamespace(
+        network_mode="test-network",
+        default_audience_did="https://dataconv.example",
+        exchange_session_token_secret="test-secret",
+        exchange_session_token_ttl_seconds=300,
+        demo_mode=False,
+        exchange_allow_insecure_assertions=False,
+    )
+    manager = OrganizationTenantActivationManager(
+        settings=settings,
+        control_plane=control_plane,
+        verifier=_Verifier(),
+        identity_validator=lambda _: SimpleNamespace(subject="oidc-user"),
+    )
+
+    with pytest.raises(PermissionError, match="DataConv tenant is not active"):
+        manager.exchange_upload_token(
+            tenant_id="7654321",
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            id_token="signed-id-token",
+            vp_token="signed-controller-vp",
+        )

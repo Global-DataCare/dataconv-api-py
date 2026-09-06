@@ -8,6 +8,9 @@ Clinical pre-conversion repository with two execution modes:
 Organization controllers exchange a fresh signed OIDC token plus the exact
 Connect ICA controller VP at
 `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/organization/research/auth/_exchange`.
+The exact DataConv tenant route must already be active for the current network,
+sector and jurisdiction; portals may idempotently refresh it through
+`organization/tenant/_activate` immediately before exchange.
 The short-lived result is limited to `dataconv.upload` and that public legal
 `tenant_id`; network, jurisdiction and sector stay separate storage dimensions.
 

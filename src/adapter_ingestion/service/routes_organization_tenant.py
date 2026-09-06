@@ -14,6 +14,11 @@ def register_organization_tenant_routes(app: Any, *, activation_manager: Any) ->
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/organization/research/auth/_exchange",
         tags=["1.3 Organization Tenant Activation"],
         summary="Exchange a current ICA controller proof for a tenant-bound research upload token",
+        description=(
+            "Requires the exact DataConv tenant to be active for the current network, sector and "
+            "jurisdiction. Call the idempotent organization/tenant/_activate route first when "
+            "refreshing an existing portal tenant."
+        ),
     )
     async def exchange_controller_research_upload_token(
         jurisdiction: str,
@@ -30,6 +35,8 @@ def register_organization_tenant_routes(app: Any, *, activation_manager: Any) ->
                 id_token=str(body.get("id_token") or body.get("idToken") or "").strip(),
                 vp_token=str(body.get("vp_token") or body.get("vpToken") or "").strip(),
             )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
 

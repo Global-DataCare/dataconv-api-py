@@ -10,7 +10,13 @@ from urllib.parse import urlparse
 
 
 RESEARCH_SUBJECT_STUDY_CLAIM = "ResearchSubject.study"
+RESEARCH_STUDY_SCOPED_SECTORS = frozenset({"onehealth-research", "animal-research"})
 _FHIR_ID = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
+
+
+def sector_requires_research_study(sector: Any) -> bool:
+    """Return whether new conversions in the sector require study correlation."""
+    return str(sector or "").strip().lower() in RESEARCH_STUDY_SCOPED_SECTORS
 
 
 def normalize_research_study_reference(reference: Any) -> str:

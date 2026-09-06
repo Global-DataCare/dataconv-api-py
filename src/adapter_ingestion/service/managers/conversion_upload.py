@@ -42,6 +42,7 @@ from ..observability import log_event
 from ..research import build_upload_response_path
 from ..research_study import research_study_reference as optional_research_study_reference
 from ..research_study import require_research_study_reference
+from ..research_study import sector_requires_research_study
 from .dependencies import ApiManagerDependencies
 
 
@@ -130,7 +131,7 @@ class ConversionUploadManager:
         try:
             research_study_reference = (
                 require_research_study_reference(payload)
-                if str(sector or "").strip().lower() == "onehealth-research"
+                if sector_requires_research_study(sector)
                 else optional_research_study_reference(payload)
             )
         except ValueError as exc:

@@ -286,7 +286,7 @@ class ServiceApiTests(unittest.TestCase):
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
         # The exact literal is the release/OpenAPI synchronization contract.
-        self.assertEqual(schema.get("info", {}).get("version"), "0.7.8")
+        self.assertEqual(schema.get("info", {}).get("version"), "0.7.9")
         tag_names = [tag.get("name") for tag in schema.get("tags", []) if isinstance(tag, dict)]
         self.assertIn("3.1 Publisher Config Request", tag_names)
         self.assertIn("3.2 Publisher Config Response", tag_names)
@@ -803,30 +803,33 @@ class ServiceApiTests(unittest.TestCase):
         self.assertIsNotNone(job)
         self.assertEqual(self._blob_store().get_bytes(job.request.input_ref), b"xlsx-from-http-didcomm")
 
-    def test_http_upload_rejects_a_research_conversion_without_research_study(self) -> None:
+    def test_http_upload_rejects_human_and_animal_research_without_research_study(self) -> None:
         self.assertIsNotNone(TestClient)
-        response = TestClient(self.app).post(
-            "/tenant-a/cds-es/v1/onehealth-research/digitaltwin/qvet/excel/_upload",
-            headers={
-                "Content-Type": "application/didcomm-plain+json",
-                "Authorization": "Bearer demo-token",
-            },
-            content=json.dumps({
-                "iss": "did:web:test.example:employee:loader",
-                "type": "https://didcomm.org/plaintext/2.0/message",
-                "thid": "job-missing-study-001",
-                "jti": "job-missing-study-001",
-                "iat": self._DEFAULT_IAT,
-                "exp": self._DEFAULT_EXP,
-                "inputRef": "mem://uploads/input.xlsx",
-                "body": {"resourceType": "Bundle", "type": "batch", "data": [], "total": 0},
-            }),
-        )
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(
-            response.json()["body"]["issues"]["issue"][0]["diagnostics"],
-            "researchStudy.reference is required",
-        )
+        for sector in ("onehealth-research", "animal-research"):
+            with self.subTest(sector=sector):
+                thread_id = f"job-missing-study-{sector}"
+                response = TestClient(self.app).post(
+                    f"/tenant-a/cds-es/v1/{sector}/digitaltwin/qvet/excel/_upload",
+                    headers={
+                        "Content-Type": "application/didcomm-plain+json",
+                        "Authorization": "Bearer demo-token",
+                    },
+                    content=json.dumps({
+                        "iss": "did:web:test.example:employee:loader",
+                        "type": "https://didcomm.org/plaintext/2.0/message",
+                        "thid": thread_id,
+                        "jti": thread_id,
+                        "iat": self._DEFAULT_IAT,
+                        "exp": self._DEFAULT_EXP,
+                        "inputRef": "mem://uploads/input.xlsx",
+                        "body": {"resourceType": "Bundle", "type": "batch", "data": [], "total": 0},
+                    }),
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.json()["body"]["issues"]["issue"][0]["diagnostics"],
+                    "researchStudy.reference is required",
+                )
 
     def test_http_upload_preserves_non_research_compatibility_without_research_study(self) -> None:
         self.assertIsNotNone(TestClient)

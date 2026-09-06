@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.7.9 - 2026-09-06
+
+- Require the same stable `ResearchStudy` correlation for new
+  `animal-research` conversions as for `onehealth-research`, including upload
+  validation and review promotion. Non-research sectors remain compatible
+  without a study reference.
+
 ## 0.7.8 - 2026-09-06
 
 - Require the exact network-, sector- and jurisdiction-scoped DataConv tenant

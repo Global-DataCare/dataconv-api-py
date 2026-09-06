@@ -55,6 +55,13 @@ class CodingRanker(Protocol):
     def rank(self, request: CodingRankRequest) -> list[CodingSuggestion]: ...
 
 
+class UnrankedCodingRanker:
+    """Keep authoritative terminology candidates available when no model is configured."""
+
+    def rank(self, request: CodingRankRequest) -> list[CodingSuggestion]:
+        return []
+
+
 def _candidate_id(candidate: TerminologyCandidate) -> str:
     identity = "|".join(
         (candidate.resource_type, candidate.field, candidate.system, candidate.code)
@@ -76,6 +83,7 @@ class TerminologyCodingAssistant:
         self._context = context
         self._terminology = terminology
         self._ranker = ranker
+        self._candidate_cache: dict[TerminologySearchRequest, tuple[TerminologyCandidate, ...]] = {}
 
     def suggest_codes(self, record: CanonicalRecord) -> list[CodingSuggestion]:
         suggestions: list[CodingSuggestion] = []
@@ -94,8 +102,12 @@ class TerminologyCodingAssistant:
                 resource_type=resource_type,
                 field=str(field),
             )
+            resolved = self._candidate_cache.get(request)
+            if resolved is None:
+                resolved = tuple(self._terminology.search(request))
+                self._candidate_cache[request] = resolved
             candidates = []
-            for candidate in self._terminology.search(request):
+            for candidate in resolved:
                 enriched = replace(candidate, resource_type=resource_type, field=str(field))
                 candidates.append(replace(enriched, candidate_id=_candidate_id(enriched)))
             if not candidates:

@@ -15,7 +15,15 @@
       "location_address-district": "PROVINCIA",
       "encounter_participant-type": "GRUPO PERSONAL",
       "encounter_service-type": "Descripcion2"
-    }
+    },
+    "codingInputRules": [
+      {
+        "targetClaim": "Condition.code",
+        "sourceColumn": "Descripcion2",
+        "sectionEquals": ["clinica"],
+        "valueContainsAny": ["alergia", "cushing", "artrosis"]
+      }
+    ]
   },
   "runtimeDefaults": {
     "manufacturer": "qvet",

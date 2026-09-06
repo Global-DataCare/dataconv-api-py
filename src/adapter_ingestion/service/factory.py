@@ -23,7 +23,7 @@ from ..runtime.adapters import (
     PubSubJobQueue,
 )
 from ..subject_links import InMemorySubjectLinkRecordStore, ProtectedSubjectLinkStore
-from ..ai import HttpCodingModelClient, HttpTerminologyClient, TerminologyCodingAssistant
+from ..ai import HttpCodingModelClient, HttpTerminologyClient, TerminologyCodingAssistant, UnrankedCodingRanker
 from ..ai.base import NoopCodingAssistant
 from ..ai.http import google_audience_token_provider
 from .coding_review import NoopCodingFeedbackSink
@@ -172,8 +172,10 @@ def _coding_model_client(settings: ServiceSettings):
 
 def build_coding_assistant(settings: ServiceSettings, context):
     model = _coding_model_client(settings)
-    if model is None or not settings.terminology_base_url:
+    if not settings.terminology_base_url:
         return NoopCodingAssistant()
+    if model is None:
+        model = UnrankedCodingRanker()
     terminology = HttpTerminologyClient(
         base_url=settings.terminology_base_url,
         token=settings.terminology_token,

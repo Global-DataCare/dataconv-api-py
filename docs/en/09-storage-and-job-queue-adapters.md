@@ -115,7 +115,9 @@ choice writes only `<Resource>.code` and the English `<Resource>.code-display`.
 The review sends accepted and rejected candidate identifiers plus the optional
 reason to `/v1/coding/feedback`; feedback is durable evaluation/training input,
 not automatic online learning. The worker uses `NoopCodingAssistant` only when
-`PRECONV_TERMINOLOGY_BASE_URL` or `PRECONV_CODING_MODEL_BASE_URL` is absent.
+`PRECONV_TERMINOLOGY_BASE_URL` is absent. Without
+`PRECONV_CODING_MODEL_BASE_URL`, governed candidates remain available for
+human selection with zero recommendation and explicit unranked evidence.
 The GKE deployment script places service URLs, audience, model identifier and
 timeouts in the generated ConfigMap; it places
 `PRECONV_TERMINOLOGY_TOKEN` and `PRECONV_CODING_MODEL_TOKEN` in the generated

@@ -460,6 +460,11 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         row: dict[str, str],
         field_map: dict[str, str],
         field_defaults: dict[str, str],
+        *,
+        section: str = "",
+        family: str = "",
+        subfamily: str = "",
+        coding_input_rules: tuple[dict[str, Any], ...] = (),
     ) -> dict[str, str]:
         values: dict[str, str] = {}
         prefix = "coding-input:"
@@ -472,7 +477,52 @@ class TabularXlsxAdapter(ManufacturerAdapter):
             value = self._field_value(row, field_map, field_defaults, mapped_field)
             if value:
                 values[target_claim] = value
+        coordinates = {
+            "section": normalize_token(section),
+            "family": normalize_token(family),
+            "subfamily": normalize_token(subfamily),
+        }
+        for rule in coding_input_rules:
+            target_claim = str(rule.get("targetClaim", "")).strip()
+            source_column = str(rule.get("sourceColumn", "")).strip()
+            if not target_claim.endswith(".code") or not source_column:
+                continue
+            if any(
+                allowed
+                and coordinates[coordinate] not in allowed
+                for coordinate, allowed in (
+                    (
+                        "section",
+                        {normalize_token(value) for value in rule.get("sectionEquals", []) if str(value).strip()},
+                    ),
+                    (
+                        "family",
+                        {normalize_token(value) for value in rule.get("familyEquals", []) if str(value).strip()},
+                    ),
+                    (
+                        "subfamily",
+                        {normalize_token(value) for value in rule.get("subfamilyEquals", []) if str(value).strip()},
+                    ),
+                )
+            ):
+                continue
+            value = str(row.get(source_column, "") or "").strip()
+            contains_any = {
+                normalize_token(item)
+                for item in rule.get("valueContainsAny", [])
+                if str(item).strip()
+            }
+            normalized_value = normalize_token(value)
+            if not value or (contains_any and not any(token in normalized_value for token in contains_any)):
+                continue
+            values[target_claim] = value
         return values
+
+    def _build_coding_input_rules(self, schema: dict[str, Any]) -> tuple[dict[str, Any], ...]:
+        raw = schema.get("codingInputRules", [])
+        if not isinstance(raw, list):
+            return ()
+        return tuple(dict(item) for item in raw if isinstance(item, dict))
 
     def _source_column(
         self,
@@ -628,6 +678,7 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         field_map = self._build_field_map(schema)
         field_defaults = self._build_field_defaults(schema)
         owner_public_rules = self._build_owner_public_rules(schema)
+        coding_input_rules = self._build_coding_input_rules(schema)
         species_contains = self._build_species_contains(schema)
         raw_loinc_overrides: dict[str, str] = {}
         if isinstance(schema.get("documentCategoryLoincBySectionFamily"), dict):
@@ -781,7 +832,15 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                     owner_public_name=owner_public_name,
                     owner_public_relationship=str(owner_public_rules.get("relationship") or "organization-owner"),
                     flat_claims=self._flat_claim_values(row, field_map, field_defaults),
-                    coding_inputs=self._coding_input_values(row, field_map, field_defaults),
+                    coding_inputs=self._coding_input_values(
+                        row,
+                        field_map,
+                        field_defaults,
+                        section=section,
+                        family=family,
+                        subfamily=subfamily,
+                        coding_input_rules=coding_input_rules,
+                    ),
                 )
             )
 

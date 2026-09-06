@@ -120,6 +120,18 @@ def test_row_context_is_ranked_without_dropping_ambiguous_candidates() -> None:
     }
 
 
+def test_duplicate_coding_text_reuses_one_terminology_lookup() -> None:
+    terminology = FakeTerminologyClient()
+    assistant = TerminologyCodingAssistant(
+        context=_context(), terminology=terminology, ranker=FakeRanker()
+    )
+
+    assistant.suggest_codes(_record())
+    assistant.suggest_codes(_record())
+
+    assert len(terminology.requests) == 1
+
+
 def test_pipeline_keeps_unconfirmed_candidates_outside_flat_claims() -> None:
     assistant = TerminologyCodingAssistant(
         context=_context(), terminology=FakeTerminologyClient(), ranker=FakeRanker()

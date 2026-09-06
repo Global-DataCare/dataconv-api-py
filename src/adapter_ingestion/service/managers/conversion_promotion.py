@@ -25,6 +25,7 @@ from ..coding_review import apply_coding_reviews
 from ..research_study import RESEARCH_SUBJECT_STUDY_CLAIM
 from ..research_study import research_study_reference as optional_research_study_reference
 from ..research_study import sector_requires_research_study
+from ..research_study import sector_requires_professional_research_auth
 
 
 def _build_operation_outcome(*, message: str, diagnostics: str) -> dict[str, Any]:
@@ -102,6 +103,10 @@ def promote_resources(
     expires_at = _require_epoch_seconds(payload, "exp")
     if expires_at < issued_at:
         raise HTTPException(status_code=400, detail="exp must be greater than or equal to iat")
+    try:
+        requested_study = optional_research_study_reference(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     auth_header = ""
     try:
@@ -112,7 +117,10 @@ def promote_resources(
         payload,
         deps.settings,
         authorization_header=auth_header,
+        required_scopes={"dataconv.review"},
         expected_organization=tenant_id,
+        expected_research_study=requested_study,
+        require_professional_research=sector_requires_professional_research_auth(sector, deps.settings),
     )
 
     payload_thid = str(payload.get("thid", "")).strip()
@@ -122,10 +130,6 @@ def promote_resources(
     thid = payload_thid or query_thid
     if not thid:
         raise HTTPException(status_code=400, detail="thid is required in DIDComm payload or query")
-    try:
-        requested_study = optional_research_study_reference(payload)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
     job = deps.control_plane.get_job_by_thid(thid)
     if not job:
         raise HTTPException(status_code=404, detail="conversion thread not found")

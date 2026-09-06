@@ -23,6 +23,7 @@ BATCH_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{sof
 SEARCH_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{resource-type}/_search"
 EXCHANGE_PATH = "/exchange"
 OAUTH_TOKEN_PATH = "/oauth/token"
+PROFESSIONAL_RESEARCH_EXCHANGE_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange"
 AUTH_DCR_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_dcr"
 AUTH_DCR_RESPONSE_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_dcr-response"
 AUTH_CODE_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code"

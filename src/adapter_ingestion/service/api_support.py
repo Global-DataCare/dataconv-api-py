@@ -703,29 +703,53 @@ def _enforce_auth_context(
     require_token: bool = False,
     required_scopes: set[str] | None = None,
     expected_organization: str = "",
+    expected_research_study: str = "",
+    require_professional_research: bool = False,
 ) -> None:
     demo_mode = bool(getattr(settings, "demo_mode", True))
     bearer_token = _extract_bearer_token(authorization_header)
 
+    if require_professional_research and not bearer_token:
+        raise HTTPException(status_code=401, detail="Bearer token required for professional research operation")
+
     if bearer_token:
         try:
-            session_claims = validate_session_access_token(bearer_token, settings)
+            session_claims = validate_session_access_token(
+                bearer_token,
+                settings,
+                force_secure=require_professional_research,
+            )
             token_organization = str(session_claims.get("organization") or "").strip().lower()
             required_organization = str(expected_organization or "").strip().lower()
             if required_organization and token_organization != required_organization:
                 raise HTTPException(status_code=403, detail="Bearer token organization does not match tenant")
-            if required_scopes and not demo_mode:
+            if required_scopes and (not demo_mode or require_professional_research):
                 available = {item for item in str(session_claims.get("scope") or "").split(" ") if item}
                 available.update({item for item in session_claims.get("scopes", []) if isinstance(item, str) and item})
                 missing = sorted(scope for scope in required_scopes if not _scope_is_satisfied(scope, available))
                 if missing:
                     raise HTTPException(status_code=403, detail=f"insufficient scope: missing {missing[0]}")
+            if require_professional_research:
+                if str(session_claims.get("token_profile") or "").strip() != "professional_research":
+                    raise HTTPException(status_code=403, detail="Bearer token is not a professional research token")
+                actor = str(session_claims.get("actor") or "").strip()
+                subject = str(session_claims.get("sub") or "").strip()
+                if not actor or actor != subject:
+                    raise HTTPException(status_code=403, detail="Bearer token professional actor binding is invalid")
+                payload_issuer = _extract_iss(payload)
+                if payload_issuer and payload_issuer != actor:
+                    raise HTTPException(status_code=403, detail="DIDComm issuer does not match Bearer token professional actor")
+                if str(session_claims.get("purpose") or "").strip() != "HRESCH":
+                    raise HTTPException(status_code=403, detail="Bearer token research purpose is invalid")
+                token_study = str(session_claims.get("study") or "").strip()
+                if not expected_research_study or token_study != str(expected_research_study).strip():
+                    raise HTTPException(status_code=403, detail="Bearer token ResearchStudy does not match request")
             return
         except HTTPException:
-            if not demo_mode:
+            if not demo_mode or require_professional_research:
                 raise
         except Exception:
-            if not demo_mode:
+            if not demo_mode or require_professional_research:
                 raise HTTPException(status_code=401, detail="invalid or expired Bearer token")
 
     if not demo_mode:

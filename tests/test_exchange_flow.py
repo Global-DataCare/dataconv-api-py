@@ -1,4 +1,5 @@
-# Flow contract: exchanged DataConv tokens authorize only their own tenant and granted operation scopes.
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
+# Exchanged DataConv tokens authorize only their own tenant and granted operation scopes.
 
 from __future__ import annotations
 
@@ -161,6 +162,7 @@ class ExchangeFlowTests(unittest.TestCase):
             "iat": 1760000000,
             "exp": 1760003600,
             "inputRef": "mem://uploads/input.xlsx",
+            "researchStudy": {"reference": "ResearchStudy/study-exchange-001"},
         }
         upload_response = self.client.post(
             "/tenant-a/cds-es/v1/onehealth-research/digitaltwin/qvet/Composition/_upload",
@@ -184,6 +186,7 @@ class ExchangeFlowTests(unittest.TestCase):
             "iat": 1760000000,
             "exp": 1760003600,
             "inputRef": "mem://uploads/input.xlsx",
+            "researchStudy": {"reference": "ResearchStudy/study-exchange-002"},
         }
         upload_response = self.client.post(
             "/VATES-A00000001/cds-es/v1/onehealth-research/digitaltwin/qvet/Composition/_upload",

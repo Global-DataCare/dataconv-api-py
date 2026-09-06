@@ -9,7 +9,7 @@ from ..api_support import HTTPException, _enforce_auth_context, _enforce_support
 from ..observability import log_event
 from .dependencies import ApiManagerDependencies
 from ..research import build_storage_namespace
-from ..research_study import normalize_research_study_reference
+from ..research_study import normalize_research_study_reference, sector_requires_professional_research_auth
 
 
 FHIR_R4_FINANCIAL_SEARCH_PARAMETERS: dict[str, frozenset[str]] = {
@@ -96,7 +96,7 @@ class ConversionSearchManager:
         except Exception:
             pass
 
-        if not demo_mode:
+        if not demo_mode and str(resource_type or "").strip() != "ResearchSubject":
             bearer_token = _extract_bearer_token(auth_header)
             dummy_payload = {"id_token": bearer_token} if bearer_token else {}
             _enforce_auth_context(
@@ -143,6 +143,19 @@ class ConversionSearchManager:
                 search_params["study"] = normalize_research_study_reference(raw_study)
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
+            if not demo_mode:
+                bearer_token = _extract_bearer_token(auth_header)
+                dummy_payload = {"id_token": bearer_token} if bearer_token else {}
+                _enforce_auth_context(
+                    dummy_payload,
+                    self._deps.settings,
+                    authorization_header=auth_header,
+                    require_token=True,
+                    required_scopes={"dataconv.read"},
+                    expected_organization=tenant_id,
+                    expected_research_study=str(search_params["study"]),
+                    require_professional_research=sector_requires_professional_research_auth(sector, self._deps.settings),
+                )
 
         vault_id = build_storage_namespace(
             network_kind=self._deps.settings.network_mode,

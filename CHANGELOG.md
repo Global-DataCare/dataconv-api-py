@@ -14,6 +14,9 @@
 - Inject the optional terminology and coding-model endpoints, audiences,
   identifiers, timeouts and secret tokens into both GKE workloads through the
   generated ConfigMap and Secret.
+- Load the environment-scoped private deployment file before the public
+  profile so required secret placeholders can fail closed without forcing
+  operators to export credentials into the parent shell.
 - Bind review promotion to the conversion job's tenant, jurisdiction, sector
   and software identifier before evaluating its ResearchStudy context.
 

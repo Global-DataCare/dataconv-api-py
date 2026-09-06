@@ -14,6 +14,10 @@ class DeployGkeContractTests(unittest.TestCase):
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
         self.assertIn('private-cloudsql.${ENV_NAME}.env', deploy_script)
         self.assertIn('[[ "${ENV_NAME}" == "staging" || "${ENV_NAME}" == "production" ]]', deploy_script)
+        self.assertLess(
+            deploy_script.index('source "${PRIVATE_ENV_FILE}"'),
+            deploy_script.index('source "${ENV_FILE}"'),
+        )
 
     def test_deployment_restarts_pods_after_config_or_secret_rotation(self) -> None:
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")

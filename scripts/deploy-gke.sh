@@ -14,8 +14,6 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
-# shellcheck source=/dev/null
-source "${ENV_FILE}"
 if [[ -f "${PRIVATE_ENV_FILE}" ]]; then
   # shellcheck source=/dev/null
   source "${PRIVATE_ENV_FILE}"
@@ -25,6 +23,10 @@ elif [[ "${ENV_NAME}" == "staging" || "${ENV_NAME}" == "production" ]] && [[ -f 
   # shellcheck source=/dev/null
   source "${LEGACY_PRIVATE_ENV_FILE}"
 fi
+# Load deployment-specific secrets first so the public profile may require
+# them with `${NAME:?message}` without storing their values in the profile.
+# shellcheck source=/dev/null
+source "${ENV_FILE}"
 
 required_vars=(
   GCP_PROJECT_ID

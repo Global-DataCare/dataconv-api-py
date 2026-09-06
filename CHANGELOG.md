@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.7.11 - 2026-09-06
+
+- Keep governed terminology candidates available for human review when the
+  optional coding-model ranker is unavailable; such candidates remain
+  explicitly unranked and are never auto-selected.
+- Add bounded Qvet coding-input rules for clearly clinical allergy, Cushing
+  and osteoarthritis follow-up rows, while retail rows remain uncoded, and
+  cache duplicate terminology lookups within one conversion job.
+
 ## 0.7.10 - 2026-09-06
 
 - Add an RFC 8693 professional ResearchStudy exchange that validates the GW

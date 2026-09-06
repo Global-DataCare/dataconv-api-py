@@ -117,11 +117,14 @@ evidence; it cannot approve or promote a resource. Accepted and rejected
 proposals may become a governed, de-identified, human-reviewed evaluation or
 training corpus, but must never be collected as automatic ground truth.
 
-The worker uses `NoopCodingAssistant` only when the terminology or coding-model
-URL is absent. With both configured it calls the terminology JSON:API, sends
-the closed candidate set and allowlisted row context to `/v1/coding/rank`, and
-posts explicit human corrections to `/v1/coding/feedback`. Feedback is an
-evaluation/training record; it never changes model weights online.
+The worker uses `NoopCodingAssistant` only when the terminology URL is absent.
+With terminology configured it always preserves the governed candidates for
+human review. When the optional coding-model URL is also configured it sends
+the closed candidate set and allowlisted row context to `/v1/coding/rank`;
+otherwise candidates remain explicitly unranked. Explicit human corrections
+are posted to `/v1/coding/feedback` only when that model/feedback boundary is
+configured. Feedback is an evaluation/training record; it never changes model
+weights online.
 
 A general model runtime can support separate intent, question-answering, and
 clinical-coding adapters, but an intent endpoint must not be reused as if it

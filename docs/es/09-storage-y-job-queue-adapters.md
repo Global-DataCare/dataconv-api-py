@@ -123,7 +123,10 @@ decisión human-reviewed escribe únicamente `<Resource>.code` y el
 rechazados, junto con el motivo opcional, a `/v1/coding/feedback`; esto crea
 datos de evaluación o entrenamiento, no aprendizaje online automático. El
 worker usa `NoopCodingAssistant` solo si falta
-`PRECONV_TERMINOLOGY_BASE_URL` o `PRECONV_CODING_MODEL_BASE_URL`.
+`PRECONV_TERMINOLOGY_BASE_URL`. Si falta
+`PRECONV_CODING_MODEL_BASE_URL`, los candidatos gobernados siguen disponibles
+para selección humana con recomendación cero y evidencia explícita de que no
+han sido ordenados por un modelo.
 El script de despliegue GKE guarda las URL de servicio, la audiencia, el
 identificador del modelo y los timeouts en el ConfigMap generado; guarda
 `PRECONV_TERMINOLOGY_TOKEN` y `PRECONV_CODING_MODEL_TOKEN` en el Secret

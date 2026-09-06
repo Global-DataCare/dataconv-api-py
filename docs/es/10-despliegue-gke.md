@@ -112,6 +112,14 @@ Variables opcionales de release:
 - Si defines `PRECONV_PRE_SHARED_CERT_NAME`, el `Ingress` usa un certificado SSL de GCP cargado previamente y puede funcionar con `PRECONV_INGRESS_HOST` vacío para exponer la IP directa.
 - Si defines `PRECONV_TLS_SECRET_NAME`, el `Ingress` publica TLS usando un `Secret` Kubernetes en vez de un certificado gestionado de GCP.
 - El script valida que solo haya un modo TLS activo a la vez: `PRECONV_MANAGED_CERT_NAME`, `PRECONV_PRE_SHARED_CERT_NAME` o `PRECONV_TLS_SECRET_NAME`.
+- `PRECONV_TERMINOLOGY_INGRESS_ENABLED=true` añade `/v1/terminology` al mismo
+  Ingress si también se definen `PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME` y
+  `PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT`.
+- El destino de terminología debe ser un Service de `K8S_NAMESPACE`; el puerto
+  configurado es el puerto del Service. No se reescribe la ruta. El prefijo
+  específico se genera antes de `/`, que sigue apuntando a la API DataConv. La
+  opción está desactivada por defecto y no despliega el servicio de
+  terminología.
 - Para clusters pequeños de `staging`, usa `API_REPLICAS=1`, `WORKER_REPLICAS=1`, `*_MAX_SURGE=0` y `*_MAX_UNAVAILABLE=100%` para evitar bloqueos de CPU durante el rollout.
 - Si haces `source .env.deploy.*`, deja `PRECONV_CLEANUP_SCHEDULE` entre comillas, por ejemplo `"*/5 * * * *"`.
 

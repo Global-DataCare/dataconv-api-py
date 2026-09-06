@@ -41,6 +41,7 @@ from .managers import (
     TenantConfigCreateManager,
     TenantConfigPollManager,
     TokenExchangeManager,
+    SmartResearchTokenExchangeManager,
 )
 from .observability import configure_logging
 from .openapi_contract import build_custom_openapi
@@ -91,6 +92,24 @@ def create_app():
     search_manager = ConversionSearchManager(deps)
     tenant_api_key_manager = TenantApiKeyManager(deps)
     exchange_manager = TokenExchangeManager(settings, tenant_api_key_manager=tenant_api_key_manager)
+    def _research_tenant_is_active(tenant_id: str, jurisdiction: str, sector: str) -> bool:
+        tenant = control_plane.resolve_config(ConfigKey(
+            alternate_name=str(tenant_id or "").strip(),
+            manufacturer="dataconv-tenant",
+            sector=str(sector or "").strip().lower(),
+            manufacturer_version="v1",
+            country=str(jurisdiction or "").strip().upper(),
+        ))
+        content = tenant.content if tenant is not None and isinstance(tenant.content, dict) else {}
+        return bool(
+            content.get("active") is True
+            and str(content.get("networkKind") or "").strip().lower() == settings.network_mode
+        )
+
+    smart_research_exchange_manager = SmartResearchTokenExchangeManager(
+        settings,
+        tenant_is_active=_research_tenant_is_active,
+    )
     organization_tenant_activation_manager = (
         OrganizationTenantActivationManager(
             settings=settings,
@@ -118,6 +137,7 @@ def create_app():
             "- 2.2 Identity Auth PKCE Code: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code`\n"
             "- 2.3 Identity Auth PKCE Token: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_token`\n"
             "- 2.4 Identity Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_exchange`\n"
+            "- 2.5 Professional Research Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange`\n"
             "- 3.1 Tenant Config Request: `_create`\n"
             "- 3.2 Tenant Config Response: `_create-response`\n"
             "- 4.1 Dataset Upload Request: `_upload`\n"
@@ -285,7 +305,11 @@ def create_app():
         search_manager=search_manager,
     )
     app.include_router(pkce_router)
-    register_exchange_routes(app, exchange_manager=exchange_manager)
+    register_exchange_routes(
+        app,
+        exchange_manager=exchange_manager,
+        smart_research_exchange_manager=smart_research_exchange_manager,
+    )
     register_tenant_auth_routes(app, tenant_api_key_manager=tenant_api_key_manager, settings=settings)
     if organization_tenant_activation_manager is not None:
         register_organization_tenant_routes(app, activation_manager=organization_tenant_activation_manager)

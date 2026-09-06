@@ -36,6 +36,18 @@ class DeployGkeContractTests(unittest.TestCase):
         ):
             self.assertIn(f"--from-literal={setting}=", deploy_script)
 
+    def test_professional_smart_exchange_trust_settings_are_injected_into_runtime(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        for setting in (
+            "SMART_GW_ALLOWED_ISSUERS",
+            "SMART_GW_EXPECTED_AUDIENCES",
+            "SMART_GW_ISSUER_TENANT_BINDINGS",
+            "SMART_GW_DID_CACHE_TTL_SECONDS",
+            "SMART_GW_HTTP_TIMEOUT_SECONDS",
+            "SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO",
+        ):
+            self.assertIn(f"--from-literal={setting}=", deploy_script)
+
     def test_optional_terminology_and_coding_model_settings_are_injected_into_runtime(self) -> None:
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
         for setting in (

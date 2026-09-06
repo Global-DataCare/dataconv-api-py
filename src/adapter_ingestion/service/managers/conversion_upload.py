@@ -43,6 +43,7 @@ from ..research import build_upload_response_path
 from ..research_study import research_study_reference as optional_research_study_reference
 from ..research_study import require_research_study_reference
 from ..research_study import sector_requires_research_study
+from ..research_study import sector_requires_professional_research_auth
 from .dependencies import ApiManagerDependencies
 
 
@@ -112,6 +113,14 @@ class ConversionUploadManager:
         expires_at = _require_epoch_seconds(payload, "exp")
         if expires_at < issued_at:
             raise HTTPException(status_code=400, detail="exp must be greater than or equal to iat")
+        try:
+            research_study_reference = (
+                require_research_study_reference(payload)
+                if sector_requires_research_study(sector)
+                else optional_research_study_reference(payload)
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         auth_header = ""
         try:
             auth_header = str(request.headers.get("authorization", "") or "")
@@ -124,19 +133,12 @@ class ConversionUploadManager:
             require_token=True,
             required_scopes={"dataconv.upload"},
             expected_organization=tenant_id,
+            expected_research_study=research_study_reference,
+            require_professional_research=sector_requires_professional_research_auth(sector, self._deps.settings),
         )
         thid = str(_extract_payload_value(payload, "thid") or "").strip()
         if not thid:
             raise HTTPException(status_code=400, detail="thid is required in DIDComm payload")
-        try:
-            research_study_reference = (
-                require_research_study_reference(payload)
-                if sector_requires_research_study(sector)
-                else optional_research_study_reference(payload)
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
-
         input_ref = str(_extract_payload_value(payload, "inputRef") or "").strip()
         attachment_payload = None if file is not None else _extract_didcomm_attachment_payload(
             payload,

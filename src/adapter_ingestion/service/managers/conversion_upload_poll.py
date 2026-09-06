@@ -22,7 +22,7 @@ from ..api_support import (
 )
 from ..observability import log_event
 from .dependencies import ApiManagerDependencies
-from ..research_study import research_study_reference
+from ..research_study import research_study_reference, sector_requires_professional_research_auth
 
 
 class ConversionUploadPollManager:
@@ -54,6 +54,10 @@ class ConversionUploadPollManager:
         expires_at = _require_epoch_seconds(payload, "exp")
         if expires_at < issued_at:
             raise HTTPException(status_code=400, detail="exp must be greater than or equal to iat")
+        try:
+            requested_study = research_study_reference(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         auth_header = ""
         try:
             auth_header = str(request.headers.get("authorization", "") or "")
@@ -63,7 +67,10 @@ class ConversionUploadPollManager:
             payload,
             self._deps.settings,
             authorization_header=auth_header,
+            required_scopes={"dataconv.read"},
             expected_organization=tenant_id,
+            expected_research_study=requested_study,
+            require_professional_research=sector_requires_professional_research_auth(sector, self._deps.settings),
         )
         payload_thid = str(payload.get("thid", "")).strip()
         query_thid = _extract_query_value(request, "thid")
@@ -73,10 +80,6 @@ class ConversionUploadPollManager:
         if not thid:
             raise HTTPException(status_code=400, detail="thid is required in DIDComm payload")
 
-        try:
-            requested_study = research_study_reference(payload)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
         job = self._deps.control_plane.get_job_by_thid(thid)
         if not job:
             raise HTTPException(status_code=404, detail="job not found")

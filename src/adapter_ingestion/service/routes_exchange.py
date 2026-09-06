@@ -35,7 +35,7 @@ async def _read_exchange_payload(request: Request, body: Any) -> dict[str, Any]:
     return payload
 
 
-def register_exchange_routes(app, *, exchange_manager) -> None:  # type: ignore[no-untyped-def]
+def register_exchange_routes(app, *, exchange_manager, smart_research_exchange_manager=None) -> None:  # type: ignore[no-untyped-def]
     @app.post(
         "/exchange",
         tags=["1.1 Controller Auth Exchange"],
@@ -65,6 +65,34 @@ def register_exchange_routes(app, *, exchange_manager) -> None:  # type: ignore[
         except ValueError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
         return exchange_manager.as_response(result)
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/professional/research/auth/_exchange",
+        tags=["2.5 Professional Research Auth Exchange"],
+        summary="Exchange a GW SMART ResearchStudy token for study-bound DataConv access",
+    )
+    async def exchange_professional_research_token(
+        jurisdiction: str,
+        sector: str,
+        tenant_id: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        if smart_research_exchange_manager is None:
+            raise HTTPException(status_code=503, detail="professional research exchange is not configured")
+        payload = await _read_exchange_payload(request, body)
+        try:
+            result = smart_research_exchange_manager.exchange(
+                payload,
+                tenant_id=tenant_id,
+                jurisdiction=jurisdiction,
+                sector=sector,
+            )
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=401, detail=str(exc)) from exc
+        return smart_research_exchange_manager.as_response(result)
 
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_exchange",

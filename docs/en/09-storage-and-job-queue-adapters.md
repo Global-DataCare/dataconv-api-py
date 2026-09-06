@@ -72,11 +72,14 @@ This is the reusable domain service behind any HTTP API.
 
 ## 6) Research review and searchable promotion
 
-New jobs in the explicit `onehealth-research` sector persist one stable FHIR `ResearchStudy` Reference from
-upload through review. Poll and patch requests must repeat it, and promoted
+New jobs in the explicit `onehealth-research` and `animal-research` sectors
+persist one stable FHIR `ResearchStudy` Reference from upload through review.
+Poll and patch requests must repeat it, and promoted
 ResearchSubject resources expose it only through the standard
 `ResearchSubject.study` claim. `study` is a correlation/search boundary, not a
-local authorization rule; GW remains responsible for Consent and SMART. Jobs
+local authorization rule. GW remains responsible for evaluating DCR and the
+active Consent, then DataConv validates its signed study SMART token offline
+and enforces the derived actor/study token without querying GW per operation. Jobs
 stored before this contract may be polled without the reference, but cannot be
 promoted through the study-scoped patch flow.
 Other sectors retain the existing upload and patch contract without requiring

@@ -286,7 +286,19 @@ class ServiceApiTests(unittest.TestCase):
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
         # The exact literal is the release/OpenAPI synchronization contract.
-        self.assertEqual(schema.get("info", {}).get("version"), "0.7.9")
+        self.assertEqual(schema.get("info", {}).get("version"), "0.7.10")
+        professional_exchange = schema.get("paths", {}).get(
+            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange",
+            {},
+        ).get("post", {})
+        request_schema = professional_exchange.get("requestBody", {}).get("content", {}).get(
+            "application/json", {}
+        ).get("schema", {})
+        self.assertEqual(
+            request_schema.get("$ref"),
+            "#/components/schemas/ProfessionalResearchTokenExchangeRequest",
+        )
+        self.assertEqual(professional_exchange.get("security"), [])
         tag_names = [tag.get("name") for tag in schema.get("tags", []) if isinstance(tag, dict)]
         self.assertIn("3.1 Publisher Config Request", tag_names)
         self.assertIn("3.2 Publisher Config Response", tag_names)

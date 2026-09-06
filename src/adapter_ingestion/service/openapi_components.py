@@ -850,6 +850,36 @@ def _exchange_schemas() -> dict[str, Any]:
             },
             "additionalProperties": True,
         },
+        "ProfessionalResearchTokenExchangeRequest": {
+            "type": "object",
+            "required": ["subject_token", "subject_token_type"],
+            "properties": {
+                "subject_token": {
+                    "type": "string",
+                    "description": "GW-signed study-scoped SMART access token.",
+                },
+                "subject_token_type": {
+                    "type": "string",
+                    "enum": ["urn:ietf:params:oauth:token-type:access_token"],
+                },
+            },
+            "additionalProperties": False,
+        },
+        "ProfessionalResearchTokenExchangeResponse": {
+            "type": "object",
+            "required": ["access_token", "issued_token_type", "token_type", "expires_in", "scope", "subject", "organization", "study"],
+            "properties": {
+                "access_token": {"type": "string"},
+                "issued_token_type": {"type": "string", "enum": ["urn:ietf:params:oauth:token-type:access_token"]},
+                "token_type": {"type": "string", "enum": ["Bearer"]},
+                "expires_in": {"type": "integer"},
+                "scope": {"type": "string", "enum": ["dataconv.upload dataconv.read dataconv.review"]},
+                "subject": {"type": "string", "description": "Authorized professional DID."},
+                "organization": {"type": "string", "description": "DataConv tenant bound to the trusted GW issuer."},
+                "study": {"type": "string", "pattern": "^ResearchStudy/[A-Za-z0-9\\-.]{1,64}$"},
+            },
+            "additionalProperties": False,
+        },
     }
 
 

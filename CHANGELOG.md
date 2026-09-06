@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.7.10 - 2026-09-06
+
+- Add an RFC 8693 professional ResearchStudy exchange that validates the GW
+  SMART access-token signature offline from its allowlisted `did:web` document,
+  including `kid`, JWK algorithm, issuer/audience, temporal claims, professional
+  subject, exact `HRESCH` purpose and exact study-pinned
+  `organization/ResearchSubject.crus` scope.
+- Bind every trusted GW issuer explicitly to one active DataConv tenant and
+  issue only `dataconv.upload`, `dataconv.read` and `dataconv.review` in a
+  short-lived DataConv token carrying the actor and ResearchStudy context.
+- Require that professional token and the same ResearchStudy on research
+  upload, poll, review patch/batch and ResearchSubject search. Controller
+  bootstrap tokens do not substitute for a professional study permission.
+
 ## 0.7.9 - 2026-09-06
 
 - Require the same stable `ResearchStudy` correlation for new

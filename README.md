@@ -58,9 +58,29 @@ persists that reference in the job, copies it to the standard
 `ResearchSubject.study` flat claim, requires the same reference when polling or
 patching the conversion, and requires the standard `study` parameter when
 searching ResearchSubject. This is correlation and dataset isolation only:
-DataConv does not infer Consent, SMART scope or employee authority from the
-reference; those controls remain in GW. Other conversion sectors keep their
-existing contract and may omit `researchStudy`.
+DataConv does not infer Consent or employee authority from the reference. GW
+first evaluates DCR plus the controller-approved active Consent and signs a
+SMART access token with `purpose=HRESCH`, the exact `study` reference, and the
+exact `organization/ResearchSubject.crus?study=...` scope. The professional
+exchanges that token at
+`/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange`.
+DataConv validates the signature offline through the issuer's standard
+`did:web` document, using the `comm_sig` JWK exposed through the DID
+`authentication` relationship, and then enforces its own short-lived, actor- and
+study-bound token on upload, poll, review and ResearchSubject search; it does
+not call GW for each operation. Other conversion sectors keep their existing
+contract and may omit `researchStudy`.
+
+The professional exchange accepts only RFC 8693 `subject_token` plus
+`subject_token_type=urn:ietf:params:oauth:token-type:access_token`. It accepts
+neither an OIDC id token nor controller VP as a substitute. Configure exact
+trusted GW issuers and audiences with `SMART_GW_ALLOWED_ISSUERS` and
+`SMART_GW_EXPECTED_AUDIENCES`, and configure the JSON issuer-to-tenant map in
+`SMART_GW_ISSUER_TENANT_BINDINGS`. Production resolves only HTTPS DID Web
+documents; HTTP is limited to localhost in demo/test mode.
+Production always requires the derived professional token. Legacy demo fixtures
+remain compatible unless `SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO=true` is set;
+enable that flag for local authorization E2E.
 
 Firestore jobs created before this field existed can still be polled without
 it so an already-running conversion is not lost. That compatibility is

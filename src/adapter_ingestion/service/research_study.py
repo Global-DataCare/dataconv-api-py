@@ -19,6 +19,15 @@ def sector_requires_research_study(sector: Any) -> bool:
     return str(sector or "").strip().lower() in RESEARCH_STUDY_SCOPED_SECTORS
 
 
+def sector_requires_professional_research_auth(sector: Any, settings: Any) -> bool:
+    """Require real study auth outside demo, or when a local security test opts in."""
+    if not sector_requires_research_study(sector):
+        return False
+    return not bool(getattr(settings, "demo_mode", False)) or bool(
+        getattr(settings, "smart_research_auth_required_in_demo", False)
+    )
+
+
 def normalize_research_study_reference(reference: Any) -> str:
     """Return one literal FHIR Reference to ResearchStudy, relative or absolute."""
     value = str(reference or "").strip()

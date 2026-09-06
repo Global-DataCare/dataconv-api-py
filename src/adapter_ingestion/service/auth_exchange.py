@@ -546,9 +546,15 @@ def issue_session_access_token(
     organization: str,
     scopes: list[str],
     settings: Any,
+    additional_claims: dict[str, Any] | None = None,
+    ttl_seconds_override: int | None = None,
 ) -> tuple[str, int, dict[str, Any]]:
     now = datetime.now(tz=timezone.utc)
     ttl_seconds = int(getattr(settings, "exchange_session_token_ttl_seconds", 900) or 900)
+    if ttl_seconds_override is not None:
+        ttl_seconds = min(ttl_seconds, int(ttl_seconds_override))
+    if ttl_seconds <= 0:
+        raise ValueError("Session token lifetime must be positive")
     exp = now + timedelta(seconds=ttl_seconds)
     payload = {
         "iss": str(getattr(settings, "default_issuer_did", "did:web:globaldatacare.es:employee:preconversion") or "").strip(),
@@ -562,6 +568,11 @@ def issue_session_access_token(
         "scope": " ".join(scopes),
         "scopes": scopes,
     }
+    reserved_claims = {"iss", "sub", "aud", "iat", "exp", "jti", "token_use", "organization", "scope", "scopes"}
+    for claim_name, claim_value in (additional_claims or {}).items():
+        if claim_name in reserved_claims:
+            raise ValueError(f"Additional session claim is reserved: {claim_name}")
+        payload[str(claim_name)] = claim_value
     secret = str(getattr(settings, "exchange_session_token_secret", "") or "").strip()
     if not secret:
         raise ValueError("Session token secret is not configured")
@@ -569,8 +580,8 @@ def issue_session_access_token(
     return token, ttl_seconds, payload
 
 
-def validate_session_access_token(token: str, settings: Any) -> dict[str, Any]:
-    demo_mode = bool(getattr(settings, "demo_mode", False))
+def validate_session_access_token(token: str, settings: Any, *, force_secure: bool = False) -> dict[str, Any]:
+    demo_mode = bool(getattr(settings, "demo_mode", False)) and not force_secure
     header, payload = parse_jwt_unverified(token)
     
     if not demo_mode:

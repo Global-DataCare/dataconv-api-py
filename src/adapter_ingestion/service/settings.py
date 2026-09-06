@@ -6,6 +6,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import re
+import json
 
 
 def _load_dotenv_file(path: str) -> None:
@@ -64,6 +65,22 @@ def _split_csv_raw(value: str) -> tuple[str, ...]:
         return ()
     items = [item.strip() for item in str(value).split(",")]
     return tuple(item for item in items if item)
+
+
+def _parse_string_map(value: str) -> dict[str, str]:
+    if not str(value or "").strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("SMART_GW_ISSUER_TENANT_BINDINGS must be a JSON object") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("SMART_GW_ISSUER_TENANT_BINDINGS must be a JSON object")
+    return {
+        str(key).strip(): str(mapped).strip()
+        for key, mapped in parsed.items()
+        if str(key).strip() and str(mapped).strip()
+    }
 
 
 def _parse_supported_values(value: str, *, upper: bool = False) -> tuple[str, ...]:
@@ -187,6 +204,12 @@ class ServiceSettings:
     coding_model_token: str = ""
     coding_model_id: str = ""
     coding_model_timeout_seconds: int = 30
+    smart_gw_allowed_issuers: tuple[str, ...] = ()
+    smart_gw_expected_audiences: tuple[str, ...] = ()
+    smart_gw_issuer_tenant_bindings: dict[str, str] | None = None
+    smart_gw_did_cache_ttl_seconds: int = 300
+    smart_gw_http_timeout_seconds: int = 5
+    smart_research_auth_required_in_demo: bool = False
 
 
 def load_settings() -> ServiceSettings:
@@ -311,4 +334,12 @@ def load_settings() -> ServiceSettings:
         coding_model_token=_getenv("PRECONV_CODING_MODEL_TOKEN", ""),
         coding_model_id=_getenv("PRECONV_CODING_MODEL_ID", ""),
         coding_model_timeout_seconds=_getenv_int("PRECONV_CODING_MODEL_TIMEOUT_SECONDS", 30),
+        smart_gw_allowed_issuers=_split_csv_raw(_getenv("SMART_GW_ALLOWED_ISSUERS", "")),
+        smart_gw_expected_audiences=_split_csv_raw(_getenv("SMART_GW_EXPECTED_AUDIENCES", "")),
+        smart_gw_issuer_tenant_bindings=_parse_string_map(_getenv("SMART_GW_ISSUER_TENANT_BINDINGS", "")),
+        smart_gw_did_cache_ttl_seconds=_getenv_int("SMART_GW_DID_CACHE_TTL_SECONDS", 300),
+        smart_gw_http_timeout_seconds=_getenv_int("SMART_GW_HTTP_TIMEOUT_SECONDS", 5),
+        smart_research_auth_required_in_demo=_getenv("SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO", "false").lower() in {
+            "1", "true", "yes", "on"
+        },
     )

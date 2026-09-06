@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.7.12 - 2026-09-06
+
+- Keep the runtime and generated OpenAPI release version synchronized with the
+  immutable package and container version declared in `pyproject.toml`.
+
 ## 0.7.11 - 2026-09-06
 
 - Keep governed terminology candidates available for human review when the

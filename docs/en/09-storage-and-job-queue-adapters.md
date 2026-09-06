@@ -113,6 +113,10 @@ The review sends accepted and rejected candidate identifiers plus the optional
 reason to `/v1/coding/feedback`; feedback is durable evaluation/training input,
 not automatic online learning. The worker uses `NoopCodingAssistant` only when
 `PRECONV_TERMINOLOGY_BASE_URL` or `PRECONV_CODING_MODEL_BASE_URL` is absent.
+The GKE deployment script places service URLs, audience, model identifier and
+timeouts in the generated ConfigMap; it places
+`PRECONV_TERMINOLOGY_TOKEN` and `PRECONV_CODING_MODEL_TOKEN` in the generated
+Secret. Both the API and worker consume those generated resources.
 
 A reusable model runtime may expose separate contracts for application intents,
 question answering, and clinical coding. Existing intent classification does

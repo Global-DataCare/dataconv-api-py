@@ -121,6 +121,10 @@ rechazados, junto con el motivo opcional, a `/v1/coding/feedback`; esto crea
 datos de evaluación o entrenamiento, no aprendizaje online automático. El
 worker usa `NoopCodingAssistant` solo si falta
 `PRECONV_TERMINOLOGY_BASE_URL` o `PRECONV_CODING_MODEL_BASE_URL`.
+El script de despliegue GKE guarda las URL de servicio, la audiencia, el
+identificador del modelo y los timeouts en el ConfigMap generado; guarda
+`PRECONV_TERMINOLOGY_TOKEN` y `PRECONV_CODING_MODEL_TOKEN` en el Secret
+generado. Tanto la API como el worker consumen esos recursos generados.
 
 Un runtime de modelo reutilizable puede exponer contratos independientes para
 intents de aplicación, resolución de dudas y codificación clínica. El endpoint de

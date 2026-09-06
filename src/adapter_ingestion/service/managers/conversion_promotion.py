@@ -13,7 +13,9 @@ from ..api_support import (
     _extract_query_value,
     _extract_required_type,
     _enforce_supported_scope,
+    _normalize_country_code,
     _require_epoch_seconds,
+    _resolve_manufacturer_and_version,
     _validate_public_iss,
 )
 from ..observability import log_event
@@ -80,6 +82,7 @@ def promote_resources(
     tenant_id: str,
     jurisdiction: str,
     sector: str,
+    software_id: str,
     resource_type: str,
     request: Any,
     body: dict[str, Any],
@@ -124,6 +127,16 @@ def promote_resources(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     job = deps.control_plane.get_job_by_thid(thid)
     if not job:
+        raise HTTPException(status_code=404, detail="conversion thread not found")
+    requested_manufacturer, requested_version = _resolve_manufacturer_and_version(software_id, "")
+    country_code = _normalize_country_code(jurisdiction)
+    if (
+        str(job.request.alternate_name).strip().lower() != str(tenant_id).strip().lower()
+        or str(job.request.sector).strip().lower() != str(sector).strip().lower()
+        or str(job.request.manufacturer).strip().lower() != requested_manufacturer
+        or str(job.request.manufacturer_version).strip().lower() != requested_version
+        or (country_code and str(job.request.country).strip().upper() != country_code)
+    ):
         raise HTTPException(status_code=404, detail="conversion thread not found")
     research_study_reference = str(job.request.research_study_reference or "").strip()
     if str(sector or "").strip().lower() == "onehealth-research" and not research_study_reference:

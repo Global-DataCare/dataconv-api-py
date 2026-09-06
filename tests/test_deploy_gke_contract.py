@@ -32,6 +32,20 @@ class DeployGkeContractTests(unittest.TestCase):
         ):
             self.assertIn(f"--from-literal={setting}=", deploy_script)
 
+    def test_optional_terminology_and_coding_model_settings_are_injected_into_runtime(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        for setting in (
+            "PRECONV_TERMINOLOGY_BASE_URL",
+            "PRECONV_TERMINOLOGY_TIMEOUT_SECONDS",
+            "PRECONV_CODING_MODEL_BASE_URL",
+            "PRECONV_CODING_MODEL_AUDIENCE",
+            "PRECONV_CODING_MODEL_ID",
+            "PRECONV_CODING_MODEL_TIMEOUT_SECONDS",
+            "PRECONV_TERMINOLOGY_TOKEN",
+            "PRECONV_CODING_MODEL_TOKEN",
+        ):
+            self.assertIn(f"--from-literal={setting}=", deploy_script)
+
 
 if __name__ == "__main__":
     unittest.main()

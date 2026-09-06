@@ -11,6 +11,11 @@
   cannot be promoted.
 - Preserve non-research upload and review compatibility: `researchStudy` is
   optional outside the explicit `onehealth-research` sector.
+- Inject the optional terminology and coding-model endpoints, audiences,
+  identifiers, timeouts and secret tokens into both GKE workloads through the
+  generated ConfigMap and Secret.
+- Bind review promotion to the conversion job's tenant, jurisdiction, sector
+  and software identifier before evaluating its ResearchStudy context.
 
 - Added terminology-service and coding-model HTTP adapters. DataConv sends the
   complete governed candidate set plus allowlisted row context, rejects model-

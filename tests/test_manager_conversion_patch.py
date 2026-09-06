@@ -222,6 +222,32 @@ class TestConversionPatchManager(unittest.TestCase):
         }
         
         request = SimpleNamespace(headers={})
+        with self.assertRaises(HTTPException) as wrong_tenant:
+            manager.handle(
+                tenant_id="another-tenant",
+                jurisdiction="es",
+                sector="onehealth-research",
+                software_id="test-v1.0",
+                resource_type="Composition",
+                response=SimpleNamespace(),
+                request=request,
+                body={key: value for key, value in body.items() if key != "researchStudy"},
+            )
+        self.assertEqual(getattr(wrong_tenant.exception, "status_code", None), 404)
+
+        with self.assertRaises(HTTPException) as wrong_software:
+            manager.handle(
+                tenant_id="test-tenant-123",
+                jurisdiction="es",
+                sector="onehealth-research",
+                software_id="another-v1.0",
+                resource_type="Composition",
+                response=SimpleNamespace(),
+                request=request,
+                body={key: value for key, value in body.items() if key != "researchStudy"},
+            )
+        self.assertEqual(getattr(wrong_software.exception, "status_code", None), 404)
+
         with self.assertRaises(HTTPException) as mismatch:
             manager.handle(
                 tenant_id="test-tenant-123",

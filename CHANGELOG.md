@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.7.7 - 2026-09-06
+
+- Add an opt-in shared GKE Ingress route for `/v1/terminology`, targeting a
+  configurable Service and Service port in the deployment namespace while the
+  catch-all `/` route continues to target the DataConv API.
+- Validate the opt-in flag, Kubernetes Service name and port before applying
+  the generated Ingress. The terminology route is disabled by default.
+
 - Require every new `onehealth-research` conversion to carry and persist one stable FHIR
   ResearchStudy reference; poll, review patch and ResearchSubject search are
   checked or filtered by that reference.

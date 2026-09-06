@@ -84,6 +84,15 @@ Release-related variables:
 - `PRECONV_SKIP_BUILD=true`
 - `PRECONV_INGRESS_STATIC_IP_NAME`
 - exactly one TLS mode among `PRECONV_MANAGED_CERT_NAME`, `PRECONV_PRE_SHARED_CERT_NAME`, or `PRECONV_TLS_SECRET_NAME`
+- `PRECONV_TERMINOLOGY_INGRESS_ENABLED=true` to add `/v1/terminology` to the
+  same Ingress, together with `PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME` and
+  `PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT`
+
+The terminology target must be a Service in `K8S_NAMESPACE`; the configured
+port is its Kubernetes Service port. The path is not rewritten. The more
+specific terminology prefix is emitted before the `/` catch-all, which remains
+bound to the DataConv API. The option defaults to `false` and does not deploy
+the terminology workload itself.
 
 Recommended profiles:
 

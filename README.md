@@ -403,6 +403,15 @@ kubectl -n "$K8S_NAMESPACE" get svc
 kubectl -n "$K8S_NAMESPACE" get ingress
 ```
 
+The generated Ingress can optionally expose a terminology Service in the same
+namespace without changing the DataConv catch-all route. Set
+`PRECONV_TERMINOLOGY_INGRESS_ENABLED=true` together with
+`PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME` and
+`PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT`. Requests under
+`/v1/terminology` are forwarded unchanged to that Service; every other path
+continues through the DataConv Service at `/`. The terminology Service must
+already exist and be compatible with the selected GKE Ingress controller.
+
 ### 7.4 Re-deploy by digest without rebuilding
 
 ```bash

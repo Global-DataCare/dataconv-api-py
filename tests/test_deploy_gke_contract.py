@@ -50,6 +50,26 @@ class DeployGkeContractTests(unittest.TestCase):
         ):
             self.assertIn(f"--from-literal={setting}=", deploy_script)
 
+    def test_ingress_can_opt_in_to_route_terminology_to_an_internal_service(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        self.assertIn('TERMINOLOGY_INGRESS_ENABLED="${PRECONV_TERMINOLOGY_INGRESS_ENABLED:-false}"', deploy_script)
+        self.assertIn('TERMINOLOGY_INGRESS_SERVICE_NAME="${PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME:-}"', deploy_script)
+        self.assertIn('TERMINOLOGY_INGRESS_SERVICE_PORT="${PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT:-}"', deploy_script)
+        terminology_path = "          - path: /v1/terminology"
+        dataconv_path = "          - path: /"
+        self.assertIn(terminology_path, deploy_script)
+        terminology_offset = deploy_script.index(terminology_path)
+        dataconv_offset = deploy_script.index(dataconv_path, terminology_offset + len(terminology_path))
+        self.assertLess(terminology_offset, dataconv_offset)
+        self.assertIn('name: ${TERMINOLOGY_INGRESS_SERVICE_NAME}', deploy_script)
+        self.assertIn('number: ${TERMINOLOGY_INGRESS_SERVICE_PORT}', deploy_script)
+
+    def test_terminology_ingress_opt_in_requires_service_and_port(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        self.assertIn('PRECONV_TERMINOLOGY_INGRESS_ENABLED=true requires', deploy_script)
+        self.assertIn('PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME', deploy_script)
+        self.assertIn('PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT', deploy_script)
+
 
 if __name__ == "__main__":
     unittest.main()

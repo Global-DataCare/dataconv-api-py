@@ -74,6 +74,9 @@ MANAGED_CERT_NAME="${PRECONV_MANAGED_CERT_NAME:-}"
 PRE_SHARED_CERT_NAME="${PRECONV_PRE_SHARED_CERT_NAME:-}"
 TLS_SECRET_NAME="${PRECONV_TLS_SECRET_NAME:-}"
 DISABLE_HTTP="${PRECONV_DISABLE_HTTP:-false}"
+TERMINOLOGY_INGRESS_ENABLED="${PRECONV_TERMINOLOGY_INGRESS_ENABLED:-false}"
+TERMINOLOGY_INGRESS_SERVICE_NAME="${PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME:-}"
+TERMINOLOGY_INGRESS_SERVICE_PORT="${PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT:-}"
 IMAGE_REF="${PRECONV_IMAGE_REF:-}"
 SKIP_BUILD="${PRECONV_SKIP_BUILD:-false}"
 ICLAIMS_APP_ID_RAW="${ICLAIMS_APP_ID:-vet-claims-api}"
@@ -127,6 +130,27 @@ if [[ "${DISABLE_HTTP}" == "true" && -n "${MANAGED_CERT_NAME}" ]]; then
   exit 1
 fi
 
+if [[ "${TERMINOLOGY_INGRESS_ENABLED}" != "true" && "${TERMINOLOGY_INGRESS_ENABLED}" != "false" ]]; then
+  echo "ERROR: PRECONV_TERMINOLOGY_INGRESS_ENABLED must be true or false."
+  exit 1
+fi
+
+if [[ "${TERMINOLOGY_INGRESS_ENABLED}" == "true" ]]; then
+  if [[ -z "${TERMINOLOGY_INGRESS_SERVICE_NAME}" || -z "${TERMINOLOGY_INGRESS_SERVICE_PORT}" ]]; then
+    echo "ERROR: PRECONV_TERMINOLOGY_INGRESS_ENABLED=true requires PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME and PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT."
+    exit 1
+  fi
+  if [[ ${#TERMINOLOGY_INGRESS_SERVICE_NAME} -gt 63 || ! "${TERMINOLOGY_INGRESS_SERVICE_NAME}" =~ ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ ]]; then
+    echo "ERROR: PRECONV_TERMINOLOGY_INGRESS_SERVICE_NAME must be a Kubernetes DNS label."
+    exit 1
+  fi
+  if [[ ! "${TERMINOLOGY_INGRESS_SERVICE_PORT}" =~ ^[0-9]{1,5}$ ]] || (( 10#${TERMINOLOGY_INGRESS_SERVICE_PORT} < 1 || 10#${TERMINOLOGY_INGRESS_SERVICE_PORT} > 65535 )); then
+    echo "ERROR: PRECONV_TERMINOLOGY_INGRESS_SERVICE_PORT must be an integer from 1 to 65535."
+    exit 1
+  fi
+  TERMINOLOGY_INGRESS_SERVICE_PORT="$((10#${TERMINOLOGY_INGRESS_SERVICE_PORT}))"
+fi
+
 render_ingress_manifest() {
   cat <<EOF
 apiVersion: networking.k8s.io/v1
@@ -177,6 +201,21 @@ EOF
   cat <<EOF
       http:
         paths:
+EOF
+
+  if [[ "${TERMINOLOGY_INGRESS_ENABLED}" == "true" ]]; then
+    cat <<EOF
+          - path: /v1/terminology
+            pathType: Prefix
+            backend:
+              service:
+                name: ${TERMINOLOGY_INGRESS_SERVICE_NAME}
+                port:
+                  number: ${TERMINOLOGY_INGRESS_SERVICE_PORT}
+EOF
+  fi
+
+  cat <<EOF
           - path: /
             pathType: Prefix
             backend:

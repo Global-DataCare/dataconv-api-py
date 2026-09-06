@@ -79,6 +79,16 @@ Este servicio es el núcleo reusable para una API HTTP (FastAPI, Flask, etc.).
 
 ## 6) Revisión de research y promoción al índice
 
+Los jobs nuevos del sector explícito `onehealth-research` conservan una referencia FHIR estable a
+`ResearchStudy` desde upload hasta la revisión. Poll y patch deben repetirla,
+y el ResearchSubject promovido la publica únicamente mediante la claim
+estándar `ResearchSubject.study`. `study` sirve para correlación y búsqueda, no
+es una regla local de autorización; Consent y SMART siguen perteneciendo al
+GW. Los jobs históricos sin esta referencia todavía se pueden consultar, pero
+no promover mediante el patch limitado al estudio.
+Los demás sectores conservan el contrato existente de upload y patch sin
+exigir este campo exclusivo de research.
+
 El ciclo persistente es:
 
 ```text

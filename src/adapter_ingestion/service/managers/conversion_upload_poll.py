@@ -22,6 +22,7 @@ from ..api_support import (
 )
 from ..observability import log_event
 from .dependencies import ApiManagerDependencies
+from ..research_study import research_study_reference
 
 
 class ConversionUploadPollManager:
@@ -72,8 +73,18 @@ class ConversionUploadPollManager:
         if not thid:
             raise HTTPException(status_code=400, detail="thid is required in DIDComm payload")
 
+        try:
+            requested_study = research_study_reference(payload)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         job = self._deps.control_plane.get_job_by_thid(thid)
         if not job:
+            raise HTTPException(status_code=404, detail="job not found")
+
+        stored_study = str(job.request.research_study_reference or "").strip()
+        if stored_study and not requested_study:
+            raise HTTPException(status_code=400, detail="researchStudy.reference is required")
+        if requested_study and requested_study != stored_study:
             raise HTTPException(status_code=404, detail="job not found")
 
         if str(job.request.alternate_name).strip().lower() != str(tenant_id).strip().lower():

@@ -38,6 +38,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
             "`application/didcomm-plain+json` with top-level DIDComm `attachments[]` carrying the "
             "input file via `data.base64` or `data.links`.\n\n"
             "Use DIDComm metadata fields `iss`, `type`, `thid`, `jti`, `iat`, `exp`. "
+            "For `sector=onehealth-research`, `researchStudy.reference` is required and persists the literal FHIR ResearchStudy context. "
             "`thid` is required for correlation and `exp >= iat` is required."
         ),
     )
@@ -52,6 +53,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
             "`application/didcomm-plain+json` with top-level DIDComm `attachments[]` carrying the "
             "input file via `data.base64` or `data.links`.\n\n"
             "Use DIDComm metadata fields `iss`, `type`, `thid`, `jti`, `iat`, `exp`. "
+            "For `sector=onehealth-research`, `researchStudy.reference` is required and persists the literal FHIR ResearchStudy context. "
             "`thid` is required for correlation and `exp >= iat` is required."
         ),
     )
@@ -113,7 +115,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         description=(
             "Returns job status for a previously submitted conversion.\n\n"
             "Use the same DIDComm `thid` sent in `_upload` and include envelope fields "
-            "`iss`, `type`, `iat`, `exp`.\n\n"
+            "`iss`, `type`, `iat`, `exp`; ResearchStudy-scoped jobs must repeat the same `researchStudy.reference`.\n\n"
             "Terminal job responses are retained for `PRECONV_JOB_RESULT_TTL_SECONDS`."
         ),
     )
@@ -125,7 +127,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         description=(
             "Returns job status for a previously submitted conversion.\n\n"
             "Use the same DIDComm `thid` sent in `_upload` and include envelope fields "
-            "`iss`, `type`, `iat`, `exp`.\n\n"
+            "`iss`, `type`, `iat`, `exp`; ResearchStudy-scoped jobs must repeat the same `researchStudy.reference`.\n\n"
             "Terminal job responses are retained for `PRECONV_JOB_RESULT_TTL_SECONDS`."
         ),
     )
@@ -166,6 +168,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         response_class=DidcommJSONResponse,
         description=(
             "Promotes a reviewed conversion thread to `userSelected=false` using `thid`.\n\n"
+            "For ResearchStudy-scoped jobs, the request must repeat the exact `researchStudy.reference` stored by upload. "
             "Current review flow uses `Composition/_patch` as the governing publication action for a conversion thread. "
             "The implementation keeps the route parameterized, but public examples should use `Composition` here."
         ),
@@ -177,6 +180,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         response_class=DidcommJSONResponse,
         description=(
             "Promotes a reviewed conversion thread to `userSelected=false` using `thid`.\n\n"
+            "For ResearchStudy-scoped jobs, the request must repeat the exact `researchStudy.reference` stored by upload. "
             "Current review flow uses `Composition/_patch` as the governing publication action for a conversion thread. "
             "The implementation keeps the route parameterized, but public examples should use `Composition` here."
         ),
@@ -265,6 +269,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         description=(
             "Executes tenant-scoped FHIR search over the SQL search projection. The request body accepts a FHIR "
             "`Parameters` resource and the response is a `Bundle` with `type=searchset`.\n\n"
+            "ResearchSubject search requires the standard `study` reference parameter. "
             "This is intentionally published under `org.hl7.fhir.api` and not under `digitaltwin`, because the current "
             "phase does not yet expose final `org.hl7.fhir.r4` / `org.hl7.fhir.r5` conversion outputs.\n\n"
             "Supported comparator syntax today is value-prefix based: `ge`, `gt`, `le`, `lt`."
@@ -278,6 +283,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         description=(
             "Executes tenant-scoped FHIR search over the SQL search projection. The request body accepts a FHIR "
             "`Parameters` resource and the response is a `Bundle` with `type=searchset`.\n\n"
+            "ResearchSubject search requires the standard `study` reference parameter. "
             "This is intentionally published under `org.hl7.fhir.api` and not under `digitaltwin`, because the current "
             "phase does not yet expose final `org.hl7.fhir.r4` / `org.hl7.fhir.r5` conversion outputs.\n\n"
             "Supported comparator syntax today is value-prefix based: `ge`, `gt`, `le`, `lt`."

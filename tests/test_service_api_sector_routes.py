@@ -81,6 +81,7 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
     def test_research_subject_search_route_accepts_fhir_parameters(self) -> None:
         self.assertIsNotNone(TestClient)
         identifier = "urn:uuid:11111111-1111-4111-8111-111111111111"
+        study_reference = "ResearchStudy/study-sector-route-1"
         self.app.state.search_repo.upsert(
             vault_id="test__es__onehealth-research__clinic-a",
             resource_type="ResearchSubject",
@@ -91,6 +92,7 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
                     "claims": {
                         "ResearchSubject.identifier": identifier,
                         "ResearchSubject.status": "candidate",
+                        "ResearchSubject.study": study_reference,
                     }
                 },
             },
@@ -100,7 +102,10 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
             "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/ResearchSubject/_search",
             json={
                 "resourceType": "Parameters",
-                "parameter": [{"name": "identifier", "valueUri": identifier}],
+                "parameter": [
+                    {"name": "identifier", "valueUri": identifier},
+                    {"name": "study", "valueReference": {"reference": study_reference}},
+                ],
             },
         )
 

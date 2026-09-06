@@ -87,14 +87,25 @@ class PreconversionControlPlane:
     def get_job(self, job_id: str) -> JobRecord | None:
         return self.job_store.get(job_id)
 
-    def get_job_by_thid(self, thid: str) -> JobRecord | None:
-        return self.job_store.find_by_thid(thid)
+    def get_job_by_thid(self, thid: str, research_study_reference: str = "") -> JobRecord | None:
+        job = self.job_store.find_by_thid(thid)
+        expected_study = str(research_study_reference or "").strip()
+        if expected_study and job and str(job.request.research_study_reference or "").strip() != expected_study:
+            return None
+        return job
 
     def delete_job(self, job_id: str) -> bool:
         return self.job_store.delete(job_id)
 
-    def list_jobs(self) -> list[JobRecord]:
-        return self.job_store.list()
+    def list_jobs(self, research_study_reference: str = "") -> list[JobRecord]:
+        jobs = self.job_store.list()
+        expected_study = str(research_study_reference or "").strip()
+        if not expected_study:
+            return jobs
+        return [
+            job for job in jobs
+            if str(job.request.research_study_reference or "").strip() == expected_study
+        ]
 
     def get_queue_position(self, job_id: str) -> int | None:
         token = str(job_id or "").strip()

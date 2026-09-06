@@ -8,13 +8,22 @@ import unittest
 from types import SimpleNamespace
 from pathlib import Path
 import sys
+from fastapi import HTTPException
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from adapter_ingestion.runtime.adapters import InMemoryBlobStore, InMemorySearchRepository, InMemoryVaultRepository
+from adapter_ingestion.runtime import JobRequest, PreconversionControlPlane
+from adapter_ingestion.runtime.adapters import (
+    InMemoryBlobStore,
+    InMemoryConfigStore,
+    InMemoryJobQueue,
+    InMemoryJobStore,
+    InMemorySearchRepository,
+    InMemoryVaultRepository,
+)
 from adapter_ingestion.service.managers.dependencies import ApiManagerDependencies
 from adapter_ingestion.service.managers.conversion_patch import ConversionPatchManager
 from adapter_ingestion.service.settings import ServiceSettings
@@ -36,6 +45,21 @@ class TestConversionPatchManager(unittest.TestCase):
         vault_repo = InMemoryVaultRepository()
         search_repo = InMemorySearchRepository()
         vault_id = "test__es__onehealth-research__test-tenant-123"
+        study_reference = "ResearchStudy/study-review-1"
+        control_plane = PreconversionControlPlane(
+            config_store=InMemoryConfigStore(),
+            job_store=InMemoryJobStore(),
+            job_queue=InMemoryJobQueue(),
+        )
+        control_plane.submit_job(JobRequest(
+            alternate_name="test-tenant-123",
+            manufacturer="test",
+            manufacturer_version="v1.0",
+            sector="onehealth-research",
+            country="ES",
+            thid="test-thid-123",
+            research_study_reference=study_reference,
+        ))
         
         # Insert a Composition that points to an Encounter
         composition = {
@@ -61,6 +85,7 @@ class TestConversionPatchManager(unittest.TestCase):
                     "ResearchSubject.identifier": "urn:uuid:pat-1",
                     "ResearchSubject.status": "candidate",
                     "ResearchSubject.userSelected": "true",
+                    "ResearchSubject.study": study_reference,
                 }
             },
         }
@@ -169,7 +194,7 @@ class TestConversionPatchManager(unittest.TestCase):
                 exchange_api_key_org_default="",
                 job_result_ttl_seconds=3600,
             ),
-            control_plane=SimpleNamespace(),
+            control_plane=control_plane,
             blob_store=InMemoryBlobStore(),
             vault_repo=vault_repo,
             search_repo=search_repo,
@@ -184,6 +209,7 @@ class TestConversionPatchManager(unittest.TestCase):
             "iat": 1000,
             "exp": 2000,
             "thid": "test-thid-123",
+            "researchStudy": {"reference": study_reference},
             "body": {
                 "codingReviews": [{
                     "resourceType": "Condition",
@@ -196,6 +222,22 @@ class TestConversionPatchManager(unittest.TestCase):
         }
         
         request = SimpleNamespace(headers={})
+        with self.assertRaises(HTTPException) as mismatch:
+            manager.handle(
+                tenant_id="test-tenant-123",
+                jurisdiction="es",
+                sector="onehealth-research",
+                software_id="test-v1.0",
+                resource_type="Composition",
+                response=SimpleNamespace(),
+                request=request,
+                body={
+                    **body,
+                    "researchStudy": {"reference": "ResearchStudy/another-study"},
+                },
+            )
+        self.assertEqual(getattr(mismatch.exception, "status_code", None), 404)
+
         res = manager.handle(
             tenant_id="test-tenant-123",
             jurisdiction="es",
@@ -229,6 +271,10 @@ class TestConversionPatchManager(unittest.TestCase):
         self.assertEqual(
             promoted_research_subject["meta"]["claims"]["ResearchSubject.userSelected"],
             "false",
+        )
+        self.assertEqual(
+            promoted_research_subject["meta"]["claims"]["ResearchSubject.study"],
+            study_reference,
         )
 
         indexed_comp = search_repo.search(

@@ -11,6 +11,7 @@ from ..runtime import IVaultRepository
 from ..runtime.models import now_iso_utc
 from .api_support import _compose_software_id_token
 from .research import build_storage_namespace
+from .research_study import RESEARCH_SUBJECT_STUDY_CLAIM
 import re
 
 def _safe_token(value: str) -> str:
@@ -123,6 +124,19 @@ def persist_research_drafts(
             resource_id = str(item.get("id", "") or "").strip()
             if not resource_type or not resource_id:
                 continue
+
+            if resource_type == "ResearchSubject" and str(job.request.research_study_reference or "").strip():
+                meta = item.get("meta")
+                if not isinstance(meta, dict):
+                    meta = {}
+                    item["meta"] = meta
+                claims = meta.get("claims")
+                if not isinstance(claims, dict):
+                    claims = {}
+                    meta["claims"] = claims
+                claims[RESEARCH_SUBJECT_STUDY_CLAIM] = str(
+                    job.request.research_study_reference or ""
+                ).strip()
             
             if resource_type == "Composition":
                 meta = item.get("meta")

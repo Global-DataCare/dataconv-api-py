@@ -449,6 +449,11 @@ def _conversion_schemas() -> dict[str, Any]:
                     "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
                 },
                 "send": {"type": "boolean", "default": False},
+                "researchStudy": {
+                    "type": "string",
+                    "description": "JSON-serialized FHIR Reference object; required when sector is onehealth-research.",
+                    "example": '{"reference":"ResearchStudy/study-2026-01"}',
+                },
             },
             "additionalProperties": False,
         },
@@ -513,6 +518,13 @@ def _conversion_schemas() -> dict[str, Any]:
                     "description": "Legacy compatibility only. V2 clients must use Authorization Bearer tokens.",
                 },
                 "send": {"type": "boolean", "default": False},
+                "researchStudy": {
+                    "type": "object",
+                    "description": "Required when sector is onehealth-research; optional for other conversion sectors.",
+                    "required": ["reference"],
+                    "properties": {"reference": {"type": "string", "example": "ResearchStudy/study-2026-01"}},
+                    "additionalProperties": True,
+                },
                 "body": {"$ref": "#/components/schemas/DidcommBundleBody"},
                 "attachments": {
                     "type": "array",
@@ -534,6 +546,12 @@ def _conversion_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
+                "researchStudy": {
+                    "type": "object",
+                    "description": "Required for current ResearchStudy-scoped jobs; omission is read-only compatibility for legacy stored jobs and remains valid for non-research jobs.",
+                    "required": ["reference"],
+                    "properties": {"reference": {"type": "string", "example": "ResearchStudy/study-2026-01"}},
+                },
                 "vp_token": {
                     "type": "string",
                     "deprecated": True,
@@ -610,6 +628,12 @@ def _conversion_schemas() -> dict[str, Any]:
                 "iat": {"type": "integer", "format": "int64"},
                 "exp": {"type": "integer", "format": "int64"},
                 "type": {"type": "string", "example": "https://didcomm.org/plaintext/2.0/message"},
+                "researchStudy": {
+                    "type": "object",
+                    "description": "Required only when reviewing a ResearchStudy-scoped conversion.",
+                    "required": ["reference"],
+                    "properties": {"reference": {"type": "string", "example": "ResearchStudy/study-2026-01"}},
+                },
                 # TODO(auth-cleanup): id_token/vp_token in the DIDComm body are only used in
                 # DEMO_MODE for subject tracking. In production the Bearer header is the sole
                 # credential carrier. Remove these fields from the schema once the SDK stops

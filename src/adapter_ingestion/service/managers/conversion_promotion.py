@@ -20,6 +20,8 @@ from ..observability import log_event
 from ..research import build_storage_namespace
 from .dependencies import ApiManagerDependencies
 from ..coding_review import apply_coding_reviews
+from ..research_study import RESEARCH_SUBJECT_STUDY_CLAIM
+from ..research_study import research_study_reference as optional_research_study_reference
 
 
 def _build_operation_outcome(*, message: str, diagnostics: str) -> dict[str, Any]:
@@ -116,6 +118,20 @@ def promote_resources(
     thid = payload_thid or query_thid
     if not thid:
         raise HTTPException(status_code=400, detail="thid is required in DIDComm payload or query")
+    try:
+        requested_study = optional_research_study_reference(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    job = deps.control_plane.get_job_by_thid(thid)
+    if not job:
+        raise HTTPException(status_code=404, detail="conversion thread not found")
+    research_study_reference = str(job.request.research_study_reference or "").strip()
+    if str(sector or "").strip().lower() == "onehealth-research" and not research_study_reference:
+        raise HTTPException(status_code=409, detail="legacy research conversion has no ResearchStudy context")
+    if research_study_reference and not requested_study:
+        raise HTTPException(status_code=400, detail="researchStudy.reference is required")
+    if requested_study and requested_study != research_study_reference:
+        raise HTTPException(status_code=404, detail="conversion thread not found for researchStudy.reference")
 
     vault_id = build_storage_namespace(
         network_kind=deps.settings.network_mode,
@@ -177,6 +193,11 @@ def promote_resources(
             subject_resource_type = "Subject"
             subject_res = deps.vault_repo.get(vault_id, subject, subject_resource_type)
         if subject_res:
+            subject_study = str(
+                subject_res.get("meta", {}).get("claims", {}).get(RESEARCH_SUBJECT_STUDY_CLAIM, "")
+            ).strip()
+            if subject_resource_type == "ResearchSubject" and subject_study != research_study_reference:
+                raise HTTPException(status_code=409, detail="ResearchSubject.study does not match conversion thread")
             subject_claim_key = f"{subject_resource_type}.userSelected"
             is_subject_draft = str(subject_res.get("meta", {}).get("claims", {}).get(subject_claim_key, "")).lower()
             if is_subject_draft == "true":
@@ -237,6 +258,7 @@ def promote_resources(
         thid=thid,
         vaultId=vault_id,
         promotedCount=promoted_count,
+        researchStudyReference=research_study_reference,
     )
 
     confirmed_at = datetime.now(timezone.utc).isoformat()
@@ -260,23 +282,25 @@ def promote_resources(
         f"Recursos promovidos={promoted_count}. "
         f"Datasets actualizados={len(datasets_updated)}."
     )
-    data_entries = [
-        {
+    data_entries = []
+    for item, dataset in zip(datasets_updated, dcat_datasets):
+        entry_meta = {
+            "confirmedAt": confirmed_at,
+            "tenantId": tenant_id,
+            "jurisdiction": str(jurisdiction or "").upper(),
+            "sector": sector,
+            "resourceType": item["resourceType"],
+            "updatedCount": item["updatedCount"],
+        }
+        if research_study_reference:
+            entry_meta["researchStudy"] = {"reference": research_study_reference}
+        data_entries.append({
             "response": {
                 "status": "200",
             },
-            "meta": {
-                "confirmedAt": confirmed_at,
-                "tenantId": tenant_id,
-                "jurisdiction": str(jurisdiction or "").upper(),
-                "sector": sector,
-                "resourceType": item["resourceType"],
-                "updatedCount": item["updatedCount"],
-            },
+            "meta": entry_meta,
             "resource": dataset,
-        }
-        for item, dataset in zip(datasets_updated, dcat_datasets)
-    ]
+        })
 
     return {
         "type": "https://didcomm.org/plaintext/2.0/message",

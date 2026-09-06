@@ -48,6 +48,22 @@ whose catalog is generated from `gdc-common-utils-ts`.
 
 ## Research review, persistence, and coding-assistance boundary
 
+Every new upload whose sector is explicitly `onehealth-research` carries a literal FHIR Reference object such as
+`"researchStudy": {"reference": "ResearchStudy/study-2026-01"}`. DataConv
+persists that reference in the job, copies it to the standard
+`ResearchSubject.study` flat claim, requires the same reference when polling or
+patching the conversion, and requires the standard `study` parameter when
+searching ResearchSubject. This is correlation and dataset isolation only:
+DataConv does not infer Consent, SMART scope or employee authority from the
+reference; those controls remain in GW. Other conversion sectors keep their
+existing contract and may omit `researchStudy`.
+
+Firestore jobs created before this field existed can still be polled without
+it so an already-running conversion is not lost. That compatibility is
+read-only: an unscoped legacy conversion cannot be promoted through `_patch`.
+No personal source identifier is copied into the study reference or public
+search index.
+
 The persistent research lifecycle is deliberately:
 
 ```text

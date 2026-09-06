@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Require every new `onehealth-research` conversion to carry and persist one stable FHIR
+  ResearchStudy reference; poll, review patch and ResearchSubject search are
+  checked or filtered by that reference.
+- Store the public relationship only as the standard `ResearchSubject.study`
+  claim. The reference grants no DataConv-local authority and never replaces
+  GW Consent or SMART evaluation; legacy unscoped jobs remain pollable but
+  cannot be promoted.
+- Preserve non-research upload and review compatibility: `researchStudy` is
+  optional outside the explicit `onehealth-research` sector.
+
 - Added terminology-service and coding-model HTTP adapters. DataConv sends the
   complete governed candidate set plus allowlisted row context, rejects model-
   invented candidates, and preserves every result for human selection.

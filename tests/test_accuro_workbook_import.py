@@ -293,6 +293,8 @@ def test_each_accuro_sheet_gets_api_config_and_imports_without_duplicate_subject
     ), NoopCodingAssistant())
     research_subject = pipeline_result.composition_message["body"]["data"][0]["resource"]
     assert research_subject["resourceType"] == "ResearchSubject"
+    study_reference = "ResearchStudy/study-workbook-import-1"
+    research_subject["meta"]["claims"]["ResearchSubject.study"] = study_reference
 
     repository = InMemorySearchRepository()
     vault_id = build_storage_namespace(
@@ -313,7 +315,10 @@ def test_each_accuro_sheet_gets_api_config_and_imports_without_duplicate_subject
         request=SimpleNamespace(headers={}, query_params={}),
         body={
             "resourceType": "Parameters",
-            "parameter": [{"name": "identifier", "valueUri": subject_identifier}],
+            "parameter": [
+                {"name": "identifier", "valueUri": subject_identifier},
+                {"name": "study", "valueReference": {"reference": study_reference}},
+            ],
         },
     )
     assert search_result["resourceType"] == "Bundle"

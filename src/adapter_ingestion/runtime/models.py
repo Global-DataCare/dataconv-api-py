@@ -89,6 +89,7 @@ class JobRequest:
     mode: str = "persistent"  # persistent | demo-ephemeral
     inline_config: dict[str, Any] = field(default_factory=dict)
     thid: str = ""
+    research_study_reference: str = ""
 
 
 @dataclass(frozen=True)
@@ -115,6 +116,3 @@ class JobRecord:
             status=JobStatus.QUEUED,
             request=request,
         )
-
-
-

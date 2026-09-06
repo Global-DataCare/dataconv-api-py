@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Added terminology-service and coding-model HTTP adapters. DataConv sends the
+  complete governed candidate set plus allowlisted row context, rejects model-
+  invented candidates, and preserves every result for human selection.
+- Added provisional `Condition` coding proposals outside authoritative flat
+  claims. Human `_patch` review materializes only the selected `Condition.code`
+  and English `Condition.code-display`, then emits accepted/rejected feedback
+  with the optional reviewer reason.
+- Corrected Accuro diagnosis and pathology fields from
+  `DiagnosticReport.code-text` to unconfirmed `Condition.code` coding inputs.
+- Added proposal and ambiguity counts for portal prioritization and made FHIR
+  `code:text` search use confirmed English `code-display` when available.
 - Documented and regression-guarded the research lifecycle from GCS upload to
   Firestore review draft and human-confirmed PostgreSQL search promotion.
 - Clarified that PostgreSQL duplicates the same processed promoted resource as
@@ -10,7 +21,8 @@
 - Recorded the coding-assistance safety boundary: inferred terminology codes
   remain human-reviewed proposals; the deployed worker still uses
   `NoopCodingAssistant`, and remote inference plus durable review-decision
-  capture remain pending.
+  capture are now configurable; they remain disabled when the service URLs are
+  absent.
 - Defined the future terminology boundary around FHIR R4 text-filtered
   ValueSet expansion, code validation, and explicit ConceptMap translation;
   general intent or question-answering model endpoints do not substitute for

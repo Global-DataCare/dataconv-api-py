@@ -21,6 +21,7 @@ from .api_support import (
 )
 from .factory import (
     build_blob_store,
+    build_coding_feedback_sink,
     build_control_plane,
     build_search_repository,
     build_subject_link_store,
@@ -79,6 +80,7 @@ def create_app():
         vault_repo=vault_repo,
         search_repo=search_repo,
         config_create_responses=config_create_responses,
+        coding_feedback_sink=build_coding_feedback_sink(settings),
     )
     config_create_manager = TenantConfigCreateManager(deps)
     config_poll_manager = TenantConfigPollManager(deps)

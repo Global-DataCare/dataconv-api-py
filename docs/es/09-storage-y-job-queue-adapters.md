@@ -101,13 +101,16 @@ La copia completa en ambas bases evita releer Firestore por cada resultado de
 búsqueda, a cambio de duplicación. Cualquier rediseño debe definir primero una
 única fuente autoritativa para recursos promovidos y su reconciliación.
 
-La inferencia de texto a código solo puede producir propuestas. La IA puede
-devolver sistema, código, display, confianza y evidencia, pero solo una decisión
-human-reviewed puede promover datos. Las propuestas aceptadas y rechazadas
-pueden alimentar un conjunto gobernado, desidentificado y revisado por personas
-para evaluación o entrenamiento; la salida del modelo nunca es verdad de terreno
-automática. El worker desplegado utiliza actualmente `NoopCodingAssistant`, por
-lo que todavía no integra un servicio remoto de IA.
+La inferencia de texto a código solo puede producir propuestas. El servicio de
+terminología devuelve todos los candidatos gobernados y el modelo añade un
+porcentaje de recomendación y evidencia sin eliminar alternativas. Esos datos
+viven en `meta.codingProposals[]`, fuera de las flat claims autoritativas. La
+decisión human-reviewed escribe únicamente `<Resource>.code` y el
+`<Resource>.code-display` en inglés. La revisión envía candidatos aceptados y
+rechazados, junto con el motivo opcional, a `/v1/coding/feedback`; esto crea
+datos de evaluación o entrenamiento, no aprendizaje online automático. El
+worker usa `NoopCodingAssistant` solo si falta
+`PRECONV_TERMINOLOGY_BASE_URL` o `PRECONV_CODING_MODEL_BASE_URL`.
 
 Un runtime de modelo reutilizable puede exponer contratos independientes para
 intents de aplicación, resolución de dudas y codificación clínica. El endpoint de
@@ -148,6 +151,6 @@ La lógica de negocio no cambia; solo se reemplazan adapters.
 - `tests/test_manager_conversion_patch.py` prueba la promoción tras revisión y
   `tests/test_runtime_postgres_search_integration.py` prueba la persistencia y
   devolución desde PostgreSQL.
-- La integración remota del asistente de codificación y el registro duradero de
-  decisiones de revisión están pendientes; el worker usa `NoopCodingAssistant`.
+- La codificación remota y el feedback de revisión se activan solo cuando se
+  configuran sus URLs; en caso contrario el worker usa `NoopCodingAssistant`.
 - En evolución: variante push con Cloud Tasks (si se prefiere callback worker).

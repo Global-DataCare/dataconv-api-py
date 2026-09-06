@@ -19,6 +19,7 @@ from ..api_support import (
 from ..observability import log_event
 from ..research import build_storage_namespace
 from .dependencies import ApiManagerDependencies
+from ..coding_review import apply_coding_reviews
 
 
 def _build_operation_outcome(*, message: str, diagnostics: str) -> dict[str, Any]:
@@ -141,6 +142,13 @@ def promote_resources(
 
     promoted_count = 0
     promoted_by_type: dict[str, int] = {}
+    message_body = payload.get("body", {})
+    coding_reviews = (
+        message_body.get("codingReviews", []) if isinstance(message_body, dict) else []
+    )
+    if not isinstance(coding_reviews, list):
+        raise HTTPException(status_code=400, detail="body.codingReviews must be an array")
+    pending_reviews = [item for item in coding_reviews if isinstance(item, dict)]
 
     def _mark_promoted(resource_type_key: str) -> None:
         nonlocal promoted_count
@@ -195,6 +203,23 @@ def promote_resources(
             canon = deps.vault_repo.get(vault_id, entry_id, linked_resource_type)
             if not canon:
                 continue
+            reviews_for_resource = [
+                item
+                for item in pending_reviews
+                if str(item.get("resourceType", "")) == linked_resource_type
+                and str(item.get("resourceId", "")) == entry_id
+            ]
+            if reviews_for_resource:
+                try:
+                    apply_coding_reviews(
+                        resources=[canon],
+                        reviews=reviews_for_resource,
+                        feedback_sink=deps.coding_feedback_sink,
+                        reviewer_subject=issuer,
+                    )
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                pending_reviews = [item for item in pending_reviews if item not in reviews_for_resource]
             res_claim_key = f"{linked_resource_type}.userSelected"
             is_res_draft = str(canon.get("meta", {}).get("claims", {}).get(res_claim_key, "")).lower()
             if is_res_draft == "true":
@@ -202,6 +227,9 @@ def promote_resources(
                 deps.vault_repo.put(vault_id, [canon], linked_resource_type)
                 deps.search_repo.upsert(vault_id=vault_id, resource_type=linked_resource_type, resource=canon)
                 _mark_promoted(linked_resource_type)
+
+    if pending_reviews:
+        raise HTTPException(status_code=400, detail="one or more coding review resources were not found in the conversion thread")
 
     log_event(
         "research_drafts_promoted",

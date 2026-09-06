@@ -20,6 +20,14 @@ from adapter_ingestion.service.managers.conversion_patch import ConversionPatchM
 from adapter_ingestion.service.settings import ServiceSettings
 
 
+class RecordingFeedbackSink:
+    def __init__(self) -> None:
+        self.events = []
+
+    def submit(self, event) -> None:
+        self.events.append(event)
+
+
 class TestConversionPatchManager(unittest.TestCase):
     def test_handle_updates_user_selected(self) -> None:
         # This PATCH represents explicit human review: it promotes the same
@@ -76,6 +84,43 @@ class TestConversionPatchManager(unittest.TestCase):
             "resourceType": "Encounter"
         }
         vault_repo.put(vault_id, [link], "pat-1_sec-1")
+
+        condition = {
+            "resourceType": "Condition",
+            "id": "condition-1",
+            "meta": {
+                "claims": {"Condition.userSelected": "true"},
+                "codingProposals": [{
+                    "id": "proposal-1",
+                    "status": "proposed",
+                    "field": "Condition.code",
+                    "inputText": "otitis",
+                    "rowContext": {"species": "canine", "symptoms": "recurrent discharge"},
+                    "candidates": [
+                        {
+                            "id": "candidate-media",
+                            "system": "http://snomed.info/sct",
+                            "code": "3135009",
+                            "display": "Otitis media",
+                            "recommendationPercent": 56.0,
+                        },
+                        {
+                            "id": "candidate-externa",
+                            "system": "http://snomed.info/sct",
+                            "code": "129127001",
+                            "display": "Otitis externa",
+                            "recommendationPercent": 44.0,
+                        },
+                    ],
+                }],
+            },
+        }
+        vault_repo.put(vault_id, [condition], "Condition")
+        vault_repo.put(vault_id, [{"id": "condition-1", "resourceType": "Condition"}], "pat-1_sec-1")
+        composition["meta"]["claims"]["Composition.entry"] = "Encounter:enc-1,Condition:condition-1"
+        vault_repo.put(vault_id, [composition], "Composition")
+
+        feedback_sink = RecordingFeedbackSink()
         
         deps = ApiManagerDependencies(
             settings=ServiceSettings(
@@ -128,7 +173,8 @@ class TestConversionPatchManager(unittest.TestCase):
             blob_store=InMemoryBlobStore(),
             vault_repo=vault_repo,
             search_repo=search_repo,
-            config_create_responses={}
+            config_create_responses={},
+            coding_feedback_sink=feedback_sink,
         )
         manager = ConversionPatchManager(deps)
         
@@ -137,7 +183,16 @@ class TestConversionPatchManager(unittest.TestCase):
             "iss": "did:web:example.org:employee:demo",
             "iat": 1000,
             "exp": 2000,
-            "thid": "test-thid-123"
+            "thid": "test-thid-123",
+            "body": {
+                "codingReviews": [{
+                    "resourceType": "Condition",
+                    "resourceId": "condition-1",
+                    "proposalId": "proposal-1",
+                    "selectedCandidateId": "candidate-externa",
+                    "reason": "Otoscopy localized inflammation to the external canal",
+                }]
+            },
         }
         
         request = SimpleNamespace(headers={})
@@ -153,7 +208,7 @@ class TestConversionPatchManager(unittest.TestCase):
         )
         
         self.assertEqual(res["body"]["status"], "success")
-        self.assertEqual(res["body"]["promotedCount"], 3)
+        self.assertEqual(res["body"]["promotedCount"], 4)
         self.assertEqual(res["body"]["issues"]["resourceType"], "OperationOutcome")
         self.assertEqual(res["body"]["issues"]["issue"][0]["severity"], "information")
         self.assertNotIn("publication", res["body"])
@@ -197,6 +252,16 @@ class TestConversionPatchManager(unittest.TestCase):
         self.assertEqual(indexed_enc[0], promoted_enc)
         self.assertEqual(len(indexed_research_subject), 1)
         self.assertEqual(indexed_research_subject[0], promoted_research_subject)
+        promoted_condition = vault_repo.get(vault_id, "condition-1", "Condition")
+        self.assertEqual(
+            promoted_condition["meta"]["claims"]["Condition.code"],
+            "http://snomed.info/sct|129127001",
+        )
+        self.assertEqual(
+            promoted_condition["meta"]["claims"]["Condition.code-display"],
+            "Otitis externa",
+        )
+        self.assertEqual(feedback_sink.events[0]["reason"], "Otoscopy localized inflammation to the external canal")
 
 if __name__ == "__main__":
     unittest.main()

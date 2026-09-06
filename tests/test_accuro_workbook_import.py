@@ -8,7 +8,7 @@ from uuid import UUID
 
 import pytest
 from openpyxl import Workbook, load_workbook
-from gdc_data_utils import ChargeItemClaim, DiagnosticReportClaim, InvoiceClaim
+from gdc_data_utils import ChargeItemClaim, ConditionClaim, InvoiceClaim
 
 from adapter_ingestion.accuro_workbook import ACCURO_SHEET_CONFIGS, prepare_accuro_workbook
 from adapter_ingestion.ai.base import NoopCodingAssistant
@@ -88,7 +88,7 @@ def test_full_birthdate_is_replaced_with_year_for_anonymization(tmp_path: Path) 
     assert values[headers.index("MASCOTA")] is None
 
 
-def test_origin_is_ignored_and_free_text_diagnoses_use_diagnostic_report_code_text() -> None:
+def test_origin_is_ignored_and_diagnoses_are_unconfirmed_condition_coding_inputs() -> None:
     for config in ACCURO_SHEET_CONFIGS:
         assert "origin" not in config.internal_fields
 
@@ -100,7 +100,7 @@ def test_origin_is_ignored_and_free_text_diagnoses_use_diagnostic_report_code_te
     }
     for sheet_name, source_header in expected_diagnostic_headers.items():
         config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == sheet_name)
-        assert config.internal_fields[config.source_headers.index(source_header)] == DiagnosticReportClaim.CODE_TEXT
+        assert config.internal_fields[config.source_headers.index(source_header)] == f"coding-input:{ConditionClaim.CODE}"
 
 
 def test_financial_accuro_fields_use_canonical_claims_only_when_invoice_identity_is_safe() -> None:

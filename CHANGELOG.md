@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.7.8 - 2026-09-06
+
+- Require the exact network-, sector- and jurisdiction-scoped DataConv tenant
+  to be active before exchanging ICA controller proof for a research upload
+  token. Inactive or missing tenants now fail with HTTP 403; idempotent tenant
+  activation remains the explicit prerequisite.
+
 ## 0.7.7 - 2026-09-06
 
 - Add an opt-in shared GKE Ingress route for `/v1/terminology`, targeting a

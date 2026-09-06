@@ -1,4 +1,4 @@
-# Flow contract: the portal-facing activation route validates ICA proof before returning and persisting an active DataConv tenant.
+# Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
 
 from __future__ import annotations
 
@@ -91,10 +91,21 @@ def test_controller_upload_exchange_uses_the_same_ica_proof_and_route_scope() ->
             "adapter_ingestion.service.managers.organization_tenant_activation.ConnectIcaOrganizationProofVerifierClient.verify",
             return_value={"active": True, "controller": "did:web:controller.example#actor-signing", "credentialIds": ["org-vc", "rep-vc", "controller-vc"], "ledgerChecked": False},
         ):
-            response = TestClient(api.create_app()).post(
+            client = TestClient(api.create_app())
+            inactive = client.post(
+                "/publisher/cds-CA-BC/v1/animal-research/7654321/organization/research/auth/_exchange",
+                json={"id_token": id_token, "vp_token": "signed-controller-vp"},
+            )
+            activated = client.post(
+                "/publisher/cds-CA-BC/v1/animal-research/7654321/organization/tenant/_activate",
+                json={"id_token": id_token, "vp_token": "signed-controller-vp"},
+            )
+            response = client.post(
                 "/publisher/cds-CA-BC/v1/animal-research/7654321/organization/research/auth/_exchange",
                 json={"id_token": id_token, "vp_token": "signed-controller-vp"},
             )
 
+    assert inactive.status_code == 403
+    assert activated.status_code == 200
     assert response.status_code == 200
     assert response.json()["token_type"] == "Bearer"

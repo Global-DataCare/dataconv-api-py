@@ -134,7 +134,7 @@ class ConversionUploadManager:
             required_scopes={"dataconv.upload"},
             expected_organization=tenant_id,
             expected_research_study=research_study_reference,
-            require_professional_research=sector_requires_professional_research_auth(sector, self._deps.settings),
+            require_study_research=sector_requires_professional_research_auth(sector, self._deps.settings),
         )
         thid = str(_extract_payload_value(payload, "thid") or "").strip()
         if not thid:
@@ -174,6 +174,18 @@ class ConversionUploadManager:
                     raw_bytes = gzip.decompress(raw_bytes)
                 except Exception as exc:
                     raise HTTPException(status_code=400, detail=f"invalid gzip payload: {exc}") from exc
+
+            maximum_workbook_bytes = max(
+                1,
+                int(getattr(self._deps.settings, "max_research_workbook_bytes", 8 * 1024 * 1024)),
+            )
+            if (sector_requires_research_study(sector)
+                    and normalized_source_format == "excel"
+                    and len(raw_bytes) > maximum_workbook_bytes):
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Excel workbook exceeds the {maximum_workbook_bytes // (1024 * 1024)} MiB upload limit",
+                )
 
             if not requested_source_format:
                 lower_name = str(file_name or '').lower()

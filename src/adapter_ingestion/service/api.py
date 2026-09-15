@@ -137,7 +137,7 @@ def create_app():
             "- 2.2 Identity Auth PKCE Code: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code`\n"
             "- 2.3 Identity Auth PKCE Token: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_token`\n"
             "- 2.4 Identity Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_exchange`\n"
-            "- 2.5 Professional Research Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange`\n"
+            "- 2.5 Research SMART Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange`\n"
             "- 3.1 Tenant Config Request: `_create`\n"
             "- 3.2 Tenant Config Response: `_create-response`\n"
             "- 4.1 Dataset Upload Request: `_upload`\n"

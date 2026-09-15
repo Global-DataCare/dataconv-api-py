@@ -124,3 +124,27 @@ For Invoice and ChargeItem imports:
 
 Keep the same example in the DataConv README and detailed docs. State which
 layer each representation belongs to and make tests the executable authority.
+
+For research workbook ingestion, keep authorization and transport independent:
+
+- exchange only a GW-signed SMART access token at the actor-neutral
+  `/research/auth/_exchange` route;
+- accept exact `organization/ResearchSubject.crus?study=...` for the
+  DCR-bound, consented professional, or exact create-only
+  `organization/ResearchSubject.c?study=...` for the current organization
+  controller;
+- derive an internal actor profile from that scope and never relabel a
+  controller as a professional;
+- send the workbook as binary multipart and the short-lived JWT only in the
+  `Authorization` header;
+- read `RESEARCH_WORKBOOK_MAX_BYTES` in DataConv and the portal/BFF with an
+  8 MiB default. GW does not receive the workbook and must not define this
+  variable;
+- treat 2, 8 and 25 MiB as deployment examples. Future DICOM ingestion needs
+  separate per-instance, instance-count and aggregate-study limits plus a
+  streaming/object-storage design for thousands of files.
+
+The resource/filter scope grammar may later describe appointment permissions,
+but no ResearchSubject scope grants scheduling access. Appointment actor,
+clinic, practitioner and location constraints require their own tests and
+policy contract.

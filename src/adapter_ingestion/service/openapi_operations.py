@@ -29,7 +29,7 @@ from .openapi_constants import (
     LEGACY_UPLOAD_RESPONSE_PATH,
     OAUTH_TOKEN_PATH,
     PATCH_PATH,
-    PROFESSIONAL_RESEARCH_EXCHANGE_PATH,
+    RESEARCH_SMART_EXCHANGE_PATH,
     SEARCH_PATH,
     UPLOAD_PATH,
     UPLOAD_RESPONSE_PATH,
@@ -56,7 +56,7 @@ def configure_schema_metadata(schema: dict[str, Any]) -> None:
             "- 2.2 Identity Auth PKCE Code: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_code`\n"
             "- 2.3 Identity Auth PKCE Token: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_token`\n"
             "- 2.4 Identity Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/identity/auth/_exchange`\n"
-            "- 2.5 Professional Research Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange`\n"
+            "- 2.5 Research SMART Auth Exchange: `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange`\n"
             "- 3.1 Publisher Config Request: `_create`\n"
             "- 3.2 Publisher Config Response: `_create-response`\n"
             "- 4.1 Publisher Upload Request: `_upload`\n"
@@ -114,7 +114,7 @@ def configure_schema_metadata(schema: dict[str, Any]) -> None:
             "description": "Final tenant-scoped identity exchange step.",
         },
         {
-            "name": "2.5 Professional Research Auth Exchange",
+            "name": "2.5 Research SMART Auth Exchange",
             "description": "Offline exchange of one GW-signed, professional and ResearchStudy-scoped SMART token.",
         },
         {
@@ -171,7 +171,7 @@ def configure_operations(
     search_operation = rewritten_paths.get(SEARCH_PATH, {}).get("post")
     exchange_operation = rewritten_paths.get(EXCHANGE_PATH, {}).get("post")
     oauth_token_operation = rewritten_paths.get(OAUTH_TOKEN_PATH, {}).get("post")
-    professional_research_exchange_operation = rewritten_paths.get(PROFESSIONAL_RESEARCH_EXCHANGE_PATH, {}).get("post")
+    research_smart_exchange_operation = rewritten_paths.get(RESEARCH_SMART_EXCHANGE_PATH, {}).get("post")
     controller_exchange_operation = rewritten_paths.get(CONTROLLER_EXCHANGE_PATH, {}).get("post")
     controller_exchange_response_operation = rewritten_paths.get(CONTROLLER_EXCHANGE_RESPONSE_PATH, {}).get("post")
     auth_dcr_operation = rewritten_paths.get(AUTH_DCR_PATH, {}).get("post")
@@ -558,7 +558,7 @@ def configure_operations(
 
     _configure_exchange_operation(exchange_operation, tags=["1.1 Controller Auth Exchange"])
     _configure_exchange_operation(oauth_token_operation, tags=["1.1 Controller Auth Exchange"])
-    _configure_professional_research_exchange_operation(professional_research_exchange_operation)
+    _configure_research_smart_exchange_operation(research_smart_exchange_operation)
     _configure_exchange_operation(controller_exchange_operation, tags=["1.1 Controller Auth Exchange"], async_mode=True)
     _configure_auth_poll_operation(
         controller_exchange_response_operation, tag="1.1 Controller Auth Exchange", action="_exchange"
@@ -964,37 +964,38 @@ def _configure_exchange_operation(
     responses["401"] = {"description": "subject_token invalid, expired, issuer not trusted, or api-key-exception profile not allowed."}
 
 
-def _configure_professional_research_exchange_operation(operation: dict[str, Any] | None) -> None:
+def _configure_research_smart_exchange_operation(operation: dict[str, Any] | None) -> None:
     if not isinstance(operation, dict):
         return
-    operation["tags"] = ["2.5 Professional Research Auth Exchange"]
+    operation["tags"] = ["2.5 Research SMART Auth Exchange"]
     operation["security"] = []
     operation["description"] = (
-        "RFC 8693 exchange of a GW-signed SMART access token already authorized by DCR and an active "
-        "ResearchStudy Consent. DataConv resolves the allowlisted tenant issuer's did:web document, "
-        "validates its authentication JWK offline, and requires exact iss/aud, exp/nbf, professional sub, "
-        "purpose=HRESCH, study and organization/ResearchSubject.crus?study=... scope. No OIDC id token, "
-        "controller VP, or separate researchStudy request field substitutes for the signed claims."
+        "RFC 8693 exchange of a GW-signed SMART access token. DataConv resolves the allowlisted tenant "
+        "issuer's did:web document, validates its authentication JWK offline, and requires exact iss/aud, "
+        "exp/nbf, authorized actor sub, purpose=HRESCH and study. A DCR-bound professional with active "
+        "Consent must carry organization/ResearchSubject.crus?study=...; the current organization controller "
+        "must carry create-only organization/ResearchSubject.c?study=.... No OIDC id token, controller VP, "
+        "or separate researchStudy request field substitutes for the signed claims."
     )
     operation["requestBody"] = {
         "required": True,
         "content": {
             "application/json": {
-                "schema": {"$ref": "#/components/schemas/ProfessionalResearchTokenExchangeRequest"},
+                "schema": {"$ref": "#/components/schemas/ResearchStudyTokenExchangeRequest"},
                 "example": {
                     "subject_token": "<GW SMART access token>",
                     "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
                 },
             },
             "application/x-www-form-urlencoded": {
-                "schema": {"$ref": "#/components/schemas/ProfessionalResearchTokenExchangeRequest"},
+                "schema": {"$ref": "#/components/schemas/ResearchStudyTokenExchangeRequest"},
             },
         },
     }
     operation["responses"] = {
         "200": {
             "description": "Study-bound DataConv token issued.",
-            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ProfessionalResearchTokenExchangeResponse"}}},
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ResearchStudyTokenExchangeResponse"}}},
         },
         "401": {"description": "The SMART token, DID signature, claims, issuer binding, or active tenant check failed."},
         "403": {"description": "The DataConv tenant is not active for this network, sector and jurisdiction."},

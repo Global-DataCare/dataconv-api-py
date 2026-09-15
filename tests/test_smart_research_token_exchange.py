@@ -1,6 +1,7 @@
 # Flow contract: reuse shared test fixtures and canonical types; do not introduce duplicated literals.
-# A DCR-bound professional exchanges one GW-signed study SMART token for a
-# short-lived DataConv token that cannot escape its tenant or ResearchStudy.
+# A DCR-bound consented professional or current organization controller
+# exchanges one exact GW-signed study SMART token for a short-lived DataConv
+# token that cannot escape its tenant, actor or ResearchStudy.
 
 from __future__ import annotations
 
@@ -30,6 +31,7 @@ ACTOR = "did:web:professional.example:employee:reviewer"
 TENANT = "CA-BC-7654321"
 STUDY = "ResearchStudy/study-2026-01"
 SMART_SCOPE = f"organization/ResearchSubject.crus?study={STUDY}"
+CONTROLLER_SCOPE = f"organization/ResearchSubject.c?study={STUDY}"
 KEY_ID = "comm_sig"
 VERIFICATION_METHOD_ID = f"{ISSUER}#{KEY_ID}"
 
@@ -125,6 +127,39 @@ def test_exchanges_verified_smart_access_token_for_minimal_study_bound_dataconv_
     assert claims["token_profile"] == "professional_research"
 
 
+def test_exchanges_controller_create_scope_without_masquerading_as_a_professional() -> None:
+    private_key = ec.generate_private_key(ec.SECP384R1())
+    controller = "did:web:controller.example:organization:clinic"
+
+    result = _manager(private_key).exchange(
+        {
+            "subject_token": _smart_token(
+                private_key,
+                sub=controller,
+                scope=CONTROLLER_SCOPE,
+            ),
+            "subject_token_type": SMART_ACCESS_TOKEN_TYPE,
+        },
+        tenant_id=TENANT,
+        jurisdiction="CA-BC",
+        sector="animal-research",
+    )
+
+    claims = validate_session_access_token(result.access_token, _settings())
+    assert result.subject == controller
+    assert claims["token_profile"] == "organization_research"
+    assert claims["study"] == STUDY
+    _enforce_auth_context(
+        {"iss": controller},
+        _settings(),
+        authorization_header=f"Bearer {result.access_token}",
+        required_scopes={"dataconv.upload"},
+        expected_organization=TENANT,
+        expected_research_study=STUDY,
+        require_study_research=True,
+    )
+
+
 @pytest.mark.parametrize(
     ("override", "message"),
     [
@@ -133,7 +168,7 @@ def test_exchanges_verified_smart_access_token_for_minimal_study_bound_dataconv_
         ({"study": "ResearchStudy/other"}, "scope"),
         ({"study": "https://gw.example/fhir/ResearchStudy/study-2026-01"}, "relative"),
         ({"scope": "organization/ResearchSubject.rus?study=ResearchStudy/study-2026-01"}, "scope"),
-        ({"sub": ISSUER}, "professional"),
+        ({"sub": ISSUER}, "authorized actor"),
         ({"exp": 1}, "expired"),
     ],
 )
@@ -191,7 +226,7 @@ def test_rejects_wrong_subject_token_type_signature_key_algorithm_and_tenant_bin
         )
 
 
-def test_research_operations_reject_controller_tokens_and_cross_study_professional_tokens() -> None:
+def test_research_operations_reject_unscoped_tokens_and_cross_study_tokens() -> None:
     settings = _settings()
     demo_settings = SimpleNamespace(**{**vars(settings), "demo_mode": True, "network_mode": "test"})
     with pytest.raises(HTTPException, match="Bearer token required"):
@@ -200,7 +235,7 @@ def test_research_operations_reject_controller_tokens_and_cross_study_profession
             demo_settings,
             expected_organization=TENANT,
             expected_research_study=STUDY,
-            require_professional_research=True,
+            require_study_research=True,
         )
     controller_token, _, _ = issue_session_access_token(
         subject="did:web:controller.example",
@@ -208,7 +243,7 @@ def test_research_operations_reject_controller_tokens_and_cross_study_profession
         scopes=["dataconv.upload"],
         settings=settings,
     )
-    with pytest.raises(HTTPException, match="professional"):
+    with pytest.raises(HTTPException, match="study research"):
         _enforce_auth_context(
             {},
             settings,
@@ -216,7 +251,7 @@ def test_research_operations_reject_controller_tokens_and_cross_study_profession
             required_scopes={"dataconv.upload"},
             expected_organization=TENANT,
             expected_research_study=STUDY,
-            require_professional_research=True,
+            require_study_research=True,
         )
 
     professional_token, _, _ = issue_session_access_token(
@@ -239,7 +274,7 @@ def test_research_operations_reject_controller_tokens_and_cross_study_profession
             required_scopes={"dataconv.review"},
             expected_organization=TENANT,
             expected_research_study=STUDY,
-            require_professional_research=True,
+            require_study_research=True,
         )
 
     correct_study_token, _, _ = issue_session_access_token(
@@ -262,11 +297,11 @@ def test_research_operations_reject_controller_tokens_and_cross_study_profession
             required_scopes={"dataconv.upload"},
             expected_organization=TENANT,
             expected_research_study=STUDY,
-            require_professional_research=True,
+            require_study_research=True,
         )
 
 
-def test_professional_exchange_route_accepts_only_the_rfc8693_wire_fields() -> None:
+def test_research_exchange_route_accepts_only_the_rfc8693_wire_fields() -> None:
     fastapi = pytest.importorskip("fastapi")
     testclient = pytest.importorskip("fastapi.testclient")
     captured: dict[str, object] = {}
@@ -305,7 +340,7 @@ def test_professional_exchange_route_accepts_only_the_rfc8693_wire_fields() -> N
         smart_research_exchange_manager=SmartManager(),
     )
     response = testclient.TestClient(app).post(
-        f"/publisher/cds-CA-BC/v1/animal-research/{TENANT}/professional/research/auth/_exchange",
+        f"/publisher/cds-CA-BC/v1/animal-research/{TENANT}/research/auth/_exchange",
         json={"subject_token": "gw-smart-token", "subject_token_type": SMART_ACCESS_TOKEN_TYPE},
     )
 

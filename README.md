@@ -58,12 +58,15 @@ persists that reference in the job, copies it to the standard
 `ResearchSubject.study` flat claim, requires the same reference when polling or
 patching the conversion, and requires the standard `study` parameter when
 searching ResearchSubject. This is correlation and dataset isolation only:
-DataConv does not infer Consent or employee authority from the reference. GW
-first evaluates DCR plus the controller-approved active Consent and signs a
-SMART access token with `purpose=HRESCH`, the exact `study` reference, and the
-exact `organization/ResearchSubject.crus?study=...` scope. The professional
-exchanges that token at
-`/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange`.
+DataConv does not infer Consent, employee authority or controller authority
+from the reference. GW signs one of two exact SMART grants with
+`purpose=HRESCH` and the literal `study` reference: an associated DCR-bound
+professional with active Consent receives
+`organization/ResearchSubject.crus?study=...`; the current organization
+controller receives the narrower create-only
+`organization/ResearchSubject.c?study=...` for a study already stored by that
+tenant. Both actors exchange the GW token at
+`/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange`.
 DataConv validates the signature offline through the issuer's standard
 `did:web` document, using the `comm_sig` JWK exposed through the DID
 `authentication` relationship, and then enforces its own short-lived, actor- and
@@ -71,16 +74,26 @@ study-bound token on upload, poll, review and ResearchSubject search; it does
 not call GW for each operation. Other conversion sectors keep their existing
 contract and may omit `researchStudy`.
 
-The professional exchange accepts only RFC 8693 `subject_token` plus
+The research exchange accepts only RFC 8693 `subject_token` plus
 `subject_token_type=urn:ietf:params:oauth:token-type:access_token`. It accepts
-neither an OIDC id token nor controller VP as a substitute. Configure exact
+neither an OIDC id token nor a controller VP as a substitute for the SMART
+token. Configure exact
 trusted GW issuers and audiences with `SMART_GW_ALLOWED_ISSUERS` and
 `SMART_GW_EXPECTED_AUDIENCES`, and configure the JSON issuer-to-tenant map in
 `SMART_GW_ISSUER_TENANT_BINDINGS`. Production resolves only HTTPS DID Web
 documents; HTTP is limited to localhost in demo/test mode.
-Production always requires the derived professional token. Legacy demo fixtures
+Production always requires the derived study token. Legacy demo fixtures
 remain compatible unless `SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO=true` is set;
 enable that flag for local authorization E2E.
+
+Workbook upload remains binary multipart while the JWT stays in the
+`Authorization` header. Set `RESEARCH_WORKBOOK_MAX_BYTES` to the same positive
+byte value in DataConv and the portal/BFF; both default to `8388608` (8 MiB).
+`2097152`, `8388608`, and `26214400` are deployment examples, not content-type
+semantics. GW has no copy of this setting because workbook bytes never pass
+through GW. A future DICOM path must use separate per-instance, instance-count,
+and aggregate-study limits and streaming/object storage; it must not reuse the
+single-workbook request limit for a CD/DVD containing thousands of instances.
 
 Firestore jobs created before this field existed can still be polled without
 it so an already-running conversion is not lost. That compatibility is

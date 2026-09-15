@@ -154,7 +154,7 @@ class ConversionSearchManager:
                     required_scopes={"dataconv.read"},
                     expected_organization=tenant_id,
                     expected_research_study=str(search_params["study"]),
-                    require_professional_research=sector_requires_professional_research_auth(sector, self._deps.settings),
+                    require_study_research=sector_requires_professional_research_auth(sector, self._deps.settings),
                 )
 
         vault_id = build_storage_namespace(

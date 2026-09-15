@@ -23,6 +23,8 @@ from ..research_study import normalize_research_study_reference
 SMART_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
 SMART_RESEARCH_PURPOSE = "HRESCH"
 DATACONV_RESEARCH_SCOPES = ["dataconv.upload", "dataconv.read", "dataconv.review"]
+PROFESSIONAL_RESEARCH_TOKEN_PROFILE = "professional_research"
+ORGANIZATION_RESEARCH_TOKEN_PROFILE = "organization_research"
 
 
 @dataclass(frozen=True)
@@ -79,7 +81,13 @@ def _allowed(value: str, patterns: tuple[str, ...]) -> bool:
 
 
 class SmartResearchTokenExchangeManager:
-    """Validate one GW SMART JWT offline and mint a study-pinned DataConv JWT."""
+    """Validate one GW SMART JWT offline and mint a study-pinned DataConv JWT.
+
+    GW remains the authorization server. DataConv accepts either the exact
+    professional ``crus`` permission already backed by active Consent, or the
+    exact controller ``c`` permission for importing into one existing study.
+    The latter never turns the organization controller into a professional.
+    """
 
     def __init__(
         self,
@@ -197,7 +205,7 @@ class SmartResearchTokenExchangeManager:
 
         subject = str(decoded.get("sub") or "").strip()
         if not subject.startswith("did:") or subject == issuer:
-            raise ValueError("SMART subject must identify the authorized professional")
+            raise ValueError("SMART subject must identify the authorized actor")
         purpose = str(decoded.get("purpose") or "").strip()
         if purpose != SMART_RESEARCH_PURPOSE:
             raise ValueError("SMART purpose must be HRESCH")
@@ -205,9 +213,15 @@ class SmartResearchTokenExchangeManager:
         if not raw_study.startswith("ResearchStudy/"):
             raise ValueError("SMART study must be a relative ResearchStudy reference")
         study = normalize_research_study_reference(raw_study)
-        expected_scope = f"organization/ResearchSubject.crus?study={study}"
-        if str(decoded.get("scope") or "").strip() != expected_scope:
-            raise ValueError("SMART scope must grant exact ResearchSubject crus for the same study")
+        scope = str(decoded.get("scope") or "").strip()
+        profiles_by_scope = {
+            f"organization/ResearchSubject.crus?study={study}": PROFESSIONAL_RESEARCH_TOKEN_PROFILE,
+            f"organization/ResearchSubject.c?study={study}": ORGANIZATION_RESEARCH_TOKEN_PROFILE,
+        }
+        token_profile = profiles_by_scope.get(scope)
+        if token_profile is None:
+            raise ValueError("SMART scope must grant exact ResearchSubject professional or controller import access for the same study")
+        decoded["_dataconv_token_profile"] = token_profile
         return decoded
 
     def exchange(
@@ -233,6 +247,7 @@ class SmartResearchTokenExchangeManager:
         claims = self._validate(subject_token, tenant_id=tenant_id)
         subject = str(claims["sub"])
         study = str(claims["study"])
+        token_profile = str(claims["_dataconv_token_profile"])
         access_token, expires_in, _ = issue_session_access_token(
             subject=subject,
             organization=tenant_id,
@@ -242,7 +257,7 @@ class SmartResearchTokenExchangeManager:
                 "actor": subject,
                 "study": study,
                 "purpose": SMART_RESEARCH_PURPOSE,
-                "token_profile": "professional_research",
+                "token_profile": token_profile,
             },
             ttl_seconds_override=max(1, int(claims["exp"]) - int(time())),
         )

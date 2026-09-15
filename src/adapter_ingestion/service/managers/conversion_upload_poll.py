@@ -70,7 +70,7 @@ class ConversionUploadPollManager:
             required_scopes={"dataconv.read"},
             expected_organization=tenant_id,
             expected_research_study=requested_study,
-            require_professional_research=sector_requires_professional_research_auth(sector, self._deps.settings),
+            require_study_research=sector_requires_professional_research_auth(sector, self._deps.settings),
         )
         payload_thid = str(payload.get("thid", "")).strip()
         query_thid = _extract_query_value(request, "thid")

@@ -286,19 +286,19 @@ class ServiceApiTests(unittest.TestCase):
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
         # The exact literal is the release/OpenAPI synchronization contract.
-        self.assertEqual(schema.get("info", {}).get("version"), "0.7.12")
-        professional_exchange = schema.get("paths", {}).get(
-            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/professional/research/auth/_exchange",
+        self.assertEqual(schema.get("info", {}).get("version"), "0.7.13")
+        research_exchange = schema.get("paths", {}).get(
+            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange",
             {},
         ).get("post", {})
-        request_schema = professional_exchange.get("requestBody", {}).get("content", {}).get(
+        request_schema = research_exchange.get("requestBody", {}).get("content", {}).get(
             "application/json", {}
         ).get("schema", {})
         self.assertEqual(
             request_schema.get("$ref"),
-            "#/components/schemas/ProfessionalResearchTokenExchangeRequest",
+            "#/components/schemas/ResearchStudyTokenExchangeRequest",
         )
-        self.assertEqual(professional_exchange.get("security"), [])
+        self.assertEqual(research_exchange.get("security"), [])
         tag_names = [tag.get("name") for tag in schema.get("tags", []) if isinstance(tag, dict)]
         self.assertIn("3.1 Publisher Config Request", tag_names)
         self.assertIn("3.2 Publisher Config Response", tag_names)
@@ -2449,6 +2449,92 @@ class ServiceApiTests(unittest.TestCase):
             "/onehealth-research/digitaltwin/qvet-v1.0/excel/_upload-response?thid=job-form-001",
             response.headers["Location"],
         )
+
+    def test_upload_rejects_a_workbook_larger_than_eight_mib_before_persistence(self) -> None:
+        from io import BytesIO
+
+        from starlette.datastructures import UploadFile
+
+        upload_ep = self._endpoint(
+            "/{tenant_id}/cds-{jurisdiction}/v1/animal-care/conversion/{manufacturer}/{source_format}/_upload",
+            method="POST",
+        )
+        file_obj = UploadFile(
+            file=BytesIO(b"x" * ((8 * 1024 * 1024) + 1)),
+            filename="too-large.xlsx",
+        )
+
+        with self.assertRaises(HTTPException) as ctx:
+            asyncio.run(
+                upload_ep(
+                    tenant_id="tenant-a",
+                    jurisdiction="es",
+                    sector="onehealth-research",
+                    manufacturer="qvet-v1.0",
+                    source_format="excel",
+                    request=_FakeRequest(
+                        form_data={
+                            "iss": "did:web:clinic.example:employee:loader",
+                            "type": "https://didcomm.org/plaintext/2.0/message",
+                            "thid": "job-form-too-large",
+                            "iat": str(self._DEFAULT_IAT),
+                            "exp": str(self._DEFAULT_EXP),
+                            "metadata": json.dumps({
+                                "researchStudy": {"reference": self._RESEARCH_STUDY_REFERENCE}
+                            }),
+                        }
+                    ),
+                    response=Response(),
+                    file=file_obj,
+                    body=None,
+                )
+            )
+
+        self.assertEqual(ctx.exception.status_code, 413)
+        self.assertIn("8 MiB", str(ctx.exception.detail))
+        self.assertIsNone(self._control_plane().get_job_by_thid("job-form-too-large"))
+
+    def test_research_workbook_limit_does_not_redefine_non_research_excel_transport(self) -> None:
+        from io import BytesIO
+
+        from starlette.datastructures import UploadFile
+
+        upload_ep = self._endpoint(
+            "/{tenant_id}/cds-{jurisdiction}/v1/animal-care/conversion/{manufacturer}/{source_format}/_upload",
+            method="POST",
+        )
+        response = Response()
+        file_obj = UploadFile(
+            file=BytesIO(b"x" * ((8 * 1024 * 1024) + 1)),
+            filename="non-research.xlsx",
+        )
+
+        asyncio.run(
+            upload_ep(
+                tenant_id="tenant-a",
+                jurisdiction="es",
+                sector="animal-care",
+                manufacturer="qvet-v1.0",
+                source_format="excel",
+                request=_FakeRequest(
+                    form_data={
+                        "iss": "did:web:clinic.example:employee:loader",
+                        "type": "https://didcomm.org/plaintext/2.0/message",
+                        "thid": "job-form-non-research-large",
+                        "iat": str(self._DEFAULT_IAT),
+                        "exp": str(self._DEFAULT_EXP),
+                    }
+                ),
+                response=response,
+                file=file_obj,
+                body=None,
+            )
+        )
+
+        # This direct manager boundary proves the payload was accepted; the
+        # HTTP route decorator supplies 202 in an actual request.
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(self._control_plane().get_job_by_thid("job-form-non-research-large"))
 
     def test_http_exception_is_returned_as_bundle_error_envelope(self) -> None:
         self.assertIsNotNone(TestClient)

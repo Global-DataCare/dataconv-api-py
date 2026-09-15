@@ -142,6 +142,20 @@ class ServiceSettingsTests(unittest.TestCase):
         self.assertEqual(settings.firestore_config_collection, "dev-preconvert-health-configs")
         self.assertEqual(settings.firestore_job_collection, "dev-preconvert-health-jobs")
 
+    def test_research_workbook_limit_uses_the_shared_portal_dataconv_env_name(self) -> None:
+        settings_module = self._settings_module()
+        with patch.object(settings_module, "_load_default_dotenvs", new=lambda: None):
+            with patch.dict(
+                os.environ,
+                {
+                    "RESEARCH_WORKBOOK_MAX_BYTES": str(2 * 1024 * 1024),
+                },
+                clear=True,
+            ):
+                settings = settings_module.load_settings()
+
+        self.assertEqual(settings.max_research_workbook_bytes, 2 * 1024 * 1024)
+
 
 if __name__ == "__main__":
     unittest.main()

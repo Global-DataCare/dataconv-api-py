@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.7.13 - 2026-09-15
+
+- Accept the current organization controller's exact create-only,
+  ResearchStudy-pinned GW SMART scope without representing it as a professional;
+  retain the professional DCR plus active-Consent `crus` profile and expose one
+  actor-neutral RFC 8693 exchange route.
+- Reject oversized research workbooks before persistence using the shared
+  `RESEARCH_WORKBOOK_MAX_BYTES` setting, defaulting to 8 MiB, while leaving
+  DICOM instance/count/aggregate limits to a separate future contract.
+
 ## 0.7.12 - 2026-09-06
 
 - Keep the runtime and generated OpenAPI release version synchronized with the

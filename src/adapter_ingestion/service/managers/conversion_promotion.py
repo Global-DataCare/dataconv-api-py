@@ -120,7 +120,7 @@ def promote_resources(
         required_scopes={"dataconv.review"},
         expected_organization=tenant_id,
         expected_research_study=requested_study,
-        require_professional_research=sector_requires_professional_research_auth(sector, deps.settings),
+        require_study_research=sector_requires_professional_research_auth(sector, deps.settings),
     )
 
     payload_thid = str(payload.get("thid", "")).strip()

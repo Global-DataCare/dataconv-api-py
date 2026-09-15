@@ -210,6 +210,7 @@ class ServiceSettings:
     smart_gw_did_cache_ttl_seconds: int = 300
     smart_gw_http_timeout_seconds: int = 5
     smart_research_auth_required_in_demo: bool = False
+    max_research_workbook_bytes: int = 8 * 1024 * 1024
 
 
 def load_settings() -> ServiceSettings:
@@ -342,4 +343,8 @@ def load_settings() -> ServiceSettings:
         smart_research_auth_required_in_demo=_getenv("SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO", "false").lower() in {
             "1", "true", "yes", "on"
         },
+        # Shared verbatim with the product portal/BFF so both boundaries reject
+        # the same workbook before parsing or persistence. GW never receives
+        # this binary and therefore intentionally has no equivalent setting.
+        max_research_workbook_bytes=_getenv_int("RESEARCH_WORKBOOK_MAX_BYTES", 8 * 1024 * 1024),
     )

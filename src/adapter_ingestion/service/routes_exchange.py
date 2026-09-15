@@ -67,11 +67,17 @@ def register_exchange_routes(app, *, exchange_manager, smart_research_exchange_m
         return exchange_manager.as_response(result)
 
     @app.post(
-        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/professional/research/auth/_exchange",
-        tags=["2.5 Professional Research Auth Exchange"],
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/research/auth/_exchange",
+        tags=["2.5 Research SMART Auth Exchange"],
         summary="Exchange a GW SMART ResearchStudy token for study-bound DataConv access",
     )
-    async def exchange_professional_research_token(
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/professional/research/auth/_exchange",
+        tags=["2.5 Research SMART Auth Exchange"],
+        summary="Compatibility alias for the ResearchStudy SMART token exchange",
+        include_in_schema=False,
+    )
+    async def exchange_research_study_token(
         jurisdiction: str,
         sector: str,
         tenant_id: str,
@@ -79,7 +85,7 @@ def register_exchange_routes(app, *, exchange_manager, smart_research_exchange_m
         body: dict[str, Any] = Body(default_factory=dict),
     ) -> dict[str, Any]:
         if smart_research_exchange_manager is None:
-            raise HTTPException(status_code=503, detail="professional research exchange is not configured")
+            raise HTTPException(status_code=503, detail="research SMART exchange is not configured")
         payload = await _read_exchange_payload(request, body)
         try:
             result = smart_research_exchange_manager.exchange(

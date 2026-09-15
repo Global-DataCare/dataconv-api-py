@@ -850,7 +850,7 @@ def _exchange_schemas() -> dict[str, Any]:
             },
             "additionalProperties": True,
         },
-        "ProfessionalResearchTokenExchangeRequest": {
+        "ResearchStudyTokenExchangeRequest": {
             "type": "object",
             "required": ["subject_token", "subject_token_type"],
             "properties": {
@@ -865,7 +865,7 @@ def _exchange_schemas() -> dict[str, Any]:
             },
             "additionalProperties": False,
         },
-        "ProfessionalResearchTokenExchangeResponse": {
+        "ResearchStudyTokenExchangeResponse": {
             "type": "object",
             "required": ["access_token", "issued_token_type", "token_type", "expires_in", "scope", "subject", "organization", "study"],
             "properties": {
@@ -874,7 +874,7 @@ def _exchange_schemas() -> dict[str, Any]:
                 "token_type": {"type": "string", "enum": ["Bearer"]},
                 "expires_in": {"type": "integer"},
                 "scope": {"type": "string", "enum": ["dataconv.upload dataconv.read dataconv.review"]},
-                "subject": {"type": "string", "description": "Authorized professional DID."},
+                "subject": {"type": "string", "description": "Authorized professional or organization-controller DID."},
                 "organization": {"type": "string", "description": "DataConv tenant bound to the trusted GW issuer."},
                 "study": {"type": "string", "pattern": "^ResearchStudy/[A-Za-z0-9\\-.]{1,64}$"},
             },

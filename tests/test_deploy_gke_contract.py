@@ -48,6 +48,10 @@ class DeployGkeContractTests(unittest.TestCase):
         ):
             self.assertIn(f"--from-literal={setting}=", deploy_script)
 
+    def test_research_workbook_limit_is_injected_into_runtime(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        self.assertIn("--from-literal=RESEARCH_WORKBOOK_MAX_BYTES=", deploy_script)
+
     def test_optional_terminology_and_coding_model_settings_are_injected_into_runtime(self) -> None:
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
         for setting in (

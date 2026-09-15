@@ -7,8 +7,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import pytest
 
-from adapter_ingestion.ai.http import HttpCodingModelClient, HttpTerminologyClient
+from adapter_ingestion.ai.http import HttpCodingModelClient, HttpReviewedTerminologySink, HttpTerminologyClient
 from adapter_ingestion.ai.terminology import CodingRankRequest, TerminologyCandidate, TerminologySearchRequest
 
 
@@ -95,3 +96,57 @@ def test_review_feedback_uses_a_separate_endpoint() -> None:
     assert transport.calls[0]["method"] == "POST"
     assert transport.calls[0]["url"] == "https://coding.example/v1/coding/feedback"
     assert transport.calls[0]["body"]["data"][0]["type"] == "coding-review-feedback"
+
+
+def test_professional_review_populates_the_channel_neutral_terminology_store() -> None:
+    transport = RecordingTransport(responses=[{"data": {"id": "mapping-1"}}])
+    sink = HttpReviewedTerminologySink(base_url="https://terminology.example", token="term-secret", transport=transport)
+
+    sink.submit({
+        "proposalId": "proposal-123456789",
+        "inputText": "otitis",
+        "language": "es-ES",
+        "fhirVersion": "R4",
+        "sector": "animal-care",
+        "jurisdiction": "CA-BC",
+        "resourceType": "Condition",
+        "field": "Condition.code",
+        "candidates": [
+            {"id": "one", "source": "SNOMED_GPS", "system": "http://snomed.info/sct", "code": "3135009", "display": "Otitis media"},
+            {"id": "two", "source": "SNOMED_GPS", "system": "http://snomed.info/sct", "code": "129127001", "display": "Otitis externa"},
+        ],
+        "selectedCandidateId": "two",
+        "reviewerSubject": "did:web:reviewer.example",
+    })
+
+    call = transport.calls[0]
+    assert call["url"] == "https://terminology.example/v1/terminology/reviews"
+    assert call["headers"]["authorization"] == "Bearer term-secret"
+    assert call["body"]["reviewerKind"] == "professional"
+    assert call["body"]["reviewState"] == "approved"
+    assert call["body"]["chosen"] == {"system": "http://snomed.info/sct", "code": "129127001"}
+    assert call["body"]["approvalEvidence"] == "dataconv-review:proposal-123456789"
+    assert "reviewerSubject" not in call["body"]
+    assert call["body"]["terminologyVersion"].startswith("candidate-set-sha256:")
+
+
+def test_reviewed_terminology_sink_rejects_a_selection_outside_its_candidate_set() -> None:
+    transport = RecordingTransport(responses=[])
+    sink = HttpReviewedTerminologySink(base_url="https://terminology.example", transport=transport)
+    with pytest.raises(ValueError, match="not part of the review"):
+        sink.submit({
+            "proposalId": "proposal-123456789",
+            "inputText": "otitis", "language": "es-ES", "fhirVersion": "R4",
+            "sector": "animal-care", "jurisdiction": "CA-BC",
+            "resourceType": "Condition", "field": "Condition.code",
+            "candidates": [{"id": "one", "source": "SNOMED_GPS", "system": "http://snomed.info/sct", "code": "3135009", "display": "Otitis media"}],
+            "selectedCandidateId": "invented",
+        })
+    assert transport.calls == []
+
+
+def test_reviewed_terminology_sink_keeps_legacy_context_free_drafts_promotable() -> None:
+    transport = RecordingTransport(responses=[])
+    sink = HttpReviewedTerminologySink(base_url="https://terminology.example", transport=transport)
+    sink.submit({"proposalId": "legacy-proposal", "selectedCandidateId": "one", "candidates": []})
+    assert transport.calls == []

@@ -16,6 +16,17 @@ class NoopCodingFeedbackSink:
         return None
 
 
+class CompositeCodingFeedbackSink:
+    """Requires every configured durable review sink to accept the same event."""
+
+    def __init__(self, *sinks: CodingFeedbackSink) -> None:
+        self._sinks = sinks
+
+    def submit(self, event: dict[str, Any]) -> None:
+        for sink in self._sinks:
+            sink.submit(event)
+
+
 def _candidate(proposal: dict[str, Any], candidate_id: str) -> dict[str, Any] | None:
     values = proposal.get("candidates", [])
     if not isinstance(values, list):
@@ -92,6 +103,11 @@ def apply_coding_reviews(
                 "resourceType": resource_type,
                 "field": field,
                 "inputText": str(proposal.get("inputText", "")),
+                "language": str(proposal.get("language", "")),
+                "fhirVersion": str(proposal.get("fhirVersion", "")),
+                "sector": str(proposal.get("sector", "")),
+                "jurisdiction": str(proposal.get("jurisdiction", "")),
+                "subjectKind": str(proposal.get("subjectKind", "")),
                 "rowContext": dict(proposal.get("rowContext", {})),
                 "candidates": list(proposal.get("candidates", [])),
                 "selectedCandidateId": selected_id,

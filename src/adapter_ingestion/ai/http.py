@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from typing import Any, Callable, Protocol
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -124,6 +125,59 @@ class HttpTerminologyClient(_AuthorizedClient):
                         )
                     )
         return candidates
+
+
+class HttpReviewedTerminologySink(_AuthorizedClient):
+    """Stores one de-identified, professionally confirmed exact mapping."""
+
+    def submit(self, event: dict[str, Any]) -> None:
+        required_context = ("proposalId", "inputText", "language", "fhirVersion", "sector", "jurisdiction", "resourceType", "field")
+        if any(not str(event.get(key, "")).strip() for key in required_context):
+            # Drafts created before this context was added remain promotable;
+            # they simply cannot become reusable exact mappings.
+            return
+        raw_candidates = [item for item in event.get("candidates", []) if isinstance(item, dict)]
+        candidates = [
+            {
+                "source": str(item.get("source", "")).split(",", 1)[0].strip(),
+                "system": str(item.get("system", "")).strip(),
+                "code": str(item.get("code", "")).strip(),
+                "display": str(item.get("display", "")).strip(),
+            }
+            for item in raw_candidates
+        ]
+        selected_id = str(event.get("selectedCandidateId", "")).strip()
+        selected_index = next(
+            (index for index, item in enumerate(raw_candidates) if str(item.get("id", "")).strip() == selected_id),
+            None,
+        )
+        if selected_index is None:
+            raise ValueError("selected terminology candidate is not part of the review")
+        selected = candidates[selected_index]
+        candidate_digest = sha256(
+            json.dumps(candidates, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        ).hexdigest()
+        proposal_id = str(event.get("proposalId", "")).strip()
+        self._transport.request(
+            method="POST",
+            url=f"{self._base_url}/v1/terminology/reviews",
+            headers=self._headers(),
+            body={
+                "text": str(event.get("inputText", "")).strip(),
+                "language": str(event.get("language", "")).strip(),
+                "fhirVersion": str(event.get("fhirVersion", "")).strip(),
+                "sector": str(event.get("sector", "")).strip(),
+                "jurisdiction": str(event.get("jurisdiction", "")).strip(),
+                "resourceType": str(event.get("resourceType", "")).strip(),
+                "field": str(event.get("field", "")).strip(),
+                "candidates": candidates,
+                "chosen": {"system": selected["system"], "code": selected["code"]},
+                "reviewerKind": "professional",
+                "reviewState": "approved",
+                "terminologyVersion": f"candidate-set-sha256:{candidate_digest}",
+                "approvalEvidence": f"dataconv-review:{proposal_id}",
+            },
+        )
 
 
 class HttpCodingModelClient(_AuthorizedClient):

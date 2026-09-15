@@ -134,10 +134,14 @@ The worker uses `NoopCodingAssistant` only when the terminology URL is absent.
 With terminology configured it always preserves the governed candidates for
 human review. When the optional coding-model URL is also configured it sends
 the closed candidate set and allowlisted row context to `/v1/coding/rank`;
-otherwise candidates remain explicitly unranked. Explicit human corrections
-are posted to `/v1/coding/feedback` only when that model/feedback boundary is
-configured. Feedback is an evaluation/training record; it never changes model
-weights online.
+otherwise candidates remain explicitly unranked. Explicit professional choices
+are posted to the terminology service's `/v1/terminology/reviews` endpoint,
+which keeps only the bounded de-identified term, governed search context,
+closed candidate set and chosen code. It does not receive reviewer identity,
+row context or free-text rationale. This exact reviewed mapping is shared by
+imports, telephone, WhatsApp, portal chat and portal speech, and can bypass a
+model on the next match. The separate `/v1/coding/feedback` call remains
+optional model-evaluation evidence; it never changes model weights online.
 
 A general model runtime can support separate intent, question-answering, and
 clinical-coding adapters, but an intent endpoint must not be reused as if it

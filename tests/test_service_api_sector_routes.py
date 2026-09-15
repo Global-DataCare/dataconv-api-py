@@ -30,6 +30,7 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         env = {
             "NODE_ENV": "test",
+            "DEMO_MODE": "true",
             "HOST_INTERNAL_IP": "127.0.0.1",
             "PORT": "8080",
             "DB_PROVIDER": "mem",

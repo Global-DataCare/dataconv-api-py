@@ -23,10 +23,10 @@ from ..runtime.adapters import (
     PubSubJobQueue,
 )
 from ..subject_links import InMemorySubjectLinkRecordStore, ProtectedSubjectLinkStore
-from ..ai import HttpCodingModelClient, HttpTerminologyClient, TerminologyCodingAssistant, UnrankedCodingRanker
+from ..ai import HttpCodingModelClient, HttpReviewedTerminologySink, HttpTerminologyClient, TerminologyCodingAssistant, UnrankedCodingRanker
 from ..ai.base import NoopCodingAssistant
 from ..ai.http import google_audience_token_provider
-from .coding_review import NoopCodingFeedbackSink
+from .coding_review import CompositeCodingFeedbackSink, NoopCodingFeedbackSink
 from .settings import ServiceSettings
 
 
@@ -185,4 +185,16 @@ def build_coding_assistant(settings: ServiceSettings, context):
 
 
 def build_coding_feedback_sink(settings: ServiceSettings):
-    return _coding_model_client(settings) or NoopCodingFeedbackSink()
+    sinks = []
+    model = _coding_model_client(settings)
+    if model is not None:
+        sinks.append(model)
+    if settings.terminology_base_url:
+        sinks.append(HttpReviewedTerminologySink(
+            base_url=settings.terminology_base_url,
+            token=settings.terminology_token,
+            timeout_seconds=settings.terminology_timeout_seconds,
+        ))
+    if not sinks:
+        return NoopCodingFeedbackSink()
+    return sinks[0] if len(sinks) == 1 else CompositeCodingFeedbackSink(*sinks)

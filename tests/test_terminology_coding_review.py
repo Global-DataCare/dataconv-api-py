@@ -180,6 +180,10 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
     assert sink.events[0]["selectedCandidateId"] == proposal["candidates"][1]["id"]
     assert sink.events[0]["rejectedCandidateIds"] == [proposal["candidates"][0]["id"]]
     assert sink.events[0]["reviewerSubject"] == "did:web:reviewer.example"
+    assert sink.events[0]["language"] == "es-ES"
+    assert sink.events[0]["fhirVersion"] == "R4"
+    assert sink.events[0]["sector"] == "animal-care"
+    assert sink.events[0]["jurisdiction"] == "CA-BC"
 
     search = InMemorySearchRepository()
     search.upsert(vault_id="reviewed", resource_type="Condition", resource=condition)

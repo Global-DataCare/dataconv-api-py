@@ -3,7 +3,7 @@
 
 from .base import CodingAssistant, CodingSuggestion, NoopCodingAssistant
 from .rules import RuleBasedCodingAssistant
-from .http import HttpCodingModelClient, HttpTerminologyClient
+from .http import HttpCodingModelClient, HttpReviewedTerminologySink, HttpTerminologyClient
 from .terminology import TerminologyCodingAssistant, UnrankedCodingRanker
 
 __all__ = [
@@ -12,6 +12,7 @@ __all__ = [
     "NoopCodingAssistant",
     "RuleBasedCodingAssistant",
     "HttpCodingModelClient",
+    "HttpReviewedTerminologySink",
     "HttpTerminologyClient",
     "TerminologyCodingAssistant",
     "UnrankedCodingRanker",

@@ -381,6 +381,11 @@ def _coding_proposals(
                 "status": "proposed",
                 "field": field,
                 "inputText": str(record.coding_inputs.get(field, "")),
+                "language": context.language,
+                "fhirVersion": "R4",
+                "sector": context.sector,
+                "jurisdiction": context.jurisdiction,
+                "subjectKind": context.subject_kind,
                 "rowContext": row_context,
                 "candidates": [
                     {
@@ -415,6 +420,11 @@ def _coding_proposals(
                 "status": "proposed",
                 "field": str(field),
                 "inputText": input_text,
+                "language": context.language,
+                "fhirVersion": "R4",
+                "sector": context.sector,
+                "jurisdiction": context.jurisdiction,
+                "subjectKind": context.subject_kind,
                 "rowContext": row_context,
                 "candidates": [],
             }

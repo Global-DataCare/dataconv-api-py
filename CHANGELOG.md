@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 0.7.14 - 2026-09-15
+
+- Send each explicitly confirmed professional terminology choice to the
+  channel-neutral reviewed-mapping API even when no coding model is configured.
+  The reusable record contains the bounded clinical term and governed context,
+  but never the reviewer identity, row context or free-text rationale.
+- Preserve the existing privacy-minimal model-evaluation feedback as a separate
+  optional sink; exact reviewed matches can now bypass model ranking entirely.
+
 ## 0.7.13 - 2026-09-15
 
 - Accept the current organization controller's exact create-only,

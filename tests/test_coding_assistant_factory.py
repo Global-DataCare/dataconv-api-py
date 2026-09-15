@@ -5,8 +5,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from adapter_ingestion.ai import HttpReviewedTerminologySink
 from adapter_ingestion.ai.terminology import TerminologyCodingAssistant
-from adapter_ingestion.service.factory import build_coding_assistant
+from adapter_ingestion.service.factory import build_coding_assistant, build_coding_feedback_sink
 
 
 def test_factory_keeps_terminology_candidates_when_model_ranking_is_unavailable() -> None:
@@ -24,3 +25,18 @@ def test_factory_keeps_terminology_candidates_when_model_ranking_is_unavailable(
     assistant = build_coding_assistant(settings, SimpleNamespace())
 
     assert isinstance(assistant, TerminologyCodingAssistant)
+
+
+def test_factory_records_professional_reviews_without_configuring_a_model() -> None:
+    settings = SimpleNamespace(
+        terminology_base_url="http://terminology.local",
+        terminology_token="token",
+        terminology_timeout_seconds=15,
+        coding_model_base_url="",
+        coding_model_audience="",
+        coding_model_token="",
+        coding_model_id="",
+        coding_model_timeout_seconds=30,
+    )
+
+    assert isinstance(build_coding_feedback_sink(settings), HttpReviewedTerminologySink)

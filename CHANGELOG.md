@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Keep a trusted GW index provider separate from the hosted organization that
+  owns a ResearchStudy import. SMART `iss`/`aud` remain the provider DID while
+  DataConv checks the already-onboarded organization tenant route separately;
+  the removed one-to-one issuer-to-tenant setting no longer rejects valid
+  imports for organizations hosted behind the same index provider.
+
 ## 0.7.14 - 2026-09-15
 
 - Send each explicitly confirmed professional terminology choice to the

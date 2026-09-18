@@ -41,7 +41,6 @@ class DeployGkeContractTests(unittest.TestCase):
         for setting in (
             "SMART_GW_ALLOWED_ISSUERS",
             "SMART_GW_EXPECTED_AUDIENCES",
-            "SMART_GW_ISSUER_TENANT_BINDINGS",
             "SMART_GW_DID_CACHE_TTL_SECONDS",
             "SMART_GW_HTTP_TIMEOUT_SECONDS",
             "SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO",

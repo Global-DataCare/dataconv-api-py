@@ -997,7 +997,7 @@ def _configure_research_smart_exchange_operation(operation: dict[str, Any] | Non
             "description": "Study-bound DataConv token issued.",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ResearchStudyTokenExchangeResponse"}}},
         },
-        "401": {"description": "The SMART token, DID signature, claims, issuer binding, or active tenant check failed."},
+        "401": {"description": "The SMART token, DID signature, issuer/audience, claims, or active tenant check failed."},
         "403": {"description": "The DataConv tenant is not active for this network, sector and jurisdiction."},
     }
     drop_422_validation_response(operation)

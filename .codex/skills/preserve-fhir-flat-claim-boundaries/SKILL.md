@@ -135,6 +135,16 @@ For research workbook ingestion, keep authorization and transport independent:
   controller;
 - derive an internal actor profile from that scope and never relabel a
   controller as a professional;
+- keep `iss` and `aud` bound to the GW tenant that provides the index. DataConv
+  is an internal conversion backend and is never the SMART audience;
+- never compare that index-provider identifier with the hosted clinic or
+  organization tenant route. Require the latter to have completed its separate
+  DataConv onboarding activation;
+- do not call `organization/tenant/_activate` during each import. Activation is
+  an organization-registration or explicit administration action;
+- treat `/identity/openid/smart/token/_verify` as a documented, unimplemented
+  cross-custodian profile until an executable GW route, Swagger operation,
+  manager tests, integration tests and live E2E all exist;
 - send the workbook as binary multipart and the short-lived JWT only in the
   `Authorization` header;
 - read `RESEARCH_WORKBOOK_MAX_BYTES` in DataConv and the portal/BFF with an

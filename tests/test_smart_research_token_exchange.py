@@ -160,6 +160,49 @@ def test_exchanges_controller_create_scope_without_masquerading_as_a_professiona
     )
 
 
+def test_trusted_index_provider_is_not_mistaken_for_the_importing_organization() -> None:
+    """One index-provider GW may authorize studies owned by hosted organizations."""
+    private_key = ec.generate_private_key(ec.SECP384R1())
+    settings = SimpleNamespace(
+        **{
+            **vars(_settings()),
+            # This legacy mapping describes the index provider itself. It must
+            # never force the hosted organization route to use that identifier.
+            "smart_gw_issuer_tenant_bindings": {ISSUER: "index-provider-tenant"},
+        }
+    )
+    did_document = {
+        "id": ISSUER,
+        "verificationMethod": [{
+            "id": VERIFICATION_METHOD_ID,
+            "controller": ISSUER,
+            "type": "JsonWebKey2020",
+            "publicKeyJwk": _public_jwk(private_key),
+        }],
+        "authentication": [VERIFICATION_METHOD_ID],
+    }
+    manager = SmartResearchTokenExchangeManager(
+        settings,
+        did_document_loader=lambda url, timeout: did_document,
+        tenant_is_active=lambda tenant, jurisdiction, sector: (
+            tenant == TENANT and jurisdiction == "CA-BC" and sector == "animal-research"
+        ),
+    )
+
+    result = manager.exchange(
+        {
+            "subject_token": _smart_token(private_key, scope=CONTROLLER_SCOPE),
+            "subject_token_type": SMART_ACCESS_TOKEN_TYPE,
+        },
+        tenant_id=TENANT,
+        jurisdiction="CA-BC",
+        sector="animal-research",
+    )
+
+    assert result.organization == TENANT
+    assert result.study == STUDY
+
+
 @pytest.mark.parametrize(
     ("override", "message"),
     [
@@ -189,7 +232,7 @@ def test_rejects_smart_claims_that_do_not_prove_exact_professional_study_access(
         )
 
 
-def test_rejects_wrong_subject_token_type_signature_key_algorithm_and_tenant_binding() -> None:
+def test_rejects_wrong_subject_token_type_signature_and_key_algorithm() -> None:
     private_key = ec.generate_private_key(ec.SECP384R1())
     manager = _manager(private_key)
     request = {"subject_token": _smart_token(private_key), "subject_token_type": SMART_ACCESS_TOKEN_TYPE}
@@ -198,9 +241,6 @@ def test_rejects_wrong_subject_token_type_signature_key_algorithm_and_tenant_bin
         manager.exchange({**request, "subject_token_type": "urn:ietf:params:oauth:token-type:id_token"}, tenant_id=TENANT, jurisdiction="CA-BC", sector="animal-research")
     with pytest.raises(ValueError, match="unexpected"):
         manager.exchange({**request, "vp_token": "controller-proof"}, tenant_id=TENANT, jurisdiction="CA-BC", sector="animal-research")
-    with pytest.raises(ValueError, match="tenant"):
-        manager.exchange(request, tenant_id="another-tenant", jurisdiction="CA-BC", sector="animal-research")
-
     other_key = ec.generate_private_key(ec.SECP384R1())
     with pytest.raises(ValueError, match="signature"):
         manager.exchange(

@@ -123,6 +123,13 @@ class SmartResearchTokenExchangeManager:
         return document
 
     def _validate(self, token: str, *, tenant_id: str) -> dict[str, Any]:
+        """Validate the index-provider SMART grant for one hosted tenant route.
+
+        ``iss`` and ``aud`` identify the GW tenant that provides the index.
+        They do not identify the hosted clinic or other organization whose
+        ResearchStudy is addressed by ``tenant_id``. That organization is
+        independently required to be active by :meth:`exchange`.
+        """
         if jwt is None:
             raise ValueError("SMART JWT validation requires PyJWT[crypto]")
         header, unverified = parse_jwt_unverified(token)
@@ -134,11 +141,6 @@ class SmartResearchTokenExchangeManager:
         )
         if not patterns or not _allowed(issuer, patterns):
             raise ValueError("SMART issuer is not explicitly allowed")
-
-        bindings = getattr(self._settings, "smart_gw_issuer_tenant_bindings", {})
-        expected_tenant = str(bindings.get(issuer) or "").strip() if isinstance(bindings, dict) else ""
-        if not expected_tenant or expected_tenant.lower() != str(tenant_id or "").strip().lower():
-            raise ValueError("SMART issuer is not bound to the requested tenant")
 
         demo_mode = bool(getattr(self._settings, "demo_mode", False)) or str(
             getattr(self._settings, "network_mode", "") or ""

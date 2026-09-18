@@ -9,8 +9,8 @@ Organization controllers exchange a fresh signed OIDC token plus the exact
 Connect ICA controller VP at
 `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/organization/research/auth/_exchange`.
 The exact DataConv tenant route must already be active for the current network,
-sector and jurisdiction; portals may idempotently refresh it through
-`organization/tenant/_activate` immediately before exchange.
+sector and jurisdiction. Activation belongs to organization onboarding or an
+explicit administration action; an ordinary workbook import never repeats it.
 The short-lived result is limited to `dataconv.upload` and that public legal
 `tenant_id`; network, jurisdiction and sector stay separate storage dimensions.
 
@@ -67,21 +67,31 @@ controller receives the narrower create-only
 `organization/ResearchSubject.c?study=...` for a study already stored by that
 tenant. Both actors exchange the GW token at
 `/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange`.
-DataConv validates the signature offline through the issuer's standard
+DataConv validates the signature offline through the index-provider issuer's standard
 `did:web` document, using the `comm_sig` JWK exposed through the DID
 `authentication` relationship, and then enforces its own short-lived, actor- and
 study-bound token on upload, poll, review and ResearchSubject search; it does
-not call GW for each operation. Other conversion sectors keep their existing
-contract and may omit `researchStudy`.
+not call GW for each operation. The SMART `iss` and `aud` identify that index
+provider, not the hosted clinic or organization in the DataConv tenant route.
+Tenant readiness is checked independently against the organization activated
+during onboarding. Other conversion sectors keep their existing contract and
+may omit `researchStudy`.
 
 The research exchange accepts only RFC 8693 `subject_token` plus
 `subject_token_type=urn:ietf:params:oauth:token-type:access_token`. It accepts
 neither an OIDC id token nor a controller VP as a substitute for the SMART
 token. Configure exact
 trusted GW issuers and audiences with `SMART_GW_ALLOWED_ISSUERS` and
-`SMART_GW_EXPECTED_AUDIENCES`, and configure the JSON issuer-to-tenant map in
-`SMART_GW_ISSUER_TENANT_BINDINGS`. Production resolves only HTTPS DID Web
+`SMART_GW_EXPECTED_AUDIENCES`. Never compare the index-provider identifier with
+the hosted organization tenant id. Production resolves only HTTPS DID Web
 documents; HTTP is limited to localhost in demo/test mode.
+
+The optional cross-custodian
+`/identity/openid/smart/token/_verify` introspection profile is not part of this
+internal conversion exchange. As of this release it is a documented GW design,
+not a deployed GW CORE or Vet GW endpoint. DataConv therefore performs the
+offline DID/JWK validation described above and documentation must not present
+`_verify` as executable behavior.
 Production always requires the derived study token. Legacy demo fixtures
 remain compatible unless `SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO=true` is set;
 enable that flag for local authorization E2E.

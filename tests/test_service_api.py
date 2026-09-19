@@ -29,6 +29,9 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from adapter_ingestion.runtime import JobRequest
+from gdc_data_utils import TaskClaim
+
 
 class _FakeRequest:
     def __init__(
@@ -286,7 +289,7 @@ class ServiceApiTests(unittest.TestCase):
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
         # The exact literal is the release/OpenAPI synchronization contract.
-        self.assertEqual(schema.get("info", {}).get("version"), "0.7.15")
+        self.assertEqual(schema.get("info", {}).get("version"), "0.8.0")
         research_exchange = schema.get("paths", {}).get(
             "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange",
             {},
@@ -310,6 +313,10 @@ class ServiceApiTests(unittest.TestCase):
         )
         self.assertIn(
             "/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software-id}/{resource-type}/_upload-response",
+            schema.get("paths", {}),
+        )
+        self.assertIn(
+            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/jobs/Task/_search",
             schema.get("paths", {}),
         )
         create_operation = schema["paths"][
@@ -630,6 +637,48 @@ class ServiceApiTests(unittest.TestCase):
                     .get("$ref"),
                     "#/components/schemas/HTTPValidationError",
                 )
+
+    def test_job_search_returns_shared_study_history_as_task_searchset(self) -> None:
+        for suffix, requester in (("one", "did:web:professional.example:one"), ("two", "did:web:agent.example:two")):
+            self._control_plane().submit_job(JobRequest(
+                alternate_name="tenant-a",
+                manufacturer="qvet",
+                sector="onehealth-research",
+                country="ES",
+                requested_by=requester,
+                thid=f"job-shared-{suffix}",
+                research_study_reference=self._RESEARCH_STUDY_REFERENCE,
+            ))
+        endpoint = self._endpoint(
+            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/jobs/Task/_search",
+            method="POST",
+        )
+        body = {
+            "resourceType": "Parameters",
+            "parameter": [{
+                "name": "study",
+                "valueReference": {"reference": self._RESEARCH_STUDY_REFERENCE},
+            }],
+        }
+
+        with patch(
+            "adapter_ingestion.service.managers.conversion_job_search._enforce_auth_context"
+        ):
+            result = endpoint(
+                tenant_id="tenant-a",
+                jurisdiction="es",
+                sector="onehealth-research",
+                request=_FakeRequest(),
+                body=body,
+            )
+
+        self.assertEqual(result["resourceType"], "Bundle")
+        self.assertEqual(result["type"], "searchset")
+        self.assertEqual(result["total"], 2)
+        self.assertEqual(
+            {entry["resource"]["meta"]["claims"][TaskClaim.REQUESTER] for entry in result["entry"]},
+            {"did:web:professional.example:one", "did:web:agent.example:two"},
+        )
 
     def test_swagger_ui_is_served_from_api_docs(self) -> None:
         self.assertIsNotNone(TestClient)

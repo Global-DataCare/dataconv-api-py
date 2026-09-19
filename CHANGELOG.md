@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-09-19
+
+- Expose study-scoped conversion jobs as canonical flat-claim `Task` resources
+  in a FHIR `Bundle` with `type=searchset`. The history is shared by every
+  authorized actor for the tenant and ResearchStudy rather than being tied to
+  the requester who submitted an import.
+- Add the canonical `POST /publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/jobs/Task/_search`
+  endpoint with bounded `_count` and `_offset` parameters, exact tenant and
+  study filtering, and deterministic newest-first ordering.
+- Consume the synchronized `gdc-data-utils-py==0.1.1` Task claim vocabulary.
+  JSON:API remains a possible future edge adapter and is not the persisted or
+  primary job contract.
+
 - Keep a trusted GW index provider separate from the hosted organization that
   owns a ResearchStudy import. SMART `iss`/`aud` remain the provider DID while
   DataConv checks the already-onboarded organization tenant route separately;

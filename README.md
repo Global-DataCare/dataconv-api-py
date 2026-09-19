@@ -49,6 +49,17 @@ candidate; only then are `Condition.code` and its English
 Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
 whose catalog is generated from `gdc-common-utils-ts`.
 
+Study import history is exposed through
+`POST /publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/jobs/Task/_search`.
+Its FHIR `Parameters` body requires `study` and may include bounded `_count`
+and `_offset` values. The response is a `Bundle` with `type=searchset`; each
+entry is a FHIR-like `Task` whose canonical business state is held in flat
+`resource.meta.claims`. Results are scoped to the authorized tenant and study,
+not to the person or service that originally submitted a job, so concurrent
+controllers, professionals and automation see the same study history. A
+future JSON:API presentation can project this contract at the edge without
+changing the persisted flat claims or the canonical FHIR-like API.
+
 ## Research review, persistence, and coding-assistance boundary
 
 Every new upload whose sector is explicitly `onehealth-research` or

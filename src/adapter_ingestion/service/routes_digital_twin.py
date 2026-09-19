@@ -26,7 +26,42 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     patch_manager,
     batch_manager,
     search_manager,
+    job_search_manager,
 ) -> None:
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/jobs/Task/_search",
+        tags=["4.6 Publisher Job Search"],
+        summary="Search study conversion jobs",
+        response_class=JSONResponse,
+        description=(
+            "Lists every conversion job visible through the caller's exact ResearchStudy grant. "
+            "The request is a FHIR Parameters resource containing one `study` valueReference and optional "
+            "`_count` and `_offset` valueInteger controls. The response is a Bundle with `type=searchset`; "
+            "each entry is a Task whose canonical business state lives in `resource.meta.claims`."
+        ),
+    )
+    @app.post(
+        "/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/jobs/Task/_search",
+        tags=["4.6 Publisher Job Search"],
+        summary="Search study conversion jobs",
+        response_class=JSONResponse,
+        include_in_schema=False,
+    )
+    def search_conversion_jobs(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return job_search_manager.handle(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            body=body,
+        )
+
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{software_id}/{resource_type}/_upload",
         status_code=202,

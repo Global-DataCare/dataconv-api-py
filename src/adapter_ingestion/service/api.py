@@ -33,6 +33,7 @@ from .managers import (
     ConversionBatchManager,
     ConversionPatchManager,
     ConversionSearchManager,
+    ConversionJobSearchManager,
     ConversionUploadManager,
     ConversionUploadPollManager,
     ConnectIcaOrganizationProofVerifierClient,
@@ -90,6 +91,7 @@ def create_app():
     batch_manager = ConversionBatchManager(deps)
     patch_manager = ConversionPatchManager(deps)
     search_manager = ConversionSearchManager(deps)
+    job_search_manager = ConversionJobSearchManager(deps)
     tenant_api_key_manager = TenantApiKeyManager(deps)
     exchange_manager = TokenExchangeManager(settings, tenant_api_key_manager=tenant_api_key_manager)
     def _research_tenant_is_active(tenant_id: str, jurisdiction: str, sector: str) -> bool:
@@ -145,6 +147,7 @@ def create_app():
             "- 4.3 Dataset Promotion: `_patch`\n"
             "- 4.4 Dataset Search: `_search`\n"
             "- 4.5 Dataset Batch Promotion: `_batch`\n\n"
+            "- 4.6 Conversion Job Search: `/jobs/Task/_search`\n\n"
             "**Identity model**\n\n"
             "Requester identity is taken from DIDComm payload field `iss`. The query parameter `requestedBy` is not used.\n\n"
             "**Authentication**\n\n"
@@ -208,6 +211,10 @@ def create_app():
             {
                 "name": "4.5 Publisher Batch",
                 "description": "Promotes reviewed resources in bulk using the same semantics as `_patch`.",
+            },
+            {
+                "name": "4.6 Publisher Job Search",
+                "description": "Lists study-scoped conversion jobs as flat FHIR-like Task resources in a searchset Bundle.",
             },
             {
                 "name": "9. Legacy Endpoints",
@@ -303,6 +310,7 @@ def create_app():
         patch_manager=patch_manager,
         batch_manager=batch_manager,
         search_manager=search_manager,
+        job_search_manager=job_search_manager,
     )
     app.include_router(pkce_router)
     register_exchange_routes(

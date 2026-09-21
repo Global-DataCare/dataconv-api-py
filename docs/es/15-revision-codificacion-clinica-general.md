@@ -37,3 +37,10 @@ añade el idioma al nombre del claim; los valores multilingües llevan BCP-47.
 Un único `code-text` local se interpreta con `<Resource>.language`. Si existen
 varios idiomas, se codifican como una lista CSV de `BCP47|texto`, por ejemplo
 `es-ES|sedación,ca-ES|sedació`.
+
+Esta representación sigue el contrato neutral y los ejemplos gobernados de
+`fhir-data-utils-ts/coding-review-flat-claims`; no pertenece a SOSChain. En el
+mensaje de importación DIDComm, cada propuesta vive en
+`body.data[].resource.contained[].meta.codingProposals[]`, junto a
+`meta.claims` del recurso clínico correspondiente, y nunca se agrega en
+`ResearchSubject.meta`.

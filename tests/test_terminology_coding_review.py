@@ -2,7 +2,7 @@
 # 1. DataConv sends the de-identified row context and every governed terminology candidate to the ranker.
 # 2. Every candidate remains available for human choice; the model only supplies a recommendation score.
 # 3. A draft carries proposals outside authoritative flat claims.
-# 4. Source text stays in proposal metadata; confirmation never confuses it with canonical code-text.
+# 4. Source text stays in canonical code-text and proposal context; confirmation never overwrites it.
 
 from __future__ import annotations
 

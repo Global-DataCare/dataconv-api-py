@@ -19,9 +19,10 @@ description: Preserve canonical GDC flat FHIR-like claims across API-CONFIG impo
 Keep these representations distinct for terminology-assisted research import:
 
 ```text
-API-CONFIG source mapping: coding-input:Condition.code
-Draft-only metadata:       meta.codingProposals[]
-Confirmed flat claims:     Condition.code + Condition.code-display
+API-CONFIG source mapping: Condition.code-text
+Canonical source claim:    resource.meta.claims[Condition.code-text]
+Draft-only metadata:       resource.meta.codingProposals[] -> Condition.code
+Confirmed additions:       Condition.code + Condition.code-display
 FHIR query parameters:     code and code:text
 ```
 
@@ -34,8 +35,16 @@ FHIR query parameters:     code and code:text
   public search contract.
 - Use `code-display` only for the English display returned with a governed
   terminology code.
-- For research imports, keep uncoded local-language diagnosis text in the
-  proposal input, not in authoritative `<Resource>.code-text` claims.
+- For research imports, keep uncoded local-language text in the authoritative
+  `<Resource>.<code-field>-text` claim and repeat it in the proposal input as
+  review context. Confirmation must not replace it.
+- Never serialize `coding-input:*`. That name is neither a flat claim nor an
+  API-CONFIG mapping.
+- Put `meta.codingProposals[]` beside `meta.claims` on the contained clinical
+  resource. Never aggregate proposals on `ResearchSubject.meta`.
+- Reuse the neutral builders, paths and package-owned examples from
+  `fhir-data-utils-ts`; DataConv mirrors that cross-language contract and does
+  not redefine it as a SOSChain rule.
 
 ## TDD workflow
 
@@ -122,8 +131,10 @@ For Invoice and ChargeItem imports:
 
 ## Documentation
 
-Keep the same example in the DataConv README and detailed docs. State which
-layer each representation belongs to and make tests the executable authority.
+Keep the same governed example in `fhir-data-utils-ts`; DataConv README,
+detailed docs and tests reference its contract without inventing alternate
+claim paths, code systems, identifiers or UUIDs. State which layer each
+representation belongs to and make tests the executable authority.
 
 For research workbook ingestion, keep authorization and transport independent:
 

@@ -29,6 +29,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from adapter_ingestion import __version__
 from adapter_ingestion.runtime import JobRequest
 from gdc_data_utils import TaskClaim
 
@@ -288,8 +289,7 @@ class ServiceApiTests(unittest.TestCase):
         schema = self.app.openapi()
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
-        # The exact literal is the release/OpenAPI synchronization contract.
-        self.assertEqual(schema.get("info", {}).get("version"), "0.8.4")
+        self.assertEqual(schema.get("info", {}).get("version"), __version__)
         research_exchange = schema.get("paths", {}).get(
             "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange",
             {},

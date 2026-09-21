@@ -31,6 +31,7 @@ Repository documentation:
 - API walkthrough: [docs/en/API_DEVELOPMENT_GUIDE.md](docs/en/API_DEVELOPMENT_GUIDE.md)
 - Data space artifacts TODO (Gaia-X): [docs/en/TODO_DATA_SPACE_ARTIFACTS.md](docs/en/TODO_DATA_SPACE_ARTIFACTS.md)
 - Accuro API-CONFIG workbook flow: [docs/en/13-accuro-api-config.md](docs/en/13-accuro-api-config.md)
+- General concept and treatment review: [docs/en/15-general-clinical-coding.md](docs/en/15-general-clinical-coding.md)
 
 FHIR-like flat claims, physical indexes, and FHIR queries are separate layers:
 
@@ -45,7 +46,9 @@ DataConv imports diagnosis/pathology text as an unconfirmed coding input,
 obtains all governed candidates, and materializes a `Condition` draft without
 claiming that source text is an authoritative code. Human review selects one
 candidate; only then are `Condition.code` and its English
-`Condition.code-display` indexed. The physical index keys remain internal.
+`Condition.code-display` indexed. The original `Condition.code-text` and
+`Condition.language` remain available for source-language search and audit.
+The physical index keys remain internal.
 Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
 whose catalog is generated from `gdc-common-utils-ts`.
 

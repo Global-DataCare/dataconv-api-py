@@ -42,7 +42,7 @@ def test_all_legacy_dataconv_claims_are_classified_as_aliases_or_extensions() ->
 
 
 def test_base_config_separates_control_canonical_extension_and_pending_fields() -> None:
-    assert len(BASE_CONFIG_FIELDS) == 50
+    assert len(BASE_CONFIG_FIELDS) == 52
     assert {entry.kind for entry in BASE_CONFIG_FIELDS.values()} == {
         BaseConfigFieldKind.CONTROL,
         BaseConfigFieldKind.CANONICAL_CLAIM,
@@ -63,6 +63,10 @@ def test_base_config_separates_control_canonical_extension_and_pending_fields() 
         "ChargeItem.quantity-unit"
     )
     assert BASE_CONFIG_FIELDS["origin"].kind is BaseConfigFieldKind.PENDING
+    assert BASE_CONFIG_FIELDS["treatment"].kind is BaseConfigFieldKind.CONTROL
+    assert canonical_claim_for_base_config_field("procedure_code-text") == (
+        "Procedure.code-text"
+    )
 
 
 def test_base_config_workbook_is_split_without_overwriting_the_source(tmp_path) -> None:

@@ -289,7 +289,7 @@ class ServiceApiTests(unittest.TestCase):
         self.assertIn("openapi", schema)
         self.assertEqual(schema.get("info", {}).get("title"), "Preconversion DIDComm API")
         # The exact literal is the release/OpenAPI synchronization contract.
-        self.assertEqual(schema.get("info", {}).get("version"), "0.8.1")
+        self.assertEqual(schema.get("info", {}).get("version"), "0.8.2")
         research_exchange = schema.get("paths", {}).get(
             "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/research/auth/_exchange",
             {},

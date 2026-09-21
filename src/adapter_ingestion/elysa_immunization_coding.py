@@ -346,7 +346,18 @@ def enrich_workbook(source: Path | str, target: Path | str) -> EnrichmentSummary
             for column in range(1, sheet.max_column + 1)
             if sheet.cell(2, column).value
         }
-        source_claim = "concept" if "concept" in mapping_to_column else "DiagnosticReport.code-text"
+        source_claim = next(
+            (
+                claim
+                for claim in (
+                    "concept",
+                    "coding-input:Condition.code",
+                    "DiagnosticReport.code-text",
+                )
+                if claim in mapping_to_column
+            ),
+            "",
+        )
         source_column = mapping_to_column.get(source_claim)
         family_column = mapping_to_column.get("family")
         subfamily_column = mapping_to_column.get("subfamily")

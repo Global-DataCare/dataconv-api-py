@@ -18,6 +18,7 @@ from gdc_data_utils import (
     DiagnosticReportClaim,
     FHIR_API_CONTEXT,
     InvoiceClaim,
+    ProcedureClaim,
 )
 
 from .ai.base import CodingAssistant, CodingSuggestion
@@ -455,16 +456,56 @@ def _condition_resource(
         record.timestamp,
         str(record.coding_inputs.get(ConditionClaim.CODE, "")),
     )
+    source_text = str(record.coding_inputs.get(ConditionClaim.CODE, "") or "").strip()
     claims = {
         ConditionClaim.IDENTIFIER: condition_id,
         ConditionClaim.SUBJECT: record.subject_id,
         ConditionClaim.CLINICAL_STATUS: "active",
         ConditionClaim.VERIFICATION_STATUS: "provisional",
+        ConditionClaim.CODE_TEXT: source_text,
+        "Condition.language": context.language,
     }
     meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
     if proposals:
         meta["codingProposals"] = proposals
     return {"resourceType": "Condition", "id": condition_id, "meta": meta}
+
+
+def _procedure_resource(
+    *,
+    context: AdapterContext,
+    record: CanonicalRecord,
+    suggestions: list[CodingSuggestion],
+) -> dict[str, Any] | None:
+    proposals = _coding_proposals(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type="Procedure",
+    )
+    if not proposals and ProcedureClaim.CODE not in record.coding_inputs:
+        return None
+    source_text = str(record.coding_inputs.get(ProcedureClaim.CODE, "") or "").strip()
+    procedure_id = stable_uuid(
+        context.manufacturer,
+        context.tenant_id,
+        record.subject_id,
+        "procedure",
+        record.source_id,
+        record.timestamp,
+        source_text,
+    )
+    claims = {
+        ProcedureClaim.IDENTIFIER: procedure_id,
+        ProcedureClaim.SUBJECT: record.subject_id,
+        ProcedureClaim.STATUS: "unknown",
+        ProcedureClaim.CODE_TEXT: source_text,
+        "Procedure.language": context.language,
+    }
+    meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
+    if proposals:
+        meta["codingProposals"] = proposals
+    return {"resourceType": "Procedure", "id": procedure_id, "meta": meta}
 
 
 def _claims_for_resource(record: CanonicalRecord, resource_type: str) -> dict[str, str]:
@@ -856,6 +897,7 @@ def run_pipeline(
     document_entries_count = 0
     diagnostic_report_entries_count = 0
     condition_entries_count = 0
+    procedure_entries_count = 0
     invoice_entries_count = 0
     charge_item_entries_count = 0
     encounter_entries_count = 0
@@ -866,6 +908,7 @@ def run_pipeline(
     grouped_doc_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_diagnostic_report_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_condition_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_procedure_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_invoice_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_charge_item_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_financial_records: dict[tuple[str, str, str], list[CanonicalRecord]] = defaultdict(list)
@@ -902,6 +945,12 @@ def run_pipeline(
             condition_id = str(condition["id"])
             grouped_condition_resources[key][condition_id] = condition
             condition_entries_count += 1
+
+        procedure = _procedure_resource(context=context, record=record, suggestions=suggestions)
+        if procedure is not None:
+            procedure_id = str(procedure["id"])
+            grouped_procedure_resources[key][procedure_id] = procedure
+            procedure_entries_count += 1
 
         invoice_identifier = record.flat_claims.get(InvoiceClaim.IDENTIFIER, "").strip()
         if invoice_identifier:
@@ -969,16 +1018,18 @@ def run_pipeline(
             doc_resources_map = grouped_doc_resources[key]
             diagnostic_report_resources_map = grouped_diagnostic_report_resources[key]
             condition_resources_map = grouped_condition_resources[key]
+            procedure_resources_map = grouped_procedure_resources[key]
             invoice_resources_map = grouped_invoice_resources[key]
             charge_item_resources_map = grouped_charge_item_resources[key]
             encounter_resources_map = grouped_encounter_resources[key]
             doc_ids = sorted(doc_resources_map.keys())
             diagnostic_report_ids = sorted(diagnostic_report_resources_map.keys())
             condition_ids = sorted(condition_resources_map.keys())
+            procedure_ids = sorted(procedure_resources_map.keys())
             invoice_ids = sorted(invoice_resources_map.keys())
             charge_item_ids = sorted(charge_item_resources_map.keys())
             encounter_ids = sorted(encounter_resources_map.keys())
-            entry_ids = encounter_ids + condition_ids + diagnostic_report_ids + invoice_ids + charge_item_ids + doc_ids
+            entry_ids = encounter_ids + condition_ids + procedure_ids + diagnostic_report_ids + invoice_ids + charge_item_ids + doc_ids
             claims = _composition_claims(
                 context=context,
                 subject=subject,
@@ -993,6 +1044,8 @@ def run_pipeline(
                 contained_resources.append(encounter_resources_map[resource_id])
             for resource_id in condition_ids:
                 contained_resources.append(condition_resources_map[resource_id])
+            for resource_id in procedure_ids:
+                contained_resources.append(procedure_resources_map[resource_id])
             for resource_id in diagnostic_report_ids:
                 contained_resources.append(diagnostic_report_resources_map[resource_id])
             for resource_id in invoice_ids:
@@ -1058,6 +1111,7 @@ def run_pipeline(
         "documentReferenceEntries": document_entries_count,
         "diagnosticReportEntries": diagnostic_report_entries_count,
         "conditionEntries": condition_entries_count,
+        "procedureEntries": procedure_entries_count,
         "codingProposalEntries": len(coding_proposal_candidate_ids),
         "ambiguousCodingProposalEntries": sum(
             1 for candidate_ids in coding_proposal_candidate_ids.values() if len(candidate_ids) > 1

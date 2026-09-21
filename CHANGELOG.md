@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 0.8.2 - 2026-09-21
+
+- Preserve the original source-language `Condition.code-text` through
+  terminology review and add `Resource.language`; human confirmation now adds
+  code/display without deleting the source text.
+- Add BCP-47-aware local-text encoding for flat claims: one base-language value
+  stays plain, while multilingual values use CSV-safe `language|text` entries.
+- Correct Pinol and Survet treatment narratives from the false
+  `Procedure.code-display` mapping to a neutral `treatment` control, and
+  materialize reviewable Procedure drafts only when a Procedure coding input is
+  actually selected.
+- Add sheet-independent, row-level classification of heterogeneous concepts
+  into review candidates using section, family, subfamily, concept and
+  treatment; do not infer absent species or sex and do not promote candidates
+  before human review.
+- Keep Elysa immunization enrichment compatible with the current
+  `coding-input:Condition.code` diagnosis mapping and emit ignored private
+  evidence for the regenerated 13-sheet workbook.
+
 ## 0.8.1 - 2026-09-21
 
 - Add a TDD-proven Elysa workbook enrichment that appends canonical

@@ -103,6 +103,22 @@ def test_origin_is_ignored_and_diagnoses_are_unconfirmed_condition_coding_inputs
         assert config.internal_fields[config.source_headers.index(source_header)] == f"coding-input:{ConditionClaim.CODE}"
 
 
+def test_treatment_narratives_are_not_misrepresented_as_standard_displays() -> None:
+    for sheet_name, source_header in (
+        ("Pinol Vepahi", "tratamiento"),
+        ("Survet Diagonal", "TRACTAMENT"),
+    ):
+        config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == sheet_name)
+        assert config.internal_fields[config.source_headers.index(source_header)] == "treatment"
+
+    invoice_lines = next(
+        item for item in ACCURO_SHEET_CONFIGS if item.name == "Veterinary Automation 2"
+    )
+    assert invoice_lines.internal_fields[
+        invoice_lines.source_headers.index("DESCRIPCION")
+    ] == "procedure_code-text"
+
+
 def test_financial_accuro_fields_use_canonical_claims_only_when_invoice_identity_is_safe() -> None:
     aggregate_catalog = next(
         item for item in ACCURO_SHEET_CONFIGS if item.name == "CV A Caeira"

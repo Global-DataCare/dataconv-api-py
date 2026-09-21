@@ -87,7 +87,6 @@ def apply_coding_reviews(
         claims = meta.setdefault("claims", {})
         claims[field] = f"{selected['system']}|{selected['code']}"
         claims[f"{resource_type}.code-display"] = str(selected["display"])
-        claims.pop(f"{resource_type}.code-text", None)
         proposal["status"] = "accepted"
         proposal["selectedCandidateId"] = selected_id
         proposal["reviewedAt"] = datetime.now(timezone.utc).isoformat()

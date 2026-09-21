@@ -39,7 +39,7 @@ Condition.code-text                         original imported local text
 coding-proposal:Condition.code              candidate system|code list
 coding-proposal:Condition.code-display      candidate official displays
 coding-proposal:Condition.code-text         candidate local texts, if supplied
-Condition.code / code-display / code-text   confirmed flat claims only
+Condition.code / code-display               confirmed flat-claim additions
 ```
 
 Only `coding-proposal:*` is a projection namespace and not a FHIR flat claim.
@@ -51,3 +51,9 @@ For confirmed local text flat claims, a single value uses the resource language 
 plain. Multiple translations use CSV-safe `BCP47|text` entries, for example
 `es-ES|sedación,ca-ES|sedació`. Code and display lists remain correlated by
 coding; concept-level local texts are not assumed to be one-to-one with codes.
+
+This representation follows the reusable neutral contract and governed
+examples in `fhir-data-utils-ts/coding-review-flat-claims`. It is not owned by
+SOSChain. In the DIDComm-style import message, each proposal is located at
+`body.data[].resource.contained[].meta.codingProposals[]`, beside that
+resource's `meta.claims`; it is never aggregated in `ResearchSubject.meta`.

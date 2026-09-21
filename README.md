@@ -51,6 +51,10 @@ candidate; only then are `Condition.code` and its English
 canonical flat claim and in `meta.codingProposals[].inputText` as review
 context; selecting a code never overwrites it. The physical index keys remain
 internal.
+The reusable cross-product contract, builders and governed examples are owned
+by `fhir-data-utils-ts/coding-review-flat-claims`; DataConv implements the same
+cross-language shape, while Vet and UHC consume it. This is not a SOSChain-owned
+contract. Serialized `coding-input:*` fields are forbidden.
 Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
 whose catalog is generated from `gdc-common-utils-ts`.
 

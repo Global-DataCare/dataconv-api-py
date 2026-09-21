@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.8.5 - 2026-09-21
+
+- Align DataConv skills, test contracts and examples with the neutral
+  `fhir-data-utils-ts` coding-review contract: canonical source `*-text`,
+  resource-scoped proposals and no serialized `coding-input:*` fields.
+
 ## 0.8.4 - 2026-09-21
 
 - Remove the erroneous serialized `coding-input:<Resource>.code` pseudo-field.

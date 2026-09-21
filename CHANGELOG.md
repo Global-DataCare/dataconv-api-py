@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## 0.8.1 - 2026-09-21
+
+- Add a TDD-proven Elysa workbook enrichment that appends canonical
+  `Immunization.vaccine-code`, `Immunization.vaccine-code-display` and
+  `Immunization.vaccine-code-text` API-CONFIG columns to every sheet.
+- Infer reviewable WHO ATCvet candidates for animal vaccination administrations
+  and WHO ATC candidates for human administrations while leaving status,
+  recommendation, solvent and unrelated dental rows uncoded.
+- Emit private CSV, JSON and Markdown evidence with source text, correlated
+  code/display/local-text lists, inferred species, confidence and source rows.
+
 ## 0.8.0 - 2026-09-19
 
 - Expose study-scoped conversion jobs as canonical flat-claim `Task` resources

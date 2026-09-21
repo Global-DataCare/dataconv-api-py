@@ -46,9 +46,10 @@ DataConv imports diagnosis/pathology text as an unconfirmed coding input,
 obtains all governed candidates, and materializes a `Condition` draft without
 claiming that source text is an authoritative code. Human review selects one
 candidate; only then are `Condition.code` and its English
-`Condition.code-display` indexed. The original `Condition.code-text` and
-`Condition.language` remain available for source-language search and audit.
-The physical index keys remain internal.
+`Condition.code-display` indexed. The original source remains in
+`meta.codingProposals[].inputText`; it is not copied into
+`Condition.code-text`. A separately reviewed local text may populate
+`Condition.code-text` later. The physical index keys remain internal.
 Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
 whose catalog is generated from `gdc-common-utils-ts`.
 

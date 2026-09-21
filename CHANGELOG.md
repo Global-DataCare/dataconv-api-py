@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.8.3 - 2026-09-21
+
+- Keep imported coding source text exclusively in
+  `meta.codingProposals[].inputText` until review instead of prematurely
+  claiming it as `<Resource>.code-text`.
+- Preserve proposal input after confirmation while writing only the selected
+  code and authoritative display to flat claims; local `code-text` remains
+  absent until a separately reviewed local text exists.
+- Add a collision-free optional tabular projection with distinct
+  `coding-input:*`, `coding-proposal:*` and confirmed canonical claim columns.
+- Clarify that UI review operates on the FHIR-like ResearchSubject Bundle and
+  that CSV/XLSX review files are projections rather than the internal source of
+  truth.
+
 ## 0.8.2 - 2026-09-21
 
 - Preserve the original source-language `Condition.code-text` through

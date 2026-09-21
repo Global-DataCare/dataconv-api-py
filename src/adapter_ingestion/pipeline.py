@@ -456,13 +456,11 @@ def _condition_resource(
         record.timestamp,
         str(record.coding_inputs.get(ConditionClaim.CODE, "")),
     )
-    source_text = str(record.coding_inputs.get(ConditionClaim.CODE, "") or "").strip()
     claims = {
         ConditionClaim.IDENTIFIER: condition_id,
         ConditionClaim.SUBJECT: record.subject_id,
         ConditionClaim.CLINICAL_STATUS: "active",
         ConditionClaim.VERIFICATION_STATUS: "provisional",
-        ConditionClaim.CODE_TEXT: source_text,
         "Condition.language": context.language,
     }
     meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
@@ -499,7 +497,6 @@ def _procedure_resource(
         ProcedureClaim.IDENTIFIER: procedure_id,
         ProcedureClaim.SUBJECT: record.subject_id,
         ProcedureClaim.STATUS: "unknown",
-        ProcedureClaim.CODE_TEXT: source_text,
         "Procedure.language": context.language,
     }
     meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}

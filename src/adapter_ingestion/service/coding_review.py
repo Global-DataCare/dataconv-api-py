@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import csv
 from datetime import datetime, timezone
+from io import StringIO
 from typing import Any, Protocol
 
 
@@ -39,6 +41,59 @@ def _candidate(proposal: dict[str, Any], candidate_id: str) -> dict[str, Any] | 
         ),
         None,
     )
+
+
+def _csv_value(values: list[str]) -> str:
+    if not values:
+        return ""
+    output = StringIO()
+    csv.writer(output, lineterminator="").writerow(values)
+    return output.getvalue()
+
+
+def coding_review_export_columns(resource: dict[str, Any]) -> dict[str, str]:
+    """Project one review resource to collision-free optional tabular columns."""
+
+    resource_type = str(resource.get("resourceType", "")).strip()
+    meta = resource.get("meta", {})
+    if not resource_type or not isinstance(meta, dict):
+        return {}
+    claims = meta.get("claims", {})
+    columns = {
+        str(key): str(value)
+        for key, value in claims.items()
+        if str(key) != "@context" and str(value or "").strip()
+    } if isinstance(claims, dict) else {}
+    proposals = meta.get("codingProposals", [])
+    if not isinstance(proposals, list):
+        return columns
+    for proposal in proposals:
+        if not isinstance(proposal, dict):
+            continue
+        field = str(proposal.get("field", "")).strip()
+        if not field.startswith(f"{resource_type}."):
+            continue
+        source_text = str(proposal.get("inputText", "")).strip()
+        columns[f"coding-input:{field}"] = source_text
+        candidates = [
+            item for item in proposal.get("candidates", []) if isinstance(item, dict)
+        ]
+        columns[f"coding-proposal:{field}"] = _csv_value([
+            f"{str(item.get('system', '')).strip()}|{str(item.get('code', '')).strip()}"
+            for item in candidates
+            if str(item.get("system", "")).strip() and str(item.get("code", "")).strip()
+        ])
+        columns[f"coding-proposal:{resource_type}.code-display"] = _csv_value([
+            str(item.get("display", "")).strip()
+            for item in candidates
+            if str(item.get("display", "")).strip()
+        ])
+        columns[f"coding-proposal:{resource_type}.code-text"] = _csv_value([
+            str(item.get("text", "")).strip()
+            for item in candidates
+            if str(item.get("text", "")).strip()
+        ])
+    return columns
 
 
 def apply_coding_reviews(

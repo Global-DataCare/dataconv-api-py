@@ -1,10 +1,17 @@
 # General clinical concept review
 
-DataConv already had API-CONFIG ingestion, governed terminology candidates and
-human confirmation. The remaining boundary is now explicit: heterogeneous
+DataConv already had API-CONFIG ingestion, stable ResearchSubject grouping,
+governed terminology candidates and human confirmation. Heterogeneous
 `section`, `family`, `subfamily`, `concept` and `treatment` values first produce
 review-only resource candidates. Sheet and vendor names are not classification
 inputs.
+
+The internal review document is the FHIR-like Bundle. Each source identifier
+is resolved to its stable secondary-use UUID, repeated rows update the same
+ResearchSubject, and its `contained` array holds sibling Composition and
+clinical resources. `Composition.entry` references those resources. The portal
+must render `meta.codingProposals[]` from this Bundle; the CSV below is only a
+diagnostic/export projection.
 
 One source row may yield more than one candidate. Multiline treatment is split
 without losing its original lines. Medication-like instructions remain
@@ -25,7 +32,21 @@ text, so it belongs under `artifacts/` or another ignored private directory.
 Classification does not create authoritative resources or terminology codes;
 the review decision and terminology confirmation are separate phases.
 
-For local text flat claims, a single value uses the resource language and stays
+An optional tabular review projection keeps three namespaces separate:
+
+```text
+coding-input:Condition.code                 original imported text
+coding-proposal:Condition.code              candidate system|code list
+coding-proposal:Condition.code-display      candidate official displays
+coding-proposal:Condition.code-text         candidate local texts, if supplied
+Condition.code / code-display / code-text   confirmed flat claims only
+```
+
+The `coding-input:*` and `coding-proposal:*` names are projection controls, not
+FHIR flat claims. No language suffix is added to a claim name. When confirmed
+local texts have multiple languages, their values carry BCP-47 tags.
+
+For confirmed local text flat claims, a single value uses the resource language and stays
 plain. Multiple translations use CSV-safe `BCP47|text` entries, for example
 `es-ES|sedación,ca-ES|sedació`. Code and display lists remain correlated by
 coding; concept-level local texts are not assumed to be one-to-one with codes.

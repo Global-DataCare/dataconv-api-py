@@ -2,7 +2,7 @@
 # 1. DataConv sends the de-identified row context and every governed terminology candidate to the ranker.
 # 2. Every candidate remains available for human choice; the model only supplies a recommendation score.
 # 3. A draft carries proposals outside authoritative flat claims.
-# 4. Human confirmation adds the selected code and display without deleting the source-language text.
+# 4. Source text stays in proposal metadata; confirmation never confuses it with canonical code-text.
 
 from __future__ import annotations
 
@@ -20,7 +20,10 @@ from adapter_ingestion.ai.terminology import (
 from adapter_ingestion.models import AdapterContext, CanonicalRecord
 from adapter_ingestion.pipeline import run_pipeline
 from adapter_ingestion.runtime.adapters import InMemorySearchRepository
-from adapter_ingestion.service.coding_review import apply_coding_reviews
+from adapter_ingestion.service.coding_review import (
+    apply_coding_reviews,
+    coding_review_export_columns,
+)
 
 
 @dataclass
@@ -144,7 +147,7 @@ def test_pipeline_keeps_unconfirmed_candidates_outside_flat_claims() -> None:
     claims = condition["meta"]["claims"]
     assert ConditionClaim.CODE not in claims
     assert ConditionClaim.CODE_DISPLAY not in claims
-    assert claims[ConditionClaim.CODE_TEXT] == "otitis"
+    assert ConditionClaim.CODE_TEXT not in claims
     assert claims["Condition.language"] == "es-ES"
     proposal = condition["meta"]["codingProposals"][0]
     assert [item["code"] for item in proposal["candidates"]] == ["3135009", "129127001"]
@@ -167,7 +170,7 @@ def test_pipeline_materializes_procedure_source_text_for_later_coding_review() -
     procedure = next(item for item in subject["contained"] if item["resourceType"] == "Procedure")
 
     claims = procedure["meta"]["claims"]
-    assert claims[ProcedureClaim.CODE_TEXT] == "sedación para radiografía"
+    assert ProcedureClaim.CODE_TEXT not in claims
     assert claims[ProcedureClaim.SUBJECT] == record.subject_id
     assert claims[ProcedureClaim.STATUS] == "unknown"
     assert claims["Procedure.language"] == "es-ES"
@@ -200,8 +203,9 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
     assert applied == 1
     assert condition["meta"]["claims"][ConditionClaim.CODE] == "http://snomed.info/sct|129127001"
     assert condition["meta"]["claims"][ConditionClaim.CODE_DISPLAY] == "Otitis externa"
-    assert condition["meta"]["claims"][ConditionClaim.CODE_TEXT] == "otitis"
+    assert ConditionClaim.CODE_TEXT not in condition["meta"]["claims"]
     assert condition["meta"]["claims"]["Condition.language"] == "es-ES"
+    assert proposal["inputText"] == "otitis"
     assert sink.events[0]["selectedCandidateId"] == proposal["candidates"][1]["id"]
     assert sink.events[0]["rejectedCandidateIds"] == [proposal["candidates"][0]["id"]]
     assert sink.events[0]["reviewerSubject"] == "did:web:reviewer.example"
@@ -222,3 +226,24 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
         resource_type="Condition",
         search_params={"code:text": "otitis externa"},
     )[0]["id"] == condition["id"]
+
+
+def test_excel_projection_separates_source_proposals_and_confirmed_claims() -> None:
+    assistant = TerminologyCodingAssistant(
+        context=_context(), terminology=FakeTerminologyClient(), ranker=FakeRanker()
+    )
+    result = run_pipeline([_record()], _context(), assistant)
+    subject = result.composition_message["body"]["data"][0]["resource"]
+    condition = next(item for item in subject["contained"] if item["resourceType"] == "Condition")
+
+    columns = coding_review_export_columns(condition)
+
+    assert columns["coding-input:Condition.code"] == "otitis"
+    assert columns["coding-proposal:Condition.code"] == (
+        "http://snomed.info/sct|3135009,http://snomed.info/sct|129127001"
+    )
+    assert columns["coding-proposal:Condition.code-display"] == (
+        "Otitis media,Otitis externa"
+    )
+    assert columns["coding-proposal:Condition.code-text"] == ""
+    assert "Condition.code-text" not in columns

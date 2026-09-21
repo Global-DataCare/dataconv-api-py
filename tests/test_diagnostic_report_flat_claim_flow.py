@@ -67,6 +67,7 @@ def test_api_config_keeps_uncoded_diagnosis_as_condition_review_proposal() -> No
         if resource.get("resourceType") == "Condition"
     )
     assert "Condition.code" not in condition["meta"]["claims"]
+    assert "Condition.code-text" not in condition["meta"]["claims"]
     assert condition["meta"]["claims"]["Condition.verification-status"] == "provisional"
     assert condition["meta"]["codingProposals"][0]["field"] == "Condition.code"
     assert condition["meta"]["codingProposals"][0]["inputText"] == "Otitis externa"

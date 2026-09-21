@@ -22,6 +22,7 @@ from adapter_ingestion.pipeline import run_pipeline
 from adapter_ingestion.runtime.adapters import InMemorySearchRepository
 from adapter_ingestion.service.coding_review import (
     apply_coding_reviews,
+    coding_proposal_column,
     coding_review_export_columns,
 )
 
@@ -87,6 +88,7 @@ def _record() -> CanonicalRecord:
             "ESPECIE": "CANINA",
         },
         species_local="CANINA",
+        flat_claims={ConditionClaim.CODE_TEXT: "otitis"},
         coding_inputs={ConditionClaim.CODE: "otitis"},
     )
 
@@ -147,7 +149,7 @@ def test_pipeline_keeps_unconfirmed_candidates_outside_flat_claims() -> None:
     claims = condition["meta"]["claims"]
     assert ConditionClaim.CODE not in claims
     assert ConditionClaim.CODE_DISPLAY not in claims
-    assert ConditionClaim.CODE_TEXT not in claims
+    assert claims[ConditionClaim.CODE_TEXT] == "otitis"
     assert claims["Condition.language"] == "es-ES"
     proposal = condition["meta"]["codingProposals"][0]
     assert [item["code"] for item in proposal["candidates"]] == ["3135009", "129127001"]
@@ -159,6 +161,7 @@ def test_pipeline_keeps_unconfirmed_candidates_outside_flat_claims() -> None:
 def test_pipeline_materializes_procedure_source_text_for_later_coding_review() -> None:
     record = replace(
         _record(),
+        flat_claims={ProcedureClaim.CODE_TEXT: "sedación para radiografía"},
         coding_inputs={ProcedureClaim.CODE: "sedación para radiografía"},
     )
     assistant = TerminologyCodingAssistant(
@@ -170,7 +173,7 @@ def test_pipeline_materializes_procedure_source_text_for_later_coding_review() -
     procedure = next(item for item in subject["contained"] if item["resourceType"] == "Procedure")
 
     claims = procedure["meta"]["claims"]
-    assert ProcedureClaim.CODE_TEXT not in claims
+    assert claims[ProcedureClaim.CODE_TEXT] == "sedación para radiografía"
     assert claims[ProcedureClaim.SUBJECT] == record.subject_id
     assert claims[ProcedureClaim.STATUS] == "unknown"
     assert claims["Procedure.language"] == "es-ES"
@@ -203,7 +206,7 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
     assert applied == 1
     assert condition["meta"]["claims"][ConditionClaim.CODE] == "http://snomed.info/sct|129127001"
     assert condition["meta"]["claims"][ConditionClaim.CODE_DISPLAY] == "Otitis externa"
-    assert ConditionClaim.CODE_TEXT not in condition["meta"]["claims"]
+    assert condition["meta"]["claims"][ConditionClaim.CODE_TEXT] == "otitis"
     assert condition["meta"]["claims"]["Condition.language"] == "es-ES"
     assert proposal["inputText"] == "otitis"
     assert sink.events[0]["selectedCandidateId"] == proposal["candidates"][1]["id"]
@@ -238,12 +241,11 @@ def test_excel_projection_separates_source_proposals_and_confirmed_claims() -> N
 
     columns = coding_review_export_columns(condition)
 
-    assert columns["coding-input:Condition.code"] == "otitis"
-    assert columns["coding-proposal:Condition.code"] == (
+    assert columns[ConditionClaim.CODE_TEXT] == "otitis"
+    assert columns[coding_proposal_column(ConditionClaim.CODE)] == (
         "http://snomed.info/sct|3135009,http://snomed.info/sct|129127001"
     )
-    assert columns["coding-proposal:Condition.code-display"] == (
+    assert columns[coding_proposal_column(ConditionClaim.CODE_DISPLAY)] == (
         "Otitis media,Otitis externa"
     )
-    assert columns["coding-proposal:Condition.code-text"] == ""
-    assert "Condition.code-text" not in columns
+    assert columns[coding_proposal_column(ConditionClaim.CODE_TEXT)] == ""

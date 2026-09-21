@@ -52,6 +52,9 @@ def test_qvet_preset_extracts_only_explicit_clinical_condition_signals(tmp_path:
     assert records[0].coding_inputs == {
         ConditionClaim.CODE: "CONSULTA SEGUIMIENTO ALERGIA",
     }
+    assert records[0].flat_claims[ConditionClaim.CODE_TEXT] == (
+        "CONSULTA SEGUIMIENTO ALERGIA"
+    )
     assert records[1].coding_inputs == {}
 
 

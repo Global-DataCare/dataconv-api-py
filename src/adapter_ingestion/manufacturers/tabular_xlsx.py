@@ -460,23 +460,21 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         row: dict[str, str],
         field_map: dict[str, str],
         field_defaults: dict[str, str],
+        flat_claims: dict[str, str],
         *,
         section: str = "",
         family: str = "",
         subfamily: str = "",
         coding_input_rules: tuple[dict[str, Any], ...] = (),
     ) -> dict[str, str]:
+        """Derive terminology targets from canonical local `*-text` claims."""
         values: dict[str, str] = {}
-        prefix = "coding-input:"
-        for mapped_field in sorted(field_map):
-            if not mapped_field.startswith(prefix):
+        for local_text_claim, value in flat_claims.items():
+            if not local_text_claim.endswith("-text"):
                 continue
-            target_claim = mapped_field[len(prefix) :].strip()
-            if not target_claim.endswith(".code"):
-                continue
-            value = self._field_value(row, field_map, field_defaults, mapped_field)
-            if value:
-                values[target_claim] = value
+            target_claim = local_text_claim.removesuffix("-text")
+            if target_claim in _CANONICAL_FLAT_CLAIMS and str(value or "").strip():
+                values[target_claim] = str(value).strip()
         coordinates = {
             "section": normalize_token(section),
             "family": normalize_token(family),
@@ -485,7 +483,9 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         for rule in coding_input_rules:
             target_claim = str(rule.get("targetClaim", "")).strip()
             source_column = str(rule.get("sourceColumn", "")).strip()
-            if not target_claim.endswith(".code") or not source_column:
+            if target_claim.endswith("-text"):
+                target_claim = target_claim.removesuffix("-text")
+            if target_claim not in _CANONICAL_FLAT_CLAIMS or not source_column:
                 continue
             if any(
                 allowed
@@ -807,6 +807,22 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                 if display:
                     attributes["ESPECIE_FHIR_DISPLAY_EN"] = display
 
+            flat_claims = self._flat_claim_values(row, field_map, field_defaults)
+            coding_inputs = self._coding_input_values(
+                row,
+                field_map,
+                field_defaults,
+                flat_claims,
+                section=section,
+                family=family,
+                subfamily=subfamily,
+                coding_input_rules=coding_input_rules,
+            )
+            for target_claim, source_text in coding_inputs.items():
+                local_text_claim = f"{target_claim}-text"
+                if local_text_claim in _CANONICAL_FLAT_CLAIMS:
+                    flat_claims.setdefault(local_text_claim, source_text)
+
             records.append(
                 CanonicalRecord(
                     source_row_number=row_number,
@@ -831,16 +847,8 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                     owner_public_hash=owner_public_hash,
                     owner_public_name=owner_public_name,
                     owner_public_relationship=str(owner_public_rules.get("relationship") or "organization-owner"),
-                    flat_claims=self._flat_claim_values(row, field_map, field_defaults),
-                    coding_inputs=self._coding_input_values(
-                        row,
-                        field_map,
-                        field_defaults,
-                        section=section,
-                        family=family,
-                        subfamily=subfamily,
-                        coding_input_rules=coding_input_rules,
-                    ),
+                    flat_claims=flat_claims,
+                    coding_inputs=coding_inputs,
                 )
             )
 

@@ -33,7 +33,7 @@ def _context(schema_config: dict) -> AdapterContext:
 def test_api_config_keeps_uncoded_diagnosis_as_condition_review_proposal() -> None:
     csv_text = (
         "API-CONFIG:language=es:subjectKind=animal:dataUse=secondary\n"
-        f"date,subject_id,section,family,coding-input:{ConditionClaim.CODE}\n"
+        f"date,subject_id,section,family,{ConditionClaim.CODE_TEXT}\n"
         "FECHA,SUJETO,SECCION,FAMILIA,DIAGNOSTICO\n"
         "2026-03-19,11111111-1111-4111-8111-111111111111,clinica,diagnostico,Otitis externa\n"
     )
@@ -43,7 +43,7 @@ def test_api_config_keeps_uncoded_diagnosis_as_condition_review_proposal() -> No
     try:
         embedded = extract_embedded_api_config(path)
         assert embedded is not None
-        assert embedded["schemaConfig"]["fieldMap"][f"coding-input:{ConditionClaim.CODE}"] == "DIAGNOSTICO"
+        assert embedded["schemaConfig"]["fieldMap"][ConditionClaim.CODE_TEXT] == "DIAGNOSTICO"
 
         records = get_adapter("api-config").read_records(
             path,
@@ -52,7 +52,7 @@ def test_api_config_keeps_uncoded_diagnosis_as_condition_review_proposal() -> No
     finally:
         path.unlink(missing_ok=True)
 
-    assert records[0].flat_claims == {}
+    assert records[0].flat_claims == {ConditionClaim.CODE_TEXT: "Otitis externa"}
     assert records[0].coding_inputs == {ConditionClaim.CODE: "Otitis externa"}
 
     result = run_pipeline(records, _context(embedded["schemaConfig"]), NoopCodingAssistant())
@@ -67,7 +67,7 @@ def test_api_config_keeps_uncoded_diagnosis_as_condition_review_proposal() -> No
         if resource.get("resourceType") == "Condition"
     )
     assert "Condition.code" not in condition["meta"]["claims"]
-    assert "Condition.code-text" not in condition["meta"]["claims"]
+    assert condition["meta"]["claims"][ConditionClaim.CODE_TEXT] == "Otitis externa"
     assert condition["meta"]["claims"]["Condition.verification-status"] == "provisional"
     assert condition["meta"]["codingProposals"][0]["field"] == "Condition.code"
     assert condition["meta"]["codingProposals"][0]["inputText"] == "Otitis externa"

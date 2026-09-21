@@ -139,7 +139,7 @@ ACCURO_SHEET_CONFIGS = (
     AccuroSheetConfig(
         "Pinol Vepahi", "pinol-vepahi", "animal",
         ("FechaVisita", "TipoVisita", "ESPECIE", "RAZA", "Anamnesis", "tratamiento", "FECHANACIMIENTO", "EDAD", "CLINICA", "Diagnostico"),
-        ("date", "family", "subject_animal-species", "subject_animal-breeds", "concept", "treatment", "subject_birthyear", "", "", f"coding-input:{ConditionClaim.CODE}"),
+        ("date", "family", "subject_animal-species", "subject_animal-breeds", "concept", "treatment", "subject_birthyear", "", "", ConditionClaim.CODE_TEXT),
         output_header_overrides=(("FECHANACIMIENTO", "AÑO NACIMIENTO"),),
         birth_date_headers=("FECHANACIMIENTO",),
         redacted_headers=("CLINICA",),
@@ -172,21 +172,21 @@ ACCURO_SHEET_CONFIGS = (
     AccuroSheetConfig(
         "Dr Baron dentistas", "dr-baron-dentistas", "person",
         ("Fecha", "Sexo", "Edad", "Tratamiento", "Patologia Dental", "Num Visitas"),
-        ("date", "subject_birthsex", "", "family", f"coding-input:{ConditionClaim.CODE}", ""),
+        ("date", "subject_birthsex", "", "family", ConditionClaim.CODE_TEXT, ""),
         age_header="Edad",
         birthyear_reference_header="Fecha",
     ),
     AccuroSheetConfig(
         "Sanios", "sanios", "person",
         ("IDENTIFICADOR", "SEXO", "DIRECCIÓN", "EDAD", "PATOLOGÍA", "DETALLE"),
-        ("", "subject_birthsex", "", "", f"coding-input:{ConditionClaim.CODE}", ""),
+        ("", "subject_birthsex", "", "", ConditionClaim.CODE_TEXT, ""),
         subject_key_headers=("IDENTIFICADOR",),
         redacted_headers=("IDENTIFICADOR",),
     ),
     AccuroSheetConfig(
         "Centro creciendo", "centro-creciendo", "person",
         ("IDENTIFICADOR", "SEXO", "DIRECCIÓN", "EDAD", "PATOLOGÍA", "Visitas por cliente"),
-        ("", "subject_birthsex", "", "", f"coding-input:{ConditionClaim.CODE}", ""),
+        ("", "subject_birthsex", "", "", ConditionClaim.CODE_TEXT, ""),
         subject_key_headers=("IDENTIFICADOR",),
         redacted_headers=("IDENTIFICADOR",),
     ),

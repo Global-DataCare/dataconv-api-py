@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 0.8.4 - 2026-09-21
+
+- Remove the erroneous serialized `coding-input:<Resource>.code` pseudo-field.
+  Imported local clinical wording is now a canonical
+  `<Resource>.code-text` flat claim.
+- Derive terminology lookup targets internally from canonical local text:
+  `Condition.code-text` can propose `Condition.code` without changing or
+  overwriting the source-language claim.
+- Keep `meta.codingProposals[]` beside `meta.claims` on each contained clinical
+  resource; proposals are never aggregated onto the enclosing ResearchSubject.
+- Make optional tabular review projections retain canonical source
+  `code-text`, while `coding-proposal:*` remains clearly non-authoritative.
+
 ## 0.8.3 - 2026-09-21
 
 - Keep imported coding source text exclusively in

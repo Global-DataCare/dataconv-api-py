@@ -28,10 +28,10 @@ contiene como hermanos la Composition y los recursos clínicos, enlazados por
 `Composition.entry`. La UI consume sus `meta.codingProposals[]`. Un Excel o CSV
 es únicamente una proyección opcional.
 
-En esa proyección, `coding-input:<Resource>.code` contiene el texto original,
-`coding-proposal:*` contiene los candidatos y los nombres canónicos
-`<Resource>.code`, `code-display` y `code-text` contienen solo lo confirmado.
-Los prefijos `coding-input:` y `coding-proposal:` no son flat claims FHIR. No se
+En esa proyección, `<Resource>.code-text` contiene el texto local original y
+canónico; `coding-proposal:*` contiene los candidatos no confirmados y
+`<Resource>.code`/`code-display` contienen la selección confirmada. Solo
+`coding-proposal:` es un espacio de proyección y no una flat claim FHIR. No se
 añade el idioma al nombre del claim; los valores multilingües llevan BCP-47.
 
 Un único `code-text` local se interpreta con `<Resource>.language`. Si existen

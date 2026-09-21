@@ -351,7 +351,7 @@ def enrich_workbook(source: Path | str, target: Path | str) -> EnrichmentSummary
                 claim
                 for claim in (
                     "concept",
-                    "coding-input:Condition.code",
+                    "Condition.code-text",
                     "DiagnosticReport.code-text",
                 )
                 if claim in mapping_to_column

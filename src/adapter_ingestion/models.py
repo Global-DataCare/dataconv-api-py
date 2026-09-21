@@ -60,6 +60,8 @@ class CanonicalRecord:
     owner_public_name: str = ""
     owner_public_relationship: str = ""
     flat_claims: dict[str, str] = field(default_factory=dict)
+    # Internal target-code claim -> canonical local code-text value. This is
+    # never serialized as a `coding-input:*` flat claim or API-CONFIG field.
     coding_inputs: dict[str, str] = field(default_factory=dict)
 
 

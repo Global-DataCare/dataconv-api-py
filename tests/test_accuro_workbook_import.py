@@ -100,7 +100,7 @@ def test_origin_is_ignored_and_diagnoses_are_unconfirmed_condition_coding_inputs
     }
     for sheet_name, source_header in expected_diagnostic_headers.items():
         config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == sheet_name)
-        assert config.internal_fields[config.source_headers.index(source_header)] == f"coding-input:{ConditionClaim.CODE}"
+        assert config.internal_fields[config.source_headers.index(source_header)] == ConditionClaim.CODE_TEXT
 
 
 def test_treatment_narratives_are_not_misrepresented_as_standard_displays() -> None:

@@ -35,16 +35,17 @@ the review decision and terminology confirmation are separate phases.
 An optional tabular review projection keeps three namespaces separate:
 
 ```text
-coding-input:Condition.code                 original imported text
+Condition.code-text                         original imported local text
 coding-proposal:Condition.code              candidate system|code list
 coding-proposal:Condition.code-display      candidate official displays
 coding-proposal:Condition.code-text         candidate local texts, if supplied
 Condition.code / code-display / code-text   confirmed flat claims only
 ```
 
-The `coding-input:*` and `coding-proposal:*` names are projection controls, not
-FHIR flat claims. No language suffix is added to a claim name. When confirmed
-local texts have multiple languages, their values carry BCP-47 tags.
+Only `coding-proposal:*` is a projection namespace and not a FHIR flat claim.
+The source is already canonical `<Resource>.code-text`. No language suffix is
+added to a claim name. When local texts have multiple languages, their values
+carry BCP-47 tags.
 
 For confirmed local text flat claims, a single value uses the resource language and stays
 plain. Multiple translations use CSV-safe `BCP47|text` entries, for example

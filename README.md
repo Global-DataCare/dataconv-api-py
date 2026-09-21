@@ -36,20 +36,21 @@ Repository documentation:
 FHIR-like flat claims, physical indexes, and FHIR queries are separate layers:
 
 ```text
-API-CONFIG:          coding-input:Condition.code
+API-CONFIG:          Condition.code-text
 draft metadata:      meta.codingProposals[]
 confirmed claims:    Condition.code + Condition.code-display
 FHIR search:         Condition?code=<system>|<code> or Condition?code:text=<English display>
 ```
 
-DataConv imports diagnosis/pathology text as an unconfirmed coding input,
+DataConv imports diagnosis/pathology text as canonical local
+`Condition.code-text`,
 obtains all governed candidates, and materializes a `Condition` draft without
 claiming that source text is an authoritative code. Human review selects one
 candidate; only then are `Condition.code` and its English
-`Condition.code-display` indexed. The original source remains in
-`meta.codingProposals[].inputText`; it is not copied into
-`Condition.code-text`. A separately reviewed local text may populate
-`Condition.code-text` later. The physical index keys remain internal.
+`Condition.code-display` indexed. The original local text remains both in the
+canonical flat claim and in `meta.codingProposals[].inputText` as review
+context; selecting a code never overwrites it. The physical index keys remain
+internal.
 Canonical claim names and normalization helpers come from `gdc-data-utils-py`,
 whose catalog is generated from `gdc-common-utils-ts`.
 

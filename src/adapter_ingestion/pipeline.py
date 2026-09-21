@@ -457,6 +457,7 @@ def _condition_resource(
         str(record.coding_inputs.get(ConditionClaim.CODE, "")),
     )
     claims = {
+        **_claims_for_resource(record, "Condition"),
         ConditionClaim.IDENTIFIER: condition_id,
         ConditionClaim.SUBJECT: record.subject_id,
         ConditionClaim.CLINICAL_STATUS: "active",
@@ -494,6 +495,7 @@ def _procedure_resource(
         source_text,
     )
     claims = {
+        **_claims_for_resource(record, "Procedure"),
         ProcedureClaim.IDENTIFIER: procedure_id,
         ProcedureClaim.SUBJECT: record.subject_id,
         ProcedureClaim.STATUS: "unknown",

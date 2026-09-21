@@ -30,9 +30,9 @@ Privacy and semantic corrections applied during preparation:
 - animal names and clinic/legal clinic names are blanked after private subject
   pseudonym resolution;
 - `origin` is not mapped until a governed source-role vocabulary is selected;
-- diagnosis/pathology text maps to `coding-input:Condition.code`; the draft
-  preserves it as `meta.codingProposals[].inputText`, never as canonical
-  `Condition.code-text` or `code-display` before review;
+- diagnosis/pathology text maps to canonical `Condition.code-text`; DataConv
+  also exposes the same source value as `meta.codingProposals[].inputText`
+  while proposing `Condition.code`, and never overwrites the local text;
 - Pinol and Survet treatment narratives map to neutral `treatment` input, not
   to `Procedure.code-display`; classification and terminology review decide
   whether each line represents a Procedure, medication use or neither;
@@ -48,11 +48,12 @@ query use related but intentionally different representations:
 
 ```text
 Excel API-CONFIG
-coding-input:Condition.code
+Condition.code-text
           ↓
 resource.meta.claims
 {
   "@context": "org.hl7.fhir.api",
+  "Condition.code-text": "diagnóstico en español",
   "Condition.language": "es-ES"
 }
 meta.codingProposals[]
@@ -86,9 +87,9 @@ A FHIR `Parameters` request uses the same modifier:
 ```
 
 DataConv returns a `Bundle` with `type: searchset` containing matching
-`Condition` resources after review promotion. The source text remains in the
-proposal metadata before and after code confirmation; `Condition.code-text`
-is reserved for separately reviewed concept text.
+`Condition` resources after review promotion. The source local text remains in
+both the canonical claim and proposal context before and after code
+confirmation.
 
 ## Invoice and ChargeItem contract
 

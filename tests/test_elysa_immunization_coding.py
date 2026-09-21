@@ -45,13 +45,13 @@ def _fixture(path: Path) -> None:
 
     dentists = workbook.create_sheet("Dr Baron dentistas")
     dentists.append(["API-CONFIG:language=es:subjectKind=person"])
-    dentists.append(["DiagnosticReport.code-text"])
+    dentists.append(["coding-input:Condition.code"])
     dentists.append(["Patologia Dental"])
     dentists.append(["Caries dental"])
 
     sanios = workbook.create_sheet("Sanios")
     sanios.append(["API-CONFIG:language=es:subjectKind=person"])
-    sanios.append(["DiagnosticReport.code-text"])
+    sanios.append(["coding-input:Condition.code"])
     sanios.append(["PATOLOGÍA"])
     sanios.append(["ENFERMERÍA-Se administra vacuna gripe"])
 

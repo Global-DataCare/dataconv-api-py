@@ -30,31 +30,36 @@ Privacy and semantic corrections applied during preparation:
 - animal names and clinic/legal clinic names are blanked after private subject
   pseudonym resolution;
 - `origin` is not mapped until a governed source-role vocabulary is selected;
-- Spanish diagnosis/pathology text maps to `DiagnosticReport.code-text`, never
-  to `subfamily` or `code-display` without an actual coded concept.
+- diagnosis/pathology text maps to `coding-input:Condition.code`; the draft
+  preserves it as `Condition.code-text`, never as `code-display` without an
+  actual selected terminology concept;
+- Pinol and Survet treatment narratives map to neutral `treatment` input, not
+  to `Procedure.code-display`; classification and terminology review decide
+  whether each line represents a Procedure, medication use or neither;
 - aggregate catalogue rows without a reliable subject and invoice identity do
   not claim to be Invoice or ChargeItem resources;
 - invoice-line rows with a reliable subject and document timestamp receive a
   deterministic `Invoice.identifier` and distinct `ChargeItem.identifier` values.
 
-## DiagnosticReport flat claim and search contract
+## Condition coding-input and search contract
 
 The API-CONFIG field, persisted flat claim, physical database index, and FHIR
 query use related but intentionally different representations:
 
 ```text
 Excel API-CONFIG
-DiagnosticReport.code-text
+coding-input:Condition.code
           ↓
 resource.meta.claims
 {
   "@context": "org.hl7.fhir.api",
-  "DiagnosticReport.code-text": "diagnóstico en español"
+  "Condition.code-text": "diagnóstico en español",
+  "Condition.language": "es-ES"
 }
           ↓ internal indexing
-diagnosticreport_code-text
+condition_code-text
           ↓ FHIR search
-DiagnosticReport?code:text=diagnóstico
+Condition?code:text=diagnóstico
 ```
 
 Only the resource separator `.` becomes `_` in the physical index. The hyphen
@@ -77,7 +82,8 @@ A FHIR `Parameters` request uses the same modifier:
 ```
 
 DataConv returns a `Bundle` with `type: searchset` containing matching
-`DiagnosticReport` resources.
+`Condition` resources after review promotion. The source text remains present
+before and after code confirmation.
 
 ## Invoice and ChargeItem contract
 

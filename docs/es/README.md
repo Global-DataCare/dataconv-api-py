@@ -17,3 +17,4 @@
 - [12 - Ejemplos de salida actual](12-ejemplos-salida-actual.md)
 - [13 - Bootstrap GCP onehealth](13-bootstrap-gcp-onehealth.md)
 - [14 - Codificación de vacunas de Elysa](14-codificacion-inmunizaciones-elysa.md)
+- [15 - Revisión general de codificación clínica](15-revision-codificacion-clinica-general.md)

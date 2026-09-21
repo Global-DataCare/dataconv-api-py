@@ -2,13 +2,13 @@
 # 1. DataConv sends the de-identified row context and every governed terminology candidate to the ranker.
 # 2. Every candidate remains available for human choice; the model only supplies a recommendation score.
 # 3. A draft carries proposals outside authoritative flat claims.
-# 4. Human confirmation writes only the selected code plus English display and emits durable feedback.
+# 4. Human confirmation adds the selected code and display without deleting the source-language text.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
-from gdc_data_utils import ConditionClaim
+from gdc_data_utils import ConditionClaim, ProcedureClaim
 
 from adapter_ingestion.ai.base import CodingSuggestion
 from adapter_ingestion.ai.terminology import (
@@ -144,11 +144,35 @@ def test_pipeline_keeps_unconfirmed_candidates_outside_flat_claims() -> None:
     claims = condition["meta"]["claims"]
     assert ConditionClaim.CODE not in claims
     assert ConditionClaim.CODE_DISPLAY not in claims
+    assert claims[ConditionClaim.CODE_TEXT] == "otitis"
+    assert claims["Condition.language"] == "es-ES"
     proposal = condition["meta"]["codingProposals"][0]
     assert [item["code"] for item in proposal["candidates"]] == ["3135009", "129127001"]
     assert proposal["inputText"] == "otitis"
     assert result.summary["codingProposalEntries"] == 1
     assert result.summary["ambiguousCodingProposalEntries"] == 1
+
+
+def test_pipeline_materializes_procedure_source_text_for_later_coding_review() -> None:
+    record = replace(
+        _record(),
+        coding_inputs={ProcedureClaim.CODE: "sedación para radiografía"},
+    )
+    assistant = TerminologyCodingAssistant(
+        context=_context(), terminology=FakeTerminologyClient(), ranker=FakeRanker()
+    )
+
+    result = run_pipeline([record], _context(), assistant)
+    subject = result.composition_message["body"]["data"][0]["resource"]
+    procedure = next(item for item in subject["contained"] if item["resourceType"] == "Procedure")
+
+    claims = procedure["meta"]["claims"]
+    assert claims[ProcedureClaim.CODE_TEXT] == "sedación para radiografía"
+    assert claims[ProcedureClaim.SUBJECT] == record.subject_id
+    assert claims[ProcedureClaim.STATUS] == "unknown"
+    assert claims["Procedure.language"] == "es-ES"
+    assert procedure["meta"]["codingProposals"][0]["field"] == ProcedureClaim.CODE
+    assert result.summary["procedureEntries"] == 1
 
 
 def test_human_selection_materializes_code_and_english_display_and_emits_feedback() -> None:
@@ -176,7 +200,8 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
     assert applied == 1
     assert condition["meta"]["claims"][ConditionClaim.CODE] == "http://snomed.info/sct|129127001"
     assert condition["meta"]["claims"][ConditionClaim.CODE_DISPLAY] == "Otitis externa"
-    assert ConditionClaim.CODE_TEXT not in condition["meta"]["claims"]
+    assert condition["meta"]["claims"][ConditionClaim.CODE_TEXT] == "otitis"
+    assert condition["meta"]["claims"]["Condition.language"] == "es-ES"
     assert sink.events[0]["selectedCandidateId"] == proposal["candidates"][1]["id"]
     assert sink.events[0]["rejectedCandidateIds"] == [proposal["candidates"][0]["id"]]
     assert sink.events[0]["reviewerSubject"] == "did:web:reviewer.example"

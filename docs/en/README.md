@@ -22,5 +22,6 @@ Core guides:
 - [13 - GCP bootstrap for One Health](13-gcp-bootstrap-onehealth.md)
 - [Accuro API-CONFIG workbook flow](13-accuro-api-config.md)
 - [Elysa Immunization coding workbook](14-elysa-immunization-coding.md)
+- [General clinical concept review](15-general-clinical-coding.md)
 
 Spanish originals remain available under [docs/es](../es/README.md).

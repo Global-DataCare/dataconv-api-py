@@ -139,7 +139,7 @@ ACCURO_SHEET_CONFIGS = (
     AccuroSheetConfig(
         "Pinol Vepahi", "pinol-vepahi", "animal",
         ("FechaVisita", "TipoVisita", "ESPECIE", "RAZA", "Anamnesis", "tratamiento", "FECHANACIMIENTO", "EDAD", "CLINICA", "Diagnostico"),
-        ("date", "family", "subject_animal-species", "subject_animal-breeds", "concept", "procedure_code-display", "subject_birthyear", "", "", f"coding-input:{ConditionClaim.CODE}"),
+        ("date", "family", "subject_animal-species", "subject_animal-breeds", "concept", "treatment", "subject_birthyear", "", "", f"coding-input:{ConditionClaim.CODE}"),
         output_header_overrides=(("FECHANACIMIENTO", "AÑO NACIMIENTO"),),
         birth_date_headers=("FECHANACIMIENTO",),
         redacted_headers=("CLINICA",),
@@ -147,7 +147,7 @@ ACCURO_SHEET_CONFIGS = (
     AccuroSheetConfig(
         "Survet Diagonal", "survet-diagonal", "animal",
         ("DATA VISITA", "TIPUS VISITA", "ESPÈCIE", "SEXE", "DATA NAIXEMENT", "EDAT", "ANAMNESI", "RAÇA", "TRACTAMENT", "peso"),
-        ("date", "family", "subject_animal-species", "subject_birthsex", "subject_birthyear", "", "concept", "subject_animal-breeds", "procedure_code-display", "observation_weight"),
+        ("date", "family", "subject_animal-species", "subject_birthsex", "subject_birthyear", "", "concept", "subject_animal-breeds", "treatment", "observation_weight"),
         output_header_overrides=(("DATA NAIXEMENT", "ANY NAIXEMENT"),),
         birth_date_headers=("DATA NAIXEMENT",),
     ),
@@ -164,7 +164,7 @@ ACCURO_SHEET_CONFIGS = (
     AccuroSheetConfig(
         "Veterinary Automation 2", "veterinary-automation-2", "animal",
         ("FECHA_LINEA", "CONCEPTO_LINEA", "CANTIDAD_LINEA", "FECHA_DOCUMENTO", "CONCEPTO_DOCUMENTO", "CANTIDAD_DOCUMENTO", "FAMILIA", "SUBFAMILIA", "MASCOTA", "ESPECIE", "FECHA DEFUNCION", "DESCRIPCION", "COMUNICACION_IDANIMAL"),
-        (ChargeItemClaim.OCCURRENCE, ChargeItemClaim.CODE_TEXT, ChargeItemClaim.QUANTITY_NUMBER, InvoiceClaim.DATE, "", "", "family", "subfamily", "", "subject_animal-species", "subject_deathdate", "procedure_code-display", ""),
+        (ChargeItemClaim.OCCURRENCE, ChargeItemClaim.CODE_TEXT, ChargeItemClaim.QUANTITY_NUMBER, InvoiceClaim.DATE, "", "", "family", "subfamily", "", "subject_animal-species", "subject_deathdate", "procedure_code-text", ""),
         subject_key_headers=("COMUNICACION_IDANIMAL",),
         redacted_headers=("MASCOTA", "COMUNICACION_IDANIMAL"),
         invoice_identity_headers=("COMUNICACION_IDANIMAL", "FECHA_DOCUMENTO"),

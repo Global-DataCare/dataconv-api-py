@@ -1572,7 +1572,10 @@ class ServiceApiTests(unittest.TestCase):
             path=f"jobs/{job.job_id}/composition-message.json",
             payload=(
                 b'{"body": {"resourceType": "Bundle", "type": "batch", "data": '
-                b'[{"resource": {"resourceType": "Composition"}}], "total": 1}}'
+                b'[{"resource": {"resourceType": "ResearchSubject", "contained": '
+                b'[{"resourceType": "Procedure", "meta": {"codingProposals": '
+                b'[{"field": "Procedure.code"}]}}]}}, '
+                b'{"resource": {"resourceType": "ResearchSubject", "contained": []}}], "total": 2}}'
             ),
             content_type="application/json",
         )
@@ -1616,14 +1619,15 @@ class ServiceApiTests(unittest.TestCase):
             payload["body"]["data"][0]["meta"]["researchStudy"]["reference"],
             self._RESEARCH_STUDY_REFERENCE,
         )
+        self.assertEqual(payload["body"]["total"], 2)
+        self.assertEqual(payload["body"]["data"][0]["resource"]["resourceType"], "ResearchSubject")
         self.assertEqual(
-            payload["body"]["data"][0]["resource"]["resourceType"],
-            "Bundle",
+            payload["body"]["data"][0]["resource"]["contained"][0]["meta"]["codingProposals"][0]["field"],
+            "Procedure.code",
         )
-        self.assertEqual(
-            payload["body"]["data"][0]["resource"]["data"][0]["resource"]["resourceType"],
-            "Composition",
-        )
+        self.assertEqual(payload["body"]["data"][1]["resource"]["resourceType"], "ResearchSubject")
+        self.assertNotIn("data", payload["body"]["data"][0]["resource"])
+        self.assertNotEqual(payload["body"]["data"][0].get("type"), "ConversionResult")
         delivered_job = self._control_plane().get_job_by_thid(thid)
         self.assertIsNotNone(delivered_job)
         self.assertTrue(bool(str(getattr(delivered_job, "delivered_at", "")).strip()))

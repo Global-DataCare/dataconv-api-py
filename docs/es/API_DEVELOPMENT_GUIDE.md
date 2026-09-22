@@ -209,9 +209,9 @@ curl -sS -X POST "$BASE_URL/publisher/cds-$JUR/v1/animal-care/$ALT/dataset/$SOFT
 Estados esperados:
 
 - `queued` o `running` -> devuelve un `Bundle` `batch-response` con `body.issues` y `body.data[0].response.status = "202"`.
-- `succeeded` -> devuelve un `Bundle` `batch-response`; `body.data[0]` representa el input procesado y `body.data[0].resource` contiene el output convertido (otro `Bundle`).
+- `succeeded` -> devuelve un único `Bundle` `batch-response`; cada output primario está directamente en `body.data[].resource`, sin un segundo Bundle en `resource.data[]`.
 - si faltan mapeos `section:family -> LOINC`, esas filas se omiten.
-- por cada fila omitida se añade un recurso `OperationOutcome` dentro del `Bundle` convertido (`body.data[0].resource.data[]`).
+- por cada fila omitida se añade un recurso `OperationOutcome` como entrada primaria de la respuesta (`body.data[].resource`).
 - ese detalle agregado se informa en `body.issues.issue[].diagnostics` y en `body.data[0].response.outcome.issue[].diagnostics`.
 - `failed` -> revisar `body.issues.issue[].diagnostics` y `body.data[0].response.outcome.issue[].diagnostics`.
 

@@ -21,23 +21,26 @@
     },
     "data": [
       {
-        "type": "ConversionResult",
         "resource": {
-          "resourceType": "Bundle",
-          "type": "batch",
-          "data": [
-            {
-              "resource": {
-                "resourceType": "Patient"
+          "resourceType": "Patient"
+        },
+        "response": {
+          "status": "200",
+          "outcome": {
+            "resourceType": "OperationOutcome",
+            "issue": [
+              {
+                "severity": "information",
+                "code": "informational",
+                "diagnostics": "Job status: succeeded"
               }
-            },
-            {
-              "resource": {
-                "resourceType": "Composition"
-              }
-            }
-          ],
-          "total": 2
+            ]
+          }
+        }
+      },
+      {
+        "resource": {
+          "resourceType": "Composition"
         },
         "response": {
           "status": "200",
@@ -54,6 +57,6 @@
         }
       }
     ],
-    "total": 1
+    "total": 2
   }
 }

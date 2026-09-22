@@ -589,7 +589,10 @@ def _conversion_schemas() -> dict[str, Any]:
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "type": {"type": "string", "example": "ConversionResult"},
+                                    "type": {
+                                        "type": "string",
+                                        "description": "Optional canonical Bundle entry type copied from the conversion output.",
+                                    },
                                     "resource": {"type": "object", "additionalProperties": True},
                                     "response": {
                                         "type": "object",

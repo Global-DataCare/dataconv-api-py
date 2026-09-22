@@ -6,12 +6,13 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from gdc_data_utils import CLAIMS_BY_RESOURCE
+from gdc_data_utils import CLAIMS_BY_RESOURCE, ProcedureClaim
 import hashlib
 import re
 import uuid
 
 from .base import ManufacturerAdapter
+from ..base_config_contract import canonical_claim_for_base_config_field
 from .xlsx_common import (
     birth_year,
     composition_section,
@@ -156,6 +157,9 @@ class TabularXlsxAdapter(ManufacturerAdapter):
 
     def _canonical_field_name(self, field_name: str) -> str:
         key = str(field_name or "").strip()
+        governed_claim = canonical_claim_for_base_config_field(key)
+        if governed_claim:
+            return governed_claim
         if key in {"subject-id", "subjectId", "subject_id"}:
             return "subject_id"
         if key in {"personal-id", "personalId", "personal_id"}:
@@ -469,6 +473,17 @@ class TabularXlsxAdapter(ManufacturerAdapter):
     ) -> dict[str, str]:
         """Derive terminology targets from canonical local `*-text` claims."""
         values: dict[str, str] = {}
+        # A display without its code is not an authoritative terminology display.
+        # Treat the historical Procedure mapping as local text so existing
+        # workbooks can enter the governed human coding-review flow.
+        orphan_procedure_display = str(flat_claims.get(ProcedureClaim.CODE_DISPLAY, "") or "").strip()
+        if (
+            orphan_procedure_display
+            and not str(flat_claims.get(ProcedureClaim.CODE, "") or "").strip()
+            and not str(flat_claims.get(ProcedureClaim.CODE_TEXT, "") or "").strip()
+        ):
+            flat_claims.pop(ProcedureClaim.CODE_DISPLAY, None)
+            flat_claims[ProcedureClaim.CODE_TEXT] = orphan_procedure_display
         for local_text_claim, value in flat_claims.items():
             if not local_text_claim.endswith("-text"):
                 continue

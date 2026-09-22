@@ -42,6 +42,13 @@ FHIR query parameters:     code and code:text
   API-CONFIG mapping.
 - Put `meta.codingProposals[]` beside `meta.claims` on the contained clinical
   resource. Never aggregate proposals on `ResearchSubject.meta`.
+- Preserve one primary response Bundle: each converted ResearchSubject belongs
+  directly in `body.data[].resource`, and its review metadata belongs at
+  `body.data[].resource.contained[].meta.codingProposals[]`. Never introduce a
+  `ConversionResult` entry or a second `resource.data[]` Bundle.
+- Normalize a historical `Procedure.code-display` value without a matching
+  `Procedure.code` to `Procedure.code-text` before terminology review. A display
+  becomes authoritative only together with the reviewed terminology code.
 - Reuse the neutral builders, paths and package-owned examples from
   `fhir-data-utils-ts`; DataConv mirrors that cross-language contract and does
   not redefine it as a SOSChain rule.
@@ -52,11 +59,13 @@ FHIR query parameters:     code and code:text
 2. Prove the API-CONFIG column reaches the canonical record without renaming.
 3. Prove the materialized resource contains `@context: org.hl7.fhir.api` and
    the canonical flat claim.
-4. Prove the physical index contains the hyphen-preserving key and excludes
+4. Prove `_upload-response` keeps primary resources at `body.data[].resource`,
+   rejects a nested `resource.data`, and retains contained coding proposals.
+5. Prove the physical index contains the hyphen-preserving key and excludes
    the all-underscore variant.
-5. Submit a FHIR `Parameters` search using `code:text` and require a
+6. Submit a FHIR `Parameters` search using `code:text` and require a
    `Bundle` of type `searchset` with the expected resource.
-6. Run catalog parity, focused DataConv tests, and the full affected suites.
+7. Run catalog parity, focused DataConv tests, and the full affected suites.
 
 ## Research review and storage lifecycle
 

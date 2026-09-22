@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from gdc_data_utils import ConditionClaim, DiagnosticReportClaim
+from gdc_data_utils import ConditionClaim, DiagnosticReportClaim, ProcedureClaim
 
 from adapter_ingestion.ai.base import NoopCodingAssistant
 from adapter_ingestion.manufacturers.registry import get_adapter
@@ -98,4 +98,38 @@ def test_explicit_diagnostic_report_text_remains_a_diagnostic_report_claim() -> 
         if resource.get("resourceType") == "DiagnosticReport"
     )
     assert diagnostic_report["meta"]["claims"][DiagnosticReportClaim.CODE_TEXT] == "Informe radiológico"
+    assert diagnostic_report["meta"]["codingProposals"][0]["field"] == DiagnosticReportClaim.CODE
+    assert diagnostic_report["meta"]["codingProposals"][0]["inputText"] == "Informe radiológico"
     assert _search_fields(diagnostic_report)["diagnosticreport_code-text"] == "Informe radiológico"
+
+
+def test_orphan_procedure_display_is_normalized_to_local_text_for_review() -> None:
+    csv_text = (
+        "API-CONFIG:language=es:subjectKind=animal:dataUse=secondary\n"
+        "date,subject_id,section,family,procedure_code-display\n"
+        "FECHA,SUJETO,SECCION,FAMILIA,TRATAMIENTO\n"
+        "2026-03-19,11111111-1111-4111-8111-111111111111,clinica,tratamiento,Cura local\n"
+    )
+    with NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as tmp:
+        tmp.write(csv_text)
+        path = Path(tmp.name)
+    try:
+        embedded = extract_embedded_api_config(path)
+        assert embedded is not None
+        records = get_adapter("api-config").read_records(path, _context(embedded["schemaConfig"]))
+    finally:
+        path.unlink(missing_ok=True)
+
+    assert records[0].flat_claims[ProcedureClaim.CODE_TEXT] == "Cura local"
+    assert ProcedureClaim.CODE_DISPLAY not in records[0].flat_claims
+    assert records[0].coding_inputs == {ProcedureClaim.CODE: "Cura local"}
+
+    result = run_pipeline(records, _context(embedded["schemaConfig"]), NoopCodingAssistant())
+    aggregate = result.composition_message["body"]["data"][0]["resource"]
+    procedure = next(
+        resource for resource in aggregate["contained"]
+        if resource.get("resourceType") == "Procedure"
+    )
+    assert procedure["meta"]["claims"][ProcedureClaim.CODE_TEXT] == "Cura local"
+    assert ProcedureClaim.CODE_DISPLAY not in procedure["meta"]["claims"]
+    assert procedure["meta"]["codingProposals"][0]["field"] == ProcedureClaim.CODE

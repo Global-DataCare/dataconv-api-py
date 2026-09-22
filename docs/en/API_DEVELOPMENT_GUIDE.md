@@ -174,7 +174,7 @@ You can also use the `thid` returned in `Location`.
 Expected states:
 
 - `queued` or `running`: response `202` in a `Bundle` `batch-response`
-- `succeeded`: response `200` with the converted output bundle in `body.data[0].resource`
+- `succeeded`: response `200` with each converted primary resource directly in `body.data[].resource`; there is no nested `resource.data[]` Bundle
 - `failed`: inspect `body.issues.issue[].diagnostics` and `body.data[0].response.outcome.issue[].diagnostics`
 
 When `section:family -> LOINC` mappings are missing, those rows are skipped and represented as `OperationOutcome` resources inside the converted bundle.

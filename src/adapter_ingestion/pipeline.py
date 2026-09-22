@@ -322,6 +322,7 @@ def _diagnostic_report_resource(
     *,
     context: AdapterContext,
     record: CanonicalRecord,
+    suggestions: list[CodingSuggestion],
 ) -> dict[str, Any] | None:
     claims = {
         key: str(value or "").strip()
@@ -339,10 +340,19 @@ def _diagnostic_report_resource(
         record.timestamp,
         claims.get(DiagnosticReportClaim.CODE_TEXT, ""),
     )
+    proposals = _coding_proposals(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type="DiagnosticReport",
+    )
+    meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
+    if proposals:
+        meta["codingProposals"] = proposals
     return {
         "resourceType": "DiagnosticReport",
         "id": report_id,
-        "meta": {"claims": {"@context": FHIR_API_CONTEXT, **claims}},
+        "meta": meta,
     }
 
 
@@ -933,7 +943,11 @@ def run_pipeline(
         key = (record.subject_id, record.composition_section)
         grouped_doc_resources[key][doc_id] = _doc_resource(doc_id, doc_claims)
 
-        diagnostic_report = _diagnostic_report_resource(context=context, record=record)
+        diagnostic_report = _diagnostic_report_resource(
+            context=context,
+            record=record,
+            suggestions=suggestions,
+        )
         if diagnostic_report is not None:
             diagnostic_report_id = str(diagnostic_report["id"])
             grouped_diagnostic_report_resources[key][diagnostic_report_id] = diagnostic_report

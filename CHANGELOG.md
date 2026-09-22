@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Return every converted primary resource directly in
+  `body.data[].resource`; remove the erroneous `ConversionResult` wrapper and
+  nested `resource.data[]` Bundle while retaining per-entry response outcomes.
+- Materialize review proposals on contained DiagnosticReport resources and
+  normalize historical orphan `Procedure.code-display` workbook mappings to
+  canonical local `Procedure.code-text` before terminology review.
+- Synchronize OpenAPI, integration examples, high-level docs and the local
+  flat-claim skill with the canonical coding-review path.
+
 ## 0.8.5 - 2026-09-21
 
 - Align DataConv skills, test contracts and examples with the neutral

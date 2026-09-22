@@ -101,11 +101,11 @@ Respuesta:
 - `Retry-After`: espera recomendada antes del siguiente poll.
 - `_upload-response` devuelve `202` mientras el job está en `queued/running` y `200` al finalizar (`succeeded/failed`).
 - Si `_upload-response` está en `queued`, devuelve un `Bundle` `batch-response` con `body.data[0].response.queuePosition` (estimación de posición en cola).
-- Cuando `_upload-response` devuelve `200`, `body.data[0]` representa el input procesado y `body.data[0].resource` contiene el `Bundle` convertido.
+- Cuando `_upload-response` devuelve `200`, cada resultado primario está directamente en `body.data[].resource`; no existe un wrapper `ConversionResult` ni otro `resource.data[]` intermedio.
 - En la respuesta inicial `202` de `_create` (la que devuelve `Location`) no se devuelve `thid`.
 - En polling (`_create-response` / `_upload-response`) sí puede devolverse `thid`.
 - Si faltan mapeos `section:family -> LOINC`, esas filas se omiten.
-- Por cada fila omitida se añade un recurso `OperationOutcome` dentro del `Bundle` convertido (`body.data[0].resource.data[]`).
+- Por cada fila omitida se añade un recurso `OperationOutcome` como entrada primaria de la respuesta (`body.data[].resource`).
 - El diagnóstico agregado también se expone en `body.issues.issue[].diagnostics` y en `body.data[0].response.outcome.issue[].diagnostics`.
 - Las respuestas terminales de `_upload-response` expiran según `PRECONV_JOB_RESULT_TTL_SECONDS` (por defecto 3600s).
 - La limpieza global (todos los tenants) se ejecuta con `preconversion-cleanup` y se recomienda programarla con cron/CronJob.
@@ -210,25 +210,21 @@ Respuesta final típica (`200`):
     },
     "data": [
       {
-        "type": "ConversionResult",
-        "resource": {
-          "resourceType": "Bundle",
-          "type": "batch",
-          "data": [
-            { "resource": { "resourceType": "Composition" } },
-            {
-              "resource": { "resourceType": "OperationOutcome" }
-            }
-          ],
-          "total": 2
-        },
+        "resource": { "resourceType": "Composition" },
+        "response": {
+          "status": "200",
+          "outcome": { "resourceType": "OperationOutcome" }
+        }
+      },
+      {
+        "resource": { "resourceType": "OperationOutcome" },
         "response": {
           "status": "200",
           "outcome": { "resourceType": "OperationOutcome" }
         }
       }
     ],
-    "total": 1
+    "total": 2
   }
 }
 ```

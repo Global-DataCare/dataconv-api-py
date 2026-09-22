@@ -1013,7 +1013,7 @@ def _job_poll_response(
     severity = "information"
     issue_code = "processing"
     item_status = "202"
-    output_resource: dict[str, Any] | None = None
+    output_entries: list[dict[str, Any]] = []
     resolved_iss = str(service_iss or "").strip()
     resolved_aud = str(audience_did or "").strip()
     attachments: list[dict[str, Any]] | None = None
@@ -1077,7 +1077,9 @@ def _job_poll_response(
             resolved_aud = str(composition.get("aud") or resolved_aud).strip()
             raw_body = composition.get("body")
             if isinstance(raw_body, dict):
-                output_resource = raw_body
+                raw_entries = raw_body.get("data")
+                if isinstance(raw_entries, list):
+                    output_entries = [dict(item) for item in raw_entries if isinstance(item, dict)]
             raw_attachments = composition.get("attachments")
             if isinstance(raw_attachments, list):
                 attachments = [item for item in raw_attachments if isinstance(item, dict)]
@@ -1098,17 +1100,18 @@ def _job_poll_response(
     if job.status == "queued" and isinstance(queue_position, int) and queue_position > 0:
         entry_response["queuePosition"] = int(queue_position)
 
-    entry: dict[str, Any] = {
-        "type": "ConversionResult",
-        "response": entry_response,
-    }
     research_study_reference = str(
         getattr(getattr(job, "request", None), "research_study_reference", "") or ""
     ).strip()
-    if research_study_reference:
-        entry["meta"] = {"researchStudy": {"reference": research_study_reference}}
-    if isinstance(output_resource, dict):
-        entry["resource"] = output_resource
+    entries = output_entries or [{}]
+    for entry in entries:
+        entry["response"] = entry_response
+        if research_study_reference:
+            meta = entry.get("meta") if isinstance(entry.get("meta"), dict) else {}
+            entry["meta"] = {
+                **meta,
+                "researchStudy": {"reference": research_study_reference},
+            }
 
     issued_at = int(datetime.now(timezone.utc).timestamp())
     payload: dict[str, Any] = {
@@ -1123,8 +1126,8 @@ def _job_poll_response(
             "resourceType": "Bundle",
             "type": "batch-response",
             "issues": outcome,
-            "data": [entry],
-            "total": 1,
+            "data": entries,
+            "total": len(entries),
         },
     }
     if attachments:

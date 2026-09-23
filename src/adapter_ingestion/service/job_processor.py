@@ -20,6 +20,11 @@ from .research import DEFAULT_SECTOR, build_storage_namespace
 from .research_drafts import annotate_composition_message_for_research, persist_research_drafts
 from .settings import ServiceSettings
 from .factory import build_coding_assistant
+from .completion_notifications import (
+    CompletionNotificationSender,
+    completion_notification_config,
+    deliver_pending_completion_notifications,
+)
 
 def _species_catalog_from_config(raw: dict[str, Any]) -> tuple[str, dict[str, str]]:
     if not isinstance(raw, dict):
@@ -251,6 +256,8 @@ def _job_log_fields(job: Any) -> dict[str, Any]:
         "softwareId": software_id,
         "country": str(job.request.country or "").strip(),
         "mode": str(job.request.mode or "").strip(),
+        "completionNotificationStatus": str(job.completion_notification_status or "").strip(),
+        "completionNotificationAttempts": int(job.completion_notification_attempts or 0),
     }
 
 
@@ -262,7 +269,20 @@ def process_one_job(
     subject_link_store: ProtectedSubjectLinkStore | None = None,
     settings: ServiceSettings,
     worker_id: str,
+    notification_sender: CompletionNotificationSender | None = None,
 ) -> str | None:
+    notification_config = completion_notification_config(settings)
+
+    def deliver_notifications() -> str | None:
+        if notification_sender is None:
+            return deliver_pending_completion_notifications(control_plane, notification_config)
+        return deliver_pending_completion_notifications(
+            control_plane,
+            notification_config,
+            send=notification_sender,
+        )
+
+    deliver_notifications()
     job = control_plane.claim_next_job(worker_id=worker_id)
     if not job:
         return None
@@ -342,22 +362,34 @@ def process_one_job(
             )
 
         result_ref = refs.get("summary.json", "")
-        updated = control_plane.mark_job_succeeded(job.job_id, result_ref=result_ref)
+        updated = control_plane.mark_job_succeeded(
+            job.job_id,
+            result_ref=result_ref,
+            completion_notification_pending=notification_config.enabled,
+        )
         log_event(
             "job_processing_succeeded",
             workerId=worker_id,
             resultRef=result_ref,
             **_job_log_fields(updated),
         )
+        if notification_config.enabled:
+            deliver_notifications()
         return job.job_id
     except Exception as exc:
-        updated = control_plane.mark_job_failed(job.job_id, error=str(exc))
+        updated = control_plane.mark_job_failed(
+            job.job_id,
+            error=str(exc),
+            completion_notification_pending=notification_config.enabled,
+        )
         log_event(
             "job_processing_failed",
             workerId=worker_id,
             error=str(exc),
             **_job_log_fields(updated),
         )
+        if notification_config.enabled:
+            deliver_notifications()
         return job.job_id
     finally:
         try:

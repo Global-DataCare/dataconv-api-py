@@ -8,7 +8,15 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 import uuid
 
-from .models import ConfigKey, JobRecord, JobRequest, JobStatus, StoredConfig, now_iso_utc
+from .models import (
+    CompletionNotificationStatus,
+    ConfigKey,
+    JobRecord,
+    JobRequest,
+    JobStatus,
+    StoredConfig,
+    now_iso_utc,
+)
 from .ports import ConfigStore, JobQueue, JobStore
 from .resolution import resolution_candidates
 
@@ -237,7 +245,13 @@ class PreconversionControlPlane:
             self.job_store.put(running)
             return running
 
-    def mark_job_succeeded(self, job_id: str, result_ref: str = "") -> JobRecord:
+    def mark_job_succeeded(
+        self,
+        job_id: str,
+        result_ref: str = "",
+        *,
+        completion_notification_pending: bool = False,
+    ) -> JobRecord:
         job = self.job_store.get(job_id)
         if not job:
             raise KeyError(f"job not found: {job_id}")
@@ -247,11 +261,22 @@ class PreconversionControlPlane:
             finished_at=now_iso_utc(),
             result_ref=str(result_ref or "").strip(),
             error="",
+            completion_notification_status=(
+                CompletionNotificationStatus.PENDING
+                if completion_notification_pending
+                else job.completion_notification_status
+            ),
         )
         self.job_store.put(updated)
         return updated
 
-    def mark_job_failed(self, job_id: str, error: str) -> JobRecord:
+    def mark_job_failed(
+        self,
+        job_id: str,
+        error: str,
+        *,
+        completion_notification_pending: bool = False,
+    ) -> JobRecord:
         job = self.job_store.get(job_id)
         if not job:
             raise KeyError(f"job not found: {job_id}")
@@ -260,6 +285,11 @@ class PreconversionControlPlane:
             status=JobStatus.FAILED,
             finished_at=now_iso_utc(),
             error=str(error or "").strip(),
+            completion_notification_status=(
+                CompletionNotificationStatus.PENDING
+                if completion_notification_pending
+                else job.completion_notification_status
+            ),
         )
         self.job_store.put(updated)
         return updated

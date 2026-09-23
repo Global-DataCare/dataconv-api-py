@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.8.9 - 2026-09-23
+
+- Persist terminal-job notification state atomically with each successful or
+  failed research conversion so delivery outages never erase the job result.
+- Emit a minimal claims-first FHIR-like `Communication` to the owning GW,
+  correlated by the upload thread and ResearchStudy and addressed to the
+  requesting professional DID.
+- Retry GW delivery durably with static local credentials or Google workload
+  identity; terminal delivery failure remains observable on the Task record.
+
 ## 0.8.8 - 2026-09-23
 
 - Restore `dataconv.upload` for the DCR-bound professional carrying exact

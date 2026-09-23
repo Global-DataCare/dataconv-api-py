@@ -119,6 +119,10 @@ def _job_to_dict(job: JobRecord) -> dict[str, Any]:
         "resultRef": job.result_ref,
         "error": job.error,
         "deliveredAt": job.delivered_at,
+        "completionNotificationStatus": job.completion_notification_status,
+        "completionNotificationAttempts": job.completion_notification_attempts,
+        "completionNotificationError": job.completion_notification_error,
+        "completionNotificationDeliveredAt": job.completion_notification_delivered_at,
     }
 
 
@@ -163,6 +167,10 @@ def _dict_to_job(data: dict[str, Any]) -> JobRecord:
         result_ref=str(data.get("resultRef", "")),
         error=str(data.get("error", "")),
         delivered_at=str(data.get("deliveredAt", "")),
+        completion_notification_status=str(data.get("completionNotificationStatus", "")),
+        completion_notification_attempts=int(data.get("completionNotificationAttempts", 0) or 0),
+        completion_notification_error=str(data.get("completionNotificationError", "")),
+        completion_notification_delivered_at=str(data.get("completionNotificationDeliveredAt", "")),
     )
 
 

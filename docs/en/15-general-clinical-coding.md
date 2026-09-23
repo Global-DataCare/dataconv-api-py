@@ -32,6 +32,12 @@ text, so it belongs under `artifacts/` or another ignored private directory.
 Classification does not create authoritative resources or terminology codes;
 the review decision and terminology confirmation are separate phases.
 
+The original local clinical text is never truncated in flat claims or review
+metadata. Candidate lookup alone follows the terminology HTTP boundary: text
+shorter than two characters is not queried and text longer than 160 characters
+is queried with its first 160 characters. The complete source remains visible
+to the professional reviewer.
+
 An optional tabular review projection keeps three namespaces separate:
 
 ```text

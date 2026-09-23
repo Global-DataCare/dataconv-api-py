@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.8.10 - 2026-09-23
+
+- Bound only the external terminology candidate-search text to the service's
+  2..160-character query contract. Long treatment narratives remain complete
+  in canonical `*-text` claims and `meta.codingProposals[].inputText`, so one
+  long Excel cell can no longer fail the whole asynchronous import.
+
 ## 0.8.9 - 2026-09-23
 
 - Persist terminal-job notification state atomically with each successful or

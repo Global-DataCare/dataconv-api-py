@@ -658,7 +658,7 @@ def _conversion_schemas() -> dict[str, Any]:
                         "promotedCount": {"type": "integer", "example": 14},
                         "message": {
                             "type": "string",
-                            "example": "Promoted 14 resources to userSelected=false",
+                            "example": "Published 14 fully reviewed resources",
                         },
                     },
                     "additionalProperties": True,

@@ -208,6 +208,9 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
     assert condition["meta"]["claims"][ConditionClaim.CODE_DISPLAY] == "Otitis externa"
     assert condition["meta"]["claims"][ConditionClaim.CODE_TEXT] == "otitis"
     assert condition["meta"]["claims"]["Condition.language"] == "es-ES"
+    assert condition["meta"]["claims"]["Condition.userSelected"] == "true"
+    assert proposal["status"] == "accepted"
+    assert proposal["userSelected"] is True
     assert proposal["inputText"] == "otitis"
     assert sink.events[0]["selectedCandidateId"] == proposal["candidates"][1]["id"]
     assert sink.events[0]["rejectedCandidateIds"] == [proposal["candidates"][0]["id"]]

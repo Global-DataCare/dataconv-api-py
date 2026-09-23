@@ -76,12 +76,15 @@ GCS -> Firestore draft -> human review -> PostgreSQL search index
 ```
 
 - GCS owns the uploaded workbook and generated job artifacts.
-- Firestore receives the processed FHIR-like resources as review drafts with
-  `userSelected=true`; it does not represent the raw side of a raw/processed
-  database split.
+- Firestore receives the processed FHIR-like resources with resource-owned
+  `meta.codingProposals[]`; it does not represent the raw side of a
+  raw/processed database split.
 - Human review is mandatory when terminology codes are inferred from text.
-- Confirmation updates those same resources to `userSelected=false` and copies
-  them to the PostgreSQL search repository.
+- An accepted professional decision sets the proposal and selected coding to
+  `userSelected=true`; this is coding provenance, never workflow state.
+- Copy each ResearchSubject to PostgreSQL independently as soon as all of its
+  own mandatory proposals are resolved. Keep other subjects in the same import
+  available for progressive review without re-upload.
 - PostgreSQL stores the exact `claims`, derived `search_fields`, and the same
   complete processed `resource`; searches filter `search_fields` and return
   `resource`.
@@ -153,6 +156,9 @@ For research workbook ingestion, keep authorization and transport independent:
   DCR-bound, consented professional, or exact create-only
   `organization/ResearchSubject.c?study=...` for the current organization
   controller;
+- downscope the former to read/review without upload, accept exact
+  `organization/ResearchSubject.rs?study=...` as read/search-only for a
+  researcher, and keep upload authority only on the controller profile;
 - derive an internal actor profile from that scope and never relabel a
   controller as a professional;
 - keep `iss` and `aud` bound to the GW tenant that provides the index. DataConv

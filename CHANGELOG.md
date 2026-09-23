@@ -13,6 +13,14 @@
   canonical local `Procedure.code-text` before terminology review.
 - Synchronize OpenAPI, integration examples, high-level docs and the local
   flat-claim skill with the canonical coding-review path.
+- Save professional decisions progressively and publish each ResearchSubject
+  independently only after its own mandatory proposals are resolved; inferred
+  source-table, individual or device codes remain unreviewed proposals.
+- Stop using `userSelected` as draft/promotion state. Accepted proposals and
+  selected codings record `userSelected=true`, including non-generic fields
+  such as `Immunization.vaccine-code`.
+- Downscope coding reviewers to read/review, add exact read/search-only
+  researcher exchange, and reserve upload for the organization controller.
 
 ## 0.8.5 - 2026-09-21
 

@@ -202,7 +202,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Apply draft promotion via patch",
         response_class=DidcommJSONResponse,
         description=(
-            "Promotes a reviewed conversion thread to `userSelected=false` using `thid`.\n\n"
+            "Saves coding decisions and publishes each fully reviewed ResearchSubject using `thid`.\n\n"
             "For ResearchStudy-scoped jobs, the request must repeat the exact `researchStudy.reference` stored by upload. "
             "Current review flow uses `Composition/_patch` as the governing publication action for a conversion thread. "
             "The implementation keeps the route parameterized, but public examples should use `Composition` here."
@@ -214,7 +214,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Apply draft promotion via patch",
         response_class=DidcommJSONResponse,
         description=(
-            "Promotes a reviewed conversion thread to `userSelected=false` using `thid`.\n\n"
+            "Saves coding decisions and publishes each fully reviewed ResearchSubject using `thid`.\n\n"
             "For ResearchStudy-scoped jobs, the request must repeat the exact `researchStudy.reference` stored by upload. "
             "Current review flow uses `Composition/_patch` as the governing publication action for a conversion thread. "
             "The implementation keeps the route parameterized, but public examples should use `Composition` here."
@@ -253,7 +253,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Promote reviewed resources in batch",
         response_class=DidcommJSONResponse,
         description=(
-            "Promotes reviewed resources to `userSelected=false` and projects them to search.\n\n"
+            "Publishes resources only after their ResearchSubject has no mandatory proposals pending.\n\n"
             "Current publication flow uses `Patient/_batch` as the public example path, even though the runtime keeps "
             "the route parameterized."
         ),
@@ -264,7 +264,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Promote reviewed resources in batch",
         response_class=DidcommJSONResponse,
         description=(
-            "Promotes reviewed resources to `userSelected=false` and projects them to search.\n\n"
+            "Publishes resources only after their ResearchSubject has no mandatory proposals pending.\n\n"
             "Current publication flow uses `Patient/_batch` as the public example path, even though the runtime keeps "
             "the route parameterized."
         ),

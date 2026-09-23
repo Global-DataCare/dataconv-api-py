@@ -1,3 +1,4 @@
+# Flow contract: canonical DataConv routes remain discoverable across supported FastAPI router representations.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -19,6 +20,19 @@ ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+
+def _route_paths(routes) -> set[str]:
+    paths: set[str] = set()
+    for route in routes:
+        path = str(getattr(route, "path", "") or "")
+        if path:
+            paths.add(path)
+        original_router = getattr(route, "original_router", None)
+        nested = getattr(original_router, "routes", None)
+        if nested:
+            paths.update(_route_paths(nested))
+    return paths
 
 
 @unittest.skipIf(Response is None, "fastapi runtime dependencies are not installed")
@@ -47,7 +61,7 @@ class ServiceApiContractRoutesTests(unittest.TestCase):
         self._env_patcher.stop()
 
     def test_exposes_canonical_digital_twin_routes(self) -> None:
-        paths = {getattr(route, "path", "") for route in self.app.routes}
+        paths = _route_paths(self.app.routes)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_dcr", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_dcr-response", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_code", paths)

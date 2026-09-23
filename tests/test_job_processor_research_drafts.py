@@ -202,10 +202,10 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         self.assertEqual(resource_types, ["Composition", "DocumentReference", "Encounter", "Subject"])
         
         subject = vault_repo.get(vault_id, "subject-1", "Subject")
-        self.assertEqual(subject["meta"]["claims"]["Subject.userSelected"], "true")
+        self.assertNotIn("Subject.userSelected", subject["meta"]["claims"])
         
         docref = vault_repo.get(vault_id, "docref-1", "DocumentReference")
-        self.assertEqual(docref["meta"]["claims"]["DocumentReference.userSelected"], "true")
+        self.assertNotIn("DocumentReference.userSelected", docref["meta"]["claims"])
         self.assertEqual(docref["docStatus"], "preliminary")
         self.assertEqual(docref["meta"]["claims"]["DocumentReference.docStatus"], "preliminary")
 
@@ -222,9 +222,9 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
             blob_store.get_bytes(f"jobs/{queued.job_id}/composition-message.json").decode("utf-8")
         )
         subject = composition_payload["body"]["data"][0]["resource"]
-        self.assertEqual(subject["meta"]["claims"]["Subject.userSelected"], "true")
+        self.assertNotIn("Subject.userSelected", subject["meta"]["claims"])
         document = next(item for item in subject["contained"] if item["resourceType"] == "DocumentReference")
-        self.assertEqual(document["meta"]["claims"]["DocumentReference.userSelected"], "true")
+        self.assertNotIn("DocumentReference.userSelected", document["meta"]["claims"])
         self.assertEqual(document["docStatus"], "preliminary")
 
 

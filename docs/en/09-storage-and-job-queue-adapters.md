@@ -93,11 +93,13 @@ GCS -> Firestore draft -> human review -> PostgreSQL search index
 
 1. GCS stores the uploaded source and generated job artifacts.
 2. DataConv produces processed FHIR-like resources with canonical flat claims.
-3. Firestore stores those resources as `userSelected=true` drafts and keeps
-   the links required for review.
+3. Firestore stores those resources with resource-owned
+   `meta.codingProposals[]` and keeps the links required for review.
 4. A human reviews inferred terminology codes and confirms or rejects the
-   draft. Confirmation changes `userSelected` to `false`.
-5. The same processed confirmed resource is copied to PostgreSQL. It is not a
+   proposal. An accepted professional choice records `userSelected=true` on
+   that coding; this value is not workflow state.
+5. Each ResearchSubject whose own mandatory proposals are resolved is copied
+   to PostgreSQL independently. It is not a
    second extracted or transformed version.
 6. PostgreSQL stores `claims`, normalized `search_fields`, and the complete
    `resource`. Queries filter `search_fields` and return `resource`.

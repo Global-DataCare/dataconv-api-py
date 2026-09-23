@@ -202,7 +202,7 @@ def create_app():
             },
             {
                 "name": "4.3 Publisher Patch",
-                "description": "Promotes internal drafts explicitly flipping the `userSelected` domain.",
+                "description": "Saves professional coding decisions and publishes each independently completed twin.",
             },
             {
                 "name": "4.4 Publisher Dataset Search",

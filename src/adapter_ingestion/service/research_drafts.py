@@ -37,7 +37,7 @@ def _iter_resources(node: Any) -> list[dict[str, Any]]:
     return resources
 
 
-def annotate_resource_for_research(resource: dict[str, Any], *, user_selected: bool) -> dict[str, Any]:
+def annotate_resource_for_research(resource: dict[str, Any]) -> dict[str, Any]:
     annotated = deepcopy(resource)
     resource_type = str(annotated.get("resourceType", "") or "").strip()
     if not resource_type:
@@ -50,14 +50,13 @@ def annotate_resource_for_research(resource: dict[str, Any], *, user_selected: b
     if not isinstance(claims, dict):
         claims = {}
         meta["claims"] = claims
-    claims[f"{resource_type}.userSelected"] = str(bool(user_selected)).lower()
     if resource_type == "DocumentReference":
         annotated["docStatus"] = "preliminary"
         claims["DocumentReference.docStatus"] = "preliminary"
     contained = annotated.get("contained")
     if isinstance(contained, list):
         annotated["contained"] = [
-            annotate_resource_for_research(item, user_selected=user_selected) if isinstance(item, dict) else item
+            annotate_resource_for_research(item) if isinstance(item, dict) else item
             for item in contained
         ]
     return annotated
@@ -65,8 +64,6 @@ def annotate_resource_for_research(resource: dict[str, Any], *, user_selected: b
 
 def annotate_composition_message_for_research(
     composition_message: dict[str, Any],
-    *,
-    user_selected: bool = True,
 ) -> dict[str, Any]:
     annotated = deepcopy(composition_message)
     body = annotated.get("body")
@@ -82,7 +79,7 @@ def annotate_composition_message_for_research(
         updated = dict(entry)
         resource = entry.get("resource")
         if isinstance(resource, dict):
-            updated["resource"] = annotate_resource_for_research(resource, user_selected=user_selected)
+            updated["resource"] = annotate_resource_for_research(resource)
         updated_entries.append(updated)
     body["data"] = updated_entries
     return annotated
@@ -194,6 +191,6 @@ def persist_research_drafts(
 
 
 # TODO(dataconv-api-py): reviewed promotion should update the same resources
-# by flipping `userSelected` to `false` and then emit the downstream batch order for
+# after every mandatory proposal is resolved and then emit the downstream batch order for
 # `/{tenant-id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{subjectKind}/{resourceType}/_batch`.
 # The integration hook belongs right after review persistence, before gateway publication.

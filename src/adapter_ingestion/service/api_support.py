@@ -731,7 +731,7 @@ def _enforce_auth_context(
                     raise HTTPException(status_code=403, detail=f"insufficient scope: missing {missing[0]}")
             if require_study_research:
                 token_profile = str(session_claims.get("token_profile") or "").strip()
-                if token_profile not in {"professional_research", "organization_research"}:
+                if token_profile not in {"professional_research", "organization_research", "research_reader"}:
                     raise HTTPException(status_code=403, detail="Bearer token is not a study research token")
                 actor = str(session_claims.get("actor") or "").strip()
                 subject = str(session_claims.get("sub") or "").strip()

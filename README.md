@@ -93,6 +93,10 @@ DataConv validates the signature offline through the index-provider issuer's sta
 study-bound token on upload, poll, review and ResearchSubject search; it does
 not call GW for each operation. The SMART `iss` and `aud` identify that index
 provider, not the hosted clinic or organization in the DataConv tenant route.
+DataConv further downscopes these grants: a consented coding reviewer receives
+only `dataconv.read dataconv.review`, a controller receives upload/read/review,
+and a researcher carrying the exact `organization/ResearchSubject.rs` grant
+receives read/search only.
 Tenant readiness is checked independently against the organization activated
 during onboarding. Other conversion sectors keep their existing contract and
 may omit `researchStudy`.
@@ -150,11 +154,13 @@ GCS -> Firestore draft -> human review -> PostgreSQL search index
 - GCS stores the uploaded workbook and generated job artifacts.
 - The conversion pipeline produces FHIR-like resources with canonical flat
   claims in `resource.meta.claims`.
-- Firestore stores those processed resources as review drafts with
-  `userSelected=true`, including the relationships needed to review a complete
-  `ResearchSubject`, its `Composition`, and linked resources.
-- Human confirmation changes those same processed resources to
-  `userSelected=false` and promotes them to PostgreSQL.
+- Firestore stores those processed resources and their resource-owned
+  `meta.codingProposals[]`, including the relationships needed to review a
+  complete `ResearchSubject`, its `Composition`, and linked resources.
+- A professional decision sets that proposal to `accepted` and records
+  `userSelected=true` for the selected coding. Each ResearchSubject is copied
+  to PostgreSQL as soon as all of its own mandatory proposals are resolved;
+  unrelated subjects in the same import do not block it.
 - PostgreSQL stores the promoted resource, its exact `claims`, and derived
   `search_fields`. Searches filter `search_fields` and return the stored
   resource in a `Bundle` with `type=searchset`.

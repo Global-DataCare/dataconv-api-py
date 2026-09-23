@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from datetime import datetime, timezone
 from io import StringIO
 from typing import Any, Protocol
@@ -144,13 +145,18 @@ def apply_coding_reviews(
             raise ValueError("selected candidate is not part of the proposal")
         field = str(proposal.get("field", "")).strip()
         resource_type = str(resource.get("resourceType", "")).strip()
-        if field != f"{resource_type}.code":
+        if not field.startswith(f"{resource_type}.") or not re.fullmatch(
+            r"[A-Z][A-Za-z0-9]+\.(?:code|[a-z][a-z0-9-]*-code)",
+            field,
+        ):
             raise ValueError("coding proposal field does not match the resource")
         claims = meta.setdefault("claims", {})
         claims[field] = f"{selected['system']}|{selected['code']}"
-        claims[f"{resource_type}.code-display"] = str(selected["display"])
+        claims[f"{field}-display"] = str(selected["display"])
+        claims[f"{resource_type}.userSelected"] = "true"
         proposal["status"] = "accepted"
         proposal["selectedCandidateId"] = selected_id
+        proposal["userSelected"] = True
         proposal["reviewedAt"] = datetime.now(timezone.utc).isoformat()
         rejected = [
             str(item.get("id", ""))
@@ -179,3 +185,14 @@ def apply_coding_reviews(
         )
         applied += 1
     return applied
+
+
+def has_pending_coding_proposals(resource: dict[str, Any]) -> bool:
+    """Return true only for unresolved resource-owned review proposals."""
+
+    meta = resource.get("meta", {})
+    proposals = meta.get("codingProposals", []) if isinstance(meta, dict) else []
+    return any(
+        isinstance(proposal, dict) and str(proposal.get("status", "")).strip() == "proposed"
+        for proposal in proposals if isinstance(proposals, list)
+    )

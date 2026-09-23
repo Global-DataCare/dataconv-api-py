@@ -308,7 +308,7 @@ def process_one_job(
         )
         if isinstance(adapter_report, dict) and adapter_report:
             result.summary["adapterReport"] = adapter_report
-        annotated_message = annotate_composition_message_for_research(result.composition_message, user_selected=True)
+        annotated_message = annotate_composition_message_for_research(result.composition_message)
         draft_count = persist_research_drafts(
             vault_repo=vault_repo,
             job=job,

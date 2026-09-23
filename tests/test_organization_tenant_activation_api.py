@@ -60,14 +60,35 @@ def test_activation_endpoint_uses_path_scope_and_preserves_legal_tenant_identifi
                 "ledgerChecked": False,
             },
         ):
-            response = TestClient(api.create_app()).post(
+            client = TestClient(api.create_app())
+            pending = client.post(
+                "/publisher/cds-CA-BC/v1/animal-research/7654321/organization/tenant/_status",
+                json={"id_token": id_token, "vp_token": "signed-controller-vp"},
+            )
+            response = client.post(
                 "/publisher/cds-CA-BC/v1/animal-research/7654321/organization/tenant/_activate",
                 json={"id_token": id_token, "vp_token": "signed-controller-vp"},
             )
+            ready = client.post(
+                "/publisher/cds-CA-BC/v1/animal-research/7654321/organization/tenant/_status",
+                json={"id_token": id_token, "vp_token": "signed-controller-vp"},
+            )
 
+    assert pending.status_code == 200
+    assert pending.json() == {
+        "active": False,
+        "status": "not-configured",
+        "tenantId": "7654321",
+        "networkKind": "test-network",
+        "jurisdiction": "CA-BC",
+        "sector": "animal-research",
+    }
     assert response.status_code == 200
     assert response.json()["tenantId"] == "7654321"
     assert response.json()["networkKind"] == "test-network"
+    assert ready.status_code == 200
+    assert ready.json()["active"] is True
+    assert ready.json()["status"] == "ready"
 
 
 def test_controller_upload_exchange_uses_the_same_ica_proof_and_route_scope() -> None:

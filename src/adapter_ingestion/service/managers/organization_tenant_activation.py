@@ -217,3 +217,52 @@ class OrganizationTenantActivationManager:
             "credentialIds": content["credentialIds"],
             "revision": stored.revision,
         }
+
+    def status(
+        self,
+        *,
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        id_token: str,
+        vp_token: str,
+    ) -> dict[str, Any]:
+        """Report readiness after verifying the current controller proof.
+
+        A missing scoped control-plane record is an expected, retryable state,
+        not an authentication failure to infer from a later upload rejection.
+        """
+        (
+            normalized_tenant,
+            normalized_jurisdiction,
+            normalized_sector,
+            network_kind,
+            _identity,
+            _verification,
+        ) = self._authorize(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            id_token=id_token,
+            vp_token=vp_token,
+        )
+        tenant = self._control_plane.resolve_config(ConfigKey(
+            alternate_name=normalized_tenant,
+            manufacturer="dataconv-tenant",
+            sector=normalized_sector,
+            manufacturer_version="v1",
+            country=normalized_jurisdiction,
+        ))
+        content = tenant.content if tenant is not None and isinstance(tenant.content, dict) else {}
+        active = bool(
+            content.get("active") is True
+            and str(content.get("networkKind") or "").strip().lower() == network_kind
+        )
+        return {
+            "active": active,
+            "status": "ready" if active else "not-configured",
+            "tenantId": normalized_tenant,
+            "networkKind": network_kind,
+            "jurisdiction": normalized_jurisdiction,
+            "sector": normalized_sector,
+        }

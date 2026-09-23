@@ -162,6 +162,10 @@ For research workbook ingestion, keep authorization and transport independent:
   DataConv onboarding activation;
 - do not call `organization/tenant/_activate` during each import. Activation is
   an organization-registration or explicit administration action;
+- keep organization registration and controller DCR independent from DataConv
+  provisioning. Check `organization/tenant/_status` with the current ICA proof,
+  treat `not-configured` as retryable, and use the idempotent `_activate` route;
+  dependency unavailability never rolls the organization back;
 - treat `/identity/openid/smart/token/_verify` as a documented, unimplemented
   cross-custodian profile until an executable GW route, Swagger operation,
   manager tests, integration tests and live E2E all exist;

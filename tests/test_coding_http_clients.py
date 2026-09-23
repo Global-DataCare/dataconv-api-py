@@ -7,9 +7,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from urllib.parse import parse_qs, urlparse
 import pytest
 
-from adapter_ingestion.ai.http import HttpCodingModelClient, HttpReviewedTerminologySink, HttpTerminologyClient
+from adapter_ingestion.ai.http import (
+    TERMINOLOGY_QUERY_TEXT_MIN_LENGTH,
+    TERMINOLOGY_QUERY_TEXT_MAX_LENGTH,
+    HttpCodingModelClient,
+    HttpReviewedTerminologySink,
+    HttpTerminologyClient,
+)
 from adapter_ingestion.ai.terminology import CodingRankRequest, TerminologyCandidate, TerminologySearchRequest
 
 
@@ -55,6 +62,35 @@ def test_terminology_jsonapi_response_preserves_every_code_and_system() -> None:
     ]
     assert "resourceType=Condition" in transport.calls[0]["url"]
     assert transport.calls[0]["headers"]["authorization"] == "Bearer secret"
+
+
+def test_terminology_query_bounds_long_clinical_text_without_changing_the_source_request() -> None:
+    transport = RecordingTransport(responses=[{"jsonapi": {"version": "1.1"}, "data": []}])
+    client = HttpTerminologyClient(base_url="https://terminology.example", transport=transport)
+    source_text = "x" * (TERMINOLOGY_QUERY_TEXT_MAX_LENGTH + 22)
+    request = TerminologySearchRequest(
+        text=source_text, language="es", fhir_version="R4", sector="animal-care",
+        jurisdiction="CA-BC", resource_type="Procedure", field="Procedure.code",
+    )
+
+    client.search(request)
+
+    sent_text = parse_qs(urlparse(transport.calls[0]["url"]).query)["text"][0]
+    assert sent_text == source_text[:TERMINOLOGY_QUERY_TEXT_MAX_LENGTH]
+    assert request.text == source_text
+
+
+def test_terminology_query_skips_text_shorter_than_the_service_contract() -> None:
+    transport = RecordingTransport(responses=[])
+    client = HttpTerminologyClient(base_url="https://terminology.example", transport=transport)
+
+    candidates = client.search(TerminologySearchRequest(
+        text="x" * (TERMINOLOGY_QUERY_TEXT_MIN_LENGTH - 1), language="es", fhir_version="R4",
+        sector="animal-care", jurisdiction="CA-BC", resource_type="Procedure", field="Procedure.code",
+    ))
+
+    assert candidates == []
+    assert transport.calls == []
 
 
 def test_model_ranking_is_bounded_to_supplied_candidate_ids() -> None:

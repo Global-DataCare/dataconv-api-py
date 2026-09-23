@@ -181,7 +181,10 @@ With terminology configured it always preserves the governed candidates for
 human review. When the optional coding-model URL is also configured it sends
 the closed candidate set and allowlisted row context to `/v1/coding/rank`;
 otherwise candidates remain explicitly unranked. Explicit professional choices
-are posted to the terminology service's `/v1/terminology/reviews` endpoint,
+are independent from the terminology service's 2..160-character search-text
+limit: DataConv bounds only the candidate query, while canonical `*-text` and
+`meta.codingProposals[].inputText` retain the complete imported source.
+They are posted to the terminology service's `/v1/terminology/reviews` endpoint,
 which keeps only the bounded de-identified term, governed search context,
 closed candidate set and chosen code. It does not receive reviewer identity,
 row context or free-text rationale. This exact reviewed mapping is shared by

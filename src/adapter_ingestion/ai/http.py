@@ -13,6 +13,10 @@ from .base import CodingSuggestion
 from .terminology import CodingRankRequest, TerminologyCandidate, TerminologySearchRequest
 
 
+TERMINOLOGY_QUERY_TEXT_MIN_LENGTH = 2
+TERMINOLOGY_QUERY_TEXT_MAX_LENGTH = 160
+
+
 class JsonTransport(Protocol):
     def request(
         self,
@@ -86,9 +90,15 @@ class _AuthorizedClient:
 
 class HttpTerminologyClient(_AuthorizedClient):
     def search(self, request: TerminologySearchRequest) -> list[TerminologyCandidate]:
+        # Keep the complete source text on the proposal. Only the external
+        # candidate-search query is bounded to the terminology HTTP contract.
+        query_text = str(request.text or "").strip()
+        if len(query_text) < TERMINOLOGY_QUERY_TEXT_MIN_LENGTH:
+            return []
+        query_text = query_text[:TERMINOLOGY_QUERY_TEXT_MAX_LENGTH]
         query = urlencode(
             {
-                "text": request.text,
+                "text": query_text,
                 "language": request.language,
                 "fhirVersion": request.fhir_version,
                 "sector": request.sector,

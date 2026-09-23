@@ -11,6 +11,12 @@ saltos de línea conservan cada línea. Se distinguen candidatos de Procedure,
 MedicationStatement, Encounter, DiagnosticReport, Immunization y ChargeItem;
 lo desconocido queda como `Unclassified`. No se inventan especie ni sexo.
 
+El texto clínico local original nunca se trunca en las flat claims ni en los
+metadatos de revisión. Solo la consulta de candidatos respeta el límite HTTP
+del servicio terminológico: no consulta textos de menos de dos caracteres y
+usa los primeros 160 cuando el texto es más largo. El profesional sigue viendo
+la fuente completa.
+
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/classify-api-config-concepts.py \
   "/privado/Elysa-API-CONFIG.xlsx" \

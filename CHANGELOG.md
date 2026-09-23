@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added a controller-proof-protected organization tenant readiness endpoint.
+  It reports a missing scoped record as the retryable `not-configured` state
+  instead of making portals infer readiness from a failed research request.
 - Return every converted primary resource directly in
   `body.data[].resource`; remove the erroneous `ConversionResult` wrapper and
   nested `resource.data[]` Bundle while retaining per-entry response outcomes.

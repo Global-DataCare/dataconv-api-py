@@ -97,6 +97,16 @@ Tenant readiness is checked independently against the organization activated
 during onboarding. Other conversion sectors keep their existing contract and
 may omit `researchStudy`.
 
+Organization registration, controller DCR and DataConv provisioning are three
+separate states. A controller BFF checks
+`organization/tenant/_status` with the current OIDC identity and ICA-issued
+controller proof. The response is `ready` only when the exact tenant,
+jurisdiction, sector and network record exists; an absent record is the normal
+retryable `not-configured` state. The BFF may then call the idempotent
+`organization/tenant/_activate`. A DataConv outage must not roll back an
+already-active organization or controller profile, and neither readiness call
+grants access to a ResearchStudy.
+
 The research exchange accepts only RFC 8693 `subject_token` plus
 `subject_token_type=urn:ietf:params:oauth:token-type:access_token`. It accepts
 neither an OIDC id token nor a controller VP as a substitute for the SMART

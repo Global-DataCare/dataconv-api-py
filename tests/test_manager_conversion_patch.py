@@ -38,10 +38,9 @@ class RecordingFeedbackSink:
 
 
 class TestConversionPatchManager(unittest.TestCase):
-    def test_handle_updates_user_selected(self) -> None:
-        # This PATCH represents explicit human review: it promotes the same
-        # processed Firestore resource into the search repository rather than
-        # creating a separately transformed resource.
+    def test_handle_saves_progress_and_promotes_only_after_every_proposal_is_resolved(self) -> None:
+        # Each PATCH saves one explicit human decision. The final twin remains
+        # outside the search repository until every contained proposal is resolved.
         vault_repo = InMemoryVaultRepository()
         search_repo = InMemorySearchRepository()
         vault_id = "test__es__onehealth-research__test-tenant-123"
@@ -142,8 +141,61 @@ class TestConversionPatchManager(unittest.TestCase):
         }
         vault_repo.put(vault_id, [condition], "Condition")
         vault_repo.put(vault_id, [{"id": "condition-1", "resourceType": "Condition"}], "pat-1_sec-1")
-        composition["meta"]["claims"]["Composition.entry"] = "Encounter:enc-1,Condition:condition-1"
+        immunization = {
+            "resourceType": "Immunization",
+            "id": "immunization-1",
+            "meta": {
+                "claims": {"Immunization.vaccine-code-text": "rabia"},
+                "codingProposals": [{
+                    "id": "proposal-immunization-1",
+                    "status": "proposed",
+                    "field": "Immunization.vaccine-code",
+                    "inputText": "rabia",
+                    "rowContext": {"species": "canine"},
+                    "candidates": [{
+                        "id": "candidate-rabies",
+                        "system": "http://www.whocc.no/atcvet",
+                        "code": "QI07AA02",
+                        "display": "Rabies virus, inactivated",
+                    }],
+                }],
+            },
+        }
+        vault_repo.put(vault_id, [immunization], "Immunization")
+        vault_repo.put(vault_id, [{"id": "immunization-1", "resourceType": "Immunization"}], "pat-1_sec-1")
+        composition["meta"]["claims"]["Composition.entry"] = (
+            "Encounter:enc-1,Condition:condition-1,Immunization:immunization-1"
+        )
         vault_repo.put(vault_id, [composition], "Composition")
+
+        completed_composition = {
+            "resourceType": "Composition",
+            "id": "comp-2",
+            "meta": {"claims": {
+                "Composition.relatesto-target": "test-thid-123",
+                "Composition.subject": "Patient:pat-2",
+                "Composition.section": "tests|sec-2",
+                "Composition.entry": "Encounter:enc-2",
+            }},
+        }
+        completed_subject = {
+            "resourceType": "ResearchSubject",
+            "id": "pat-2",
+            "meta": {"claims": {
+                "ResearchSubject.identifier": "urn:uuid:pat-2",
+                "ResearchSubject.status": "candidate",
+                "ResearchSubject.study": study_reference,
+            }},
+        }
+        completed_encounter = {
+            "resourceType": "Encounter",
+            "id": "enc-2",
+            "meta": {"claims": {"Encounter.identifier": "urn:uuid:enc-2"}},
+        }
+        vault_repo.put(vault_id, [completed_composition], "Composition")
+        vault_repo.put(vault_id, [completed_subject], "ResearchSubject")
+        vault_repo.put(vault_id, [completed_encounter], "Encounter")
+        vault_repo.put(vault_id, [{"id": "enc-2", "resourceType": "Encounter"}], "pat-2_sec-2")
 
         feedback_sink = RecordingFeedbackSink()
         
@@ -275,34 +327,16 @@ class TestConversionPatchManager(unittest.TestCase):
             body=body
         )
         
-        self.assertEqual(res["body"]["status"], "success")
-        self.assertEqual(res["body"]["promotedCount"], 4)
+        self.assertEqual(res["body"]["status"], "pending-review")
+        self.assertEqual(res["body"]["promotedCount"], 3)
+        self.assertEqual(res["body"]["pendingSubjectCount"], 1)
+        self.assertEqual(res["body"]["pendingProposalCount"], 1)
         self.assertEqual(res["body"]["issues"]["resourceType"], "OperationOutcome")
         self.assertEqual(res["body"]["issues"]["issue"][0]["severity"], "information")
         self.assertNotIn("publication", res["body"])
         self.assertGreaterEqual(len(res["body"]["data"]), 1)
-        self.assertEqual(res["body"]["data"][0]["resource"]["@type"], "dcat:Dataset")
-        self.assertEqual(
-            res["body"]["data"][0]["resource"]["dcat:distribution"][0]["dcat:accessURL"],
-            "https://globaldatacare.es/publisher/cds-es/v1/onehealth-research/test-tenant-123/dataset/Composition/_search",
-        )
         
         # Verify changes in Vault
-        promoted_comp = vault_repo.get(vault_id, "comp-1", "Composition")
-        self.assertEqual(promoted_comp["meta"]["claims"]["Composition.userSelected"], "false")
-        
-        promoted_enc = vault_repo.get(vault_id, "enc-1", "Encounter")
-        self.assertEqual(promoted_enc["meta"]["claims"]["Encounter.userSelected"], "false")
-        promoted_research_subject = vault_repo.get(vault_id, "pat-1", "ResearchSubject")
-        self.assertEqual(
-            promoted_research_subject["meta"]["claims"]["ResearchSubject.userSelected"],
-            "false",
-        )
-        self.assertEqual(
-            promoted_research_subject["meta"]["claims"]["ResearchSubject.study"],
-            study_reference,
-        )
-
         indexed_comp = search_repo.search(
             vault_id=vault_id,
             resource_type="Composition",
@@ -318,12 +352,14 @@ class TestConversionPatchManager(unittest.TestCase):
             resource_type="ResearchSubject",
             search_params={"identifier": "urn:uuid:pat-1"},
         )
-        self.assertEqual(len(indexed_comp), 1)
-        self.assertEqual(indexed_comp[0], promoted_comp)
-        self.assertEqual(len(indexed_enc), 1)
-        self.assertEqual(indexed_enc[0], promoted_enc)
-        self.assertEqual(len(indexed_research_subject), 1)
-        self.assertEqual(indexed_research_subject[0], promoted_research_subject)
+        self.assertEqual([resource["id"] for resource in indexed_comp], ["comp-2"])
+        self.assertEqual(indexed_enc, [])
+        self.assertEqual(indexed_research_subject, [])
+        self.assertEqual(len(search_repo.search(
+            vault_id=vault_id,
+            resource_type="ResearchSubject",
+            search_params={"identifier": "urn:uuid:pat-2"},
+        )), 1)
         promoted_condition = vault_repo.get(vault_id, "condition-1", "Condition")
         self.assertEqual(
             promoted_condition["meta"]["claims"]["Condition.code"],
@@ -333,7 +369,55 @@ class TestConversionPatchManager(unittest.TestCase):
             promoted_condition["meta"]["claims"]["Condition.code-display"],
             "Otitis externa",
         )
+        self.assertEqual(promoted_condition["meta"]["claims"]["Condition.userSelected"], "true")
         self.assertEqual(feedback_sink.events[0]["reason"], "Otoscopy localized inflammation to the external canal")
+
+        final_body = {
+            **body,
+            "body": {
+                "codingReviews": [{
+                    "resourceType": "Immunization",
+                    "resourceId": "immunization-1",
+                    "proposalId": "proposal-immunization-1",
+                    "selectedCandidateId": "candidate-rabies",
+                }],
+            },
+        }
+        final = manager.handle(
+            tenant_id="test-tenant-123",
+            jurisdiction="es",
+            sector="onehealth-research",
+            software_id="test-v1.0",
+            resource_type="Composition",
+            response=SimpleNamespace(),
+            request=request,
+            body=final_body,
+        )
+
+        self.assertEqual(final["body"]["status"], "success")
+        self.assertGreaterEqual(final["body"]["promotedCount"], 5)
+        promoted_immunization = vault_repo.get(vault_id, "immunization-1", "Immunization")
+        self.assertEqual(
+            promoted_immunization["meta"]["claims"]["Immunization.vaccine-code"],
+            "http://www.whocc.no/atcvet|QI07AA02",
+        )
+        self.assertEqual(
+            promoted_immunization["meta"]["claims"]["Immunization.vaccine-code-display"],
+            "Rabies virus, inactivated",
+        )
+        self.assertEqual(
+            promoted_immunization["meta"]["claims"]["Immunization.userSelected"],
+            "true",
+        )
+        self.assertEqual(
+            vault_repo.get(vault_id, "comp-1", "Composition")["meta"]["claims"]["Composition.userSelected"],
+            "true",
+        )
+        self.assertEqual(len(search_repo.search(
+            vault_id=vault_id,
+            resource_type="ResearchSubject",
+            search_params={"identifier": "urn:uuid:pat-1"},
+        )), 1)
 
 if __name__ == "__main__":
     unittest.main()

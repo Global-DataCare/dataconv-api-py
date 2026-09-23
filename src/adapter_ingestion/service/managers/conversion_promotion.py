@@ -183,6 +183,7 @@ def promote_resources(
     if not isinstance(coding_reviews, list):
         raise HTTPException(status_code=400, detail="body.codingReviews must be an array")
     pending_reviews = [item for item in coding_reviews if isinstance(item, dict)]
+    review_groups: list[dict[tuple[str, str], dict[str, Any]]] = []
 
     def _mark_promoted(resource_type_key: str) -> None:
         nonlocal promoted_count
@@ -191,13 +192,10 @@ def promote_resources(
         promoted_by_type[normalized] = int(promoted_by_type.get(normalized, 0) or 0) + 1
 
     for comp in compositions:
-        comp_claim_key = f"{governed_resource_type}.userSelected"
-        is_draft = str(comp.get("meta", {}).get("claims", {}).get(comp_claim_key, "")).lower()
-        if is_draft == "true":
-            comp.setdefault("meta", {}).setdefault("claims", {})[comp_claim_key] = "false"
-            deps.vault_repo.put(vault_id, [comp], governed_resource_type)
-            deps.search_repo.upsert(vault_id=vault_id, resource_type=governed_resource_type, resource=comp)
-            _mark_promoted(governed_resource_type)
+        subject_resources: dict[tuple[str, str], dict[str, Any]] = {
+            (governed_resource_type, str(comp.get("id", ""))): comp,
+        }
+        review_groups.append(subject_resources)
 
         subject = str(comp.get("meta", {}).get("claims", {}).get("Composition.subject", "")).strip().split(":")[-1]
         section = str(comp.get("meta", {}).get("claims", {}).get("Composition.section", "")).strip().split("|")[-1]
@@ -216,17 +214,7 @@ def promote_resources(
             ).strip()
             if subject_resource_type == "ResearchSubject" and subject_study != research_study_reference:
                 raise HTTPException(status_code=409, detail="ResearchSubject.study does not match conversion thread")
-            subject_claim_key = f"{subject_resource_type}.userSelected"
-            is_subject_draft = str(subject_res.get("meta", {}).get("claims", {}).get(subject_claim_key, "")).lower()
-            if is_subject_draft == "true":
-                subject_res.setdefault("meta", {}).setdefault("claims", {})[subject_claim_key] = "false"
-                deps.vault_repo.put(vault_id, [subject_res], subject_resource_type)
-                deps.search_repo.upsert(
-                    vault_id=vault_id,
-                    resource_type=subject_resource_type,
-                    resource=subject_res,
-                )
-                _mark_promoted(subject_resource_type)
+            subject_resources[(subject_resource_type, str(subject_res.get("id", "")))] = subject_res
 
         raw_entries = str(comp.get("meta", {}).get("claims", {}).get("Composition.entry", "")).strip()
         if not raw_entries:
@@ -258,17 +246,42 @@ def promote_resources(
                     )
                 except ValueError as exc:
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
-                pending_reviews = [item for item in pending_reviews if item not in reviews_for_resource]
-            res_claim_key = f"{linked_resource_type}.userSelected"
-            is_res_draft = str(canon.get("meta", {}).get("claims", {}).get(res_claim_key, "")).lower()
-            if is_res_draft == "true":
-                canon.setdefault("meta", {}).setdefault("claims", {})[res_claim_key] = "false"
                 deps.vault_repo.put(vault_id, [canon], linked_resource_type)
-                deps.search_repo.upsert(vault_id=vault_id, resource_type=linked_resource_type, resource=canon)
-                _mark_promoted(linked_resource_type)
+                pending_reviews = [item for item in pending_reviews if item not in reviews_for_resource]
+            subject_resources[(linked_resource_type, str(canon.get("id", "")))] = canon
 
     if pending_reviews:
         raise HTTPException(status_code=400, detail="one or more coding review resources were not found in the conversion thread")
+
+    pending_subject_count = 0
+    pending_proposal_count = 0
+    published_identities: set[tuple[str, str]] = set()
+    for subject_resources in review_groups:
+        group_pending = 0
+        for resource in subject_resources.values():
+            meta = resource.get("meta", {})
+            proposals = meta.get("codingProposals", []) if isinstance(meta, dict) else []
+            if isinstance(proposals, list):
+                group_pending += sum(
+                    1 for proposal in proposals
+                    if isinstance(proposal, dict)
+                    and str(proposal.get("status", "")).strip() == "proposed"
+                )
+        if group_pending:
+            pending_subject_count += 1
+            pending_proposal_count += group_pending
+            continue
+        for identity, resource in subject_resources.items():
+            if identity in published_identities:
+                continue
+            publish_resource_type, _ = identity
+            deps.search_repo.upsert(
+                vault_id=vault_id,
+                resource_type=publish_resource_type,
+                resource=resource,
+            )
+            published_identities.add(identity)
+            _mark_promoted(publish_resource_type)
 
     log_event(
         "research_drafts_promoted",
@@ -296,8 +309,10 @@ def promote_resources(
         for idx, item in enumerate(datasets_updated, start=1)
     ]
     diagnostics = (
-        f"Confirmación completada para thid={thid}. "
+        f"Revisión actualizada para thid={thid}. "
         f"Recursos promovidos={promoted_count}. "
+        f"Gemelos pendientes={pending_subject_count}. "
+        f"Propuestas pendientes={pending_proposal_count}. "
         f"Datasets actualizados={len(datasets_updated)}."
     )
     data_entries = []
@@ -324,9 +339,15 @@ def promote_resources(
         "type": "https://didcomm.org/plaintext/2.0/message",
         "thid": thid,
         "body": {
-            "status": "success",
+            "status": "pending-review" if pending_subject_count else "success",
             "promotedCount": promoted_count,
-            "message": f"Promoted {promoted_count} resources to userSelected=false",
+            "pendingSubjectCount": pending_subject_count,
+            "pendingProposalCount": pending_proposal_count,
+            "message": (
+                "Coding decisions saved; completed twins published independently"
+                if pending_subject_count
+                else f"Published {promoted_count} fully reviewed resources"
+            ),
             "issues": _build_operation_outcome(
                 message="Datasets confirmados y actualizados",
                 diagnostics=diagnostics,

@@ -31,6 +31,7 @@ ACTOR = "did:web:professional.example:employee:reviewer"
 TENANT = "CA-BC-7654321"
 STUDY = "ResearchStudy/study-2026-01"
 SMART_SCOPE = f"organization/ResearchSubject.crus?study={STUDY}"
+RESEARCHER_SCOPE = f"organization/ResearchSubject.rs?study={STUDY}"
 CONTROLLER_SCOPE = f"organization/ResearchSubject.c?study={STUDY}"
 KEY_ID = "comm_sig"
 VERIFICATION_METHOD_ID = f"{ISSUER}#{KEY_ID}"
@@ -119,12 +120,29 @@ def test_exchanges_verified_smart_access_token_for_minimal_study_bound_dataconv_
     assert result.organization == TENANT
     assert result.study == STUDY
     assert 1 <= result.expires_in <= 300
-    assert result.granted_scopes == ["dataconv.upload", "dataconv.read", "dataconv.review"]
+    assert result.granted_scopes == ["dataconv.read", "dataconv.review"]
     assert claims["actor"] == ACTOR
     assert claims["organization"] == TENANT
     assert claims["study"] == STUDY
     assert claims["purpose"] == "HRESCH"
     assert claims["token_profile"] == "professional_research"
+
+
+def test_exchanges_read_search_researcher_scope_without_create_or_review() -> None:
+    private_key = ec.generate_private_key(ec.SECP384R1())
+    result = _manager(private_key).exchange(
+        {
+            "subject_token": _smart_token(private_key, scope=RESEARCHER_SCOPE),
+            "subject_token_type": SMART_ACCESS_TOKEN_TYPE,
+        },
+        tenant_id=TENANT,
+        jurisdiction="CA-BC",
+        sector="animal-research",
+    )
+
+    claims = validate_session_access_token(result.access_token, _settings())
+    assert result.granted_scopes == ["dataconv.read"]
+    assert claims["token_profile"] == "research_reader"
 
 
 def test_exchanges_controller_create_scope_without_masquerading_as_a_professional() -> None:
@@ -149,6 +167,7 @@ def test_exchanges_controller_create_scope_without_masquerading_as_a_professiona
     assert result.subject == controller
     assert claims["token_profile"] == "organization_research"
     assert claims["study"] == STUDY
+    assert result.granted_scopes == ["dataconv.upload", "dataconv.read", "dataconv.review"]
     _enforce_auth_context(
         {"iss": controller},
         _settings(),

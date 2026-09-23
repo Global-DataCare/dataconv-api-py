@@ -22,8 +22,11 @@ from ..research_study import normalize_research_study_reference
 
 SMART_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
 SMART_RESEARCH_PURPOSE = "HRESCH"
-DATACONV_RESEARCH_SCOPES = ["dataconv.upload", "dataconv.read", "dataconv.review"]
+DATACONV_CONTROLLER_SCOPES = ["dataconv.upload", "dataconv.read", "dataconv.review"]
+DATACONV_REVIEWER_SCOPES = ["dataconv.read", "dataconv.review"]
+DATACONV_READER_SCOPES = ["dataconv.read"]
 PROFESSIONAL_RESEARCH_TOKEN_PROFILE = "professional_research"
+RESEARCH_READER_TOKEN_PROFILE = "research_reader"
 ORGANIZATION_RESEARCH_TOKEN_PROFILE = "organization_research"
 
 
@@ -218,6 +221,7 @@ class SmartResearchTokenExchangeManager:
         scope = str(decoded.get("scope") or "").strip()
         profiles_by_scope = {
             f"organization/ResearchSubject.crus?study={study}": PROFESSIONAL_RESEARCH_TOKEN_PROFILE,
+            f"organization/ResearchSubject.rs?study={study}": RESEARCH_READER_TOKEN_PROFILE,
             f"organization/ResearchSubject.c?study={study}": ORGANIZATION_RESEARCH_TOKEN_PROFILE,
         }
         token_profile = profiles_by_scope.get(scope)
@@ -250,10 +254,15 @@ class SmartResearchTokenExchangeManager:
         subject = str(claims["sub"])
         study = str(claims["study"])
         token_profile = str(claims["_dataconv_token_profile"])
+        granted_scopes = {
+            PROFESSIONAL_RESEARCH_TOKEN_PROFILE: DATACONV_REVIEWER_SCOPES,
+            RESEARCH_READER_TOKEN_PROFILE: DATACONV_READER_SCOPES,
+            ORGANIZATION_RESEARCH_TOKEN_PROFILE: DATACONV_CONTROLLER_SCOPES,
+        }[token_profile]
         access_token, expires_in, _ = issue_session_access_token(
             subject=subject,
             organization=tenant_id,
-            scopes=list(DATACONV_RESEARCH_SCOPES),
+            scopes=list(granted_scopes),
             settings=self._settings,
             additional_claims={
                 "actor": subject,
@@ -267,8 +276,8 @@ class SmartResearchTokenExchangeManager:
             access_token=access_token,
             token_type="Bearer",
             expires_in=expires_in,
-            scope=" ".join(DATACONV_RESEARCH_SCOPES),
-            granted_scopes=list(DATACONV_RESEARCH_SCOPES),
+            scope=" ".join(granted_scopes),
+            granted_scopes=list(granted_scopes),
             subject=subject,
             organization=str(tenant_id or "").strip(),
             study=study,

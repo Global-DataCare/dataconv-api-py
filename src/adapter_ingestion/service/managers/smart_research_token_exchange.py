@@ -23,7 +23,7 @@ from ..research_study import normalize_research_study_reference
 SMART_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
 SMART_RESEARCH_PURPOSE = "HRESCH"
 DATACONV_CONTROLLER_SCOPES = ["dataconv.upload", "dataconv.read", "dataconv.review"]
-DATACONV_REVIEWER_SCOPES = ["dataconv.read", "dataconv.review"]
+DATACONV_REVIEWER_SCOPES = ["dataconv.upload", "dataconv.read", "dataconv.review"]
 DATACONV_READER_SCOPES = ["dataconv.read"]
 PROFESSIONAL_RESEARCH_TOKEN_PROFILE = "professional_research"
 RESEARCH_READER_TOKEN_PROFILE = "research_reader"
@@ -89,7 +89,8 @@ class SmartResearchTokenExchangeManager:
     GW remains the authorization server. DataConv accepts either the exact
     professional ``crus`` permission already backed by active Consent, or the
     exact controller ``c`` permission for importing into one existing study.
-    The latter never turns the organization controller into a professional.
+    Either may import and review; a separate ``rs`` research reader remains
+    read-only. Controller exchange never turns the controller into a professional.
     """
 
     def __init__(

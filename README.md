@@ -93,10 +93,10 @@ DataConv validates the signature offline through the index-provider issuer's sta
 study-bound token on upload, poll, review and ResearchSubject search; it does
 not call GW for each operation. The SMART `iss` and `aud` identify that index
 provider, not the hosted clinic or organization in the DataConv tenant route.
-DataConv further downscopes these grants: a consented coding reviewer receives
-only `dataconv.read dataconv.review`, a controller receives upload/read/review,
-and a researcher carrying the exact `organization/ResearchSubject.rs` grant
-receives read/search only.
+DataConv further downscopes these grants: a consented professional coding
+reviewer and a controller receive upload/read/review, while a researcher
+carrying the exact `organization/ResearchSubject.rs` grant receives
+read/search only and cannot mutate imported twins.
 Tenant readiness is checked independently against the organization activated
 during onboarding. Other conversion sectors keep their existing contract and
 may omit `researchStudy`.

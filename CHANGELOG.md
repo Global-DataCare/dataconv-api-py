@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.8.8 - 2026-09-23
+
+- Restore `dataconv.upload` for the DCR-bound professional carrying exact
+  `organization/ResearchSubject.crus?study=...` authority and active Consent.
+  The separate `organization/ResearchSubject.rs` research-reader profile
+  remains read/search-only and cannot upload or review.
+
 ## 0.8.7 - 2026-09-23
 
 - Added a controller-proof-protected organization tenant readiness endpoint.

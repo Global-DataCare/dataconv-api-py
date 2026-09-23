@@ -120,12 +120,21 @@ def test_exchanges_verified_smart_access_token_for_minimal_study_bound_dataconv_
     assert result.organization == TENANT
     assert result.study == STUDY
     assert 1 <= result.expires_in <= 300
-    assert result.granted_scopes == ["dataconv.read", "dataconv.review"]
+    assert result.granted_scopes == ["dataconv.upload", "dataconv.read", "dataconv.review"]
     assert claims["actor"] == ACTOR
     assert claims["organization"] == TENANT
     assert claims["study"] == STUDY
     assert claims["purpose"] == "HRESCH"
     assert claims["token_profile"] == "professional_research"
+    _enforce_auth_context(
+        {"iss": ACTOR},
+        _settings(),
+        authorization_header=f"Bearer {result.access_token}",
+        required_scopes={"dataconv.upload"},
+        expected_organization=TENANT,
+        expected_research_study=STUDY,
+        require_study_research=True,
+    )
 
 
 def test_exchanges_read_search_researcher_scope_without_create_or_review() -> None:

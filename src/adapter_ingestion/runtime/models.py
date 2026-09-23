@@ -75,6 +75,13 @@ class JobStatus:
     FAILED = "failed"
 
 
+class CompletionNotificationStatus:
+    PENDING = "pending"
+    RETRYABLE = "retryable"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True)
 class JobRequest:
     alternate_name: str
@@ -106,6 +113,10 @@ class JobRecord:
     result_ref: str = ""
     error: str = ""
     delivered_at: str = ""
+    completion_notification_status: str = ""
+    completion_notification_attempts: int = 0
+    completion_notification_error: str = ""
+    completion_notification_delivered_at: str = ""
 
     @staticmethod
     def new_queued(request: JobRequest) -> "JobRecord":

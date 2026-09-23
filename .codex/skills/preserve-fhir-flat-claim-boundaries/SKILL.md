@@ -188,3 +188,20 @@ The resource/filter scope grammar may later describe appointment permissions,
 but no ResearchSubject scope grants scheduling access. Appointment actor,
 clinic, practitioner and location constraints require their own tests and
 policy contract.
+
+## Terminal research-job notification
+
+- Mark the terminal job and its completion notification as pending in one
+  durable control-plane write. Never lose a successful conversion because the
+  downstream GW or BFF is unavailable.
+- Emit one minimal claims-first Communication through the tenant GW. Reuse the
+  upload DIDComm thread as `Communication.identifier`, the exact ResearchStudy
+  as subject, the Task as content reference and the Task terminal status as a
+  coded content value.
+- Address the Communication to the authenticated requesting professional DID;
+  do not place an email address, workbook result or clinical rows in the event.
+- Let GW own native FHIR R5 Subscription delivery and let the product BFF own
+  its authenticated inbox plus browser, push and email fan-out. DataConv owns
+  neither surface.
+- Retry from persisted job state with a local-only static bearer or production
+  workload identity. Never log either credential.

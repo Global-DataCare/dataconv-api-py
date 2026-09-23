@@ -69,6 +69,23 @@ controllers, professionals and automation see the same study history. A
 future JSON:API presentation can project this contract at the edge without
 changing the persisted flat claims or the canonical FHIR-like API.
 
+When a research conversion succeeds or fails, DataConv records a pending
+completion notification in the same terminal job write and sends one minimal
+claims-first `Communication` to that tenant's GW. Its identifier is the
+existing DIDComm thread, its recipient is the requesting professional DID, its
+subject is the exact ResearchStudy, and its content references the terminal
+Task status. Delivery failure never changes the conversion outcome: the worker
+retries from durable job state. GW then applies its native FHIR R5
+SubscriptionTopic/Subscription outbox and delivers a standard
+`Bundle[type=subscription-notification]` to the professional BFF. DataConv does
+not send browser, email or push notifications directly.
+
+Enable this boundary with `PRECONV_GW_COMPLETION_NOTIFICATIONS_ENABLED=true`
+and configure `PRECONV_GW_BASE_URL`, issuer/audience DIDs and either
+`PRECONV_GW_BEARER_TOKEN` for isolated local proof or
+`PRECONV_GW_AUDIENCE` for Google workload identity. Never expose the bearer in
+logs or client configuration.
+
 ## Research review, persistence, and coding-assistance boundary
 
 Every new upload whose sector is explicitly `onehealth-research` or

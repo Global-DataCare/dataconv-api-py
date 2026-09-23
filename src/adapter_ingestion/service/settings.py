@@ -194,6 +194,14 @@ class ServiceSettings:
     smart_gw_http_timeout_seconds: int = 5
     smart_research_auth_required_in_demo: bool = False
     max_research_workbook_bytes: int = 8 * 1024 * 1024
+    gw_completion_notifications_enabled: bool = False
+    gw_completion_notification_base_url: str = ""
+    gw_completion_notification_bearer_token: str = ""
+    gw_completion_notification_audience: str = ""
+    gw_completion_notification_issuer_did: str = ""
+    gw_completion_notification_audience_did: str = ""
+    gw_completion_notification_timeout_seconds: int = 5
+    gw_completion_notification_max_attempts: int = 5
 
 
 def load_settings() -> ServiceSettings:
@@ -329,4 +337,27 @@ def load_settings() -> ServiceSettings:
         # the same workbook before parsing or persistence. GW never receives
         # this binary and therefore intentionally has no equivalent setting.
         max_research_workbook_bytes=_getenv_int("RESEARCH_WORKBOOK_MAX_BYTES", 8 * 1024 * 1024),
+        gw_completion_notifications_enabled=_getenv(
+            "PRECONV_GW_COMPLETION_NOTIFICATIONS_ENABLED",
+            "false",
+        ).lower() in {"1", "true", "yes", "on"},
+        gw_completion_notification_base_url=_getenv("PRECONV_GW_BASE_URL", ""),
+        gw_completion_notification_bearer_token=_getenv("PRECONV_GW_BEARER_TOKEN", ""),
+        gw_completion_notification_audience=_getenv("PRECONV_GW_AUDIENCE", ""),
+        gw_completion_notification_issuer_did=_getenv(
+            "PRECONV_GW_ISSUER_DID",
+            _getenv("PRECONV_DEFAULT_ISSUER_DID", "did:web:globaldatacare.es:employee:preconversion"),
+        ),
+        gw_completion_notification_audience_did=_getenv(
+            "PRECONV_GW_AUDIENCE_DID",
+            _getenv("PRECONV_DEFAULT_AUDIENCE_DID", "did:web:globaldatacare.es"),
+        ),
+        gw_completion_notification_timeout_seconds=_getenv_int(
+            "PRECONV_GW_NOTIFICATION_TIMEOUT_SECONDS",
+            5,
+        ),
+        gw_completion_notification_max_attempts=_getenv_int(
+            "PRECONV_GW_NOTIFICATION_MAX_ATTEMPTS",
+            5,
+        ),
     )

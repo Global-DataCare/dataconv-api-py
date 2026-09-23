@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## 0.8.7 - 2026-09-23
 
 - Added a controller-proof-protected organization tenant readiness endpoint.
   It reports a missing scoped record as the retryable `not-configured` state

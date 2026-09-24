@@ -166,6 +166,12 @@ class PreconversionControlPlane:
             status = str(job.status or "").strip().lower()
             if status not in {JobStatus.SUCCEEDED, JobStatus.FAILED}:
                 continue
+            # A study import is durable user-visible activity and may carry
+            # unresolved coding review work. Generic operational TTL cleanup
+            # must never make that history disappear; removal belongs to an
+            # explicit governed study/history lifecycle operation.
+            if str(job.request.research_study_reference or "").strip():
+                continue
             terminal += 1
 
             base_ts = str(job.finished_at or job.created_at).strip()

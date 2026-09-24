@@ -170,8 +170,10 @@ GCS -> Firestore draft -> human review -> PostgreSQL search index
 ```
 
 The review queue is study-scoped and durable. Clients load it from the stored
-ResearchSubject drafts rather than replaying `_upload-response`, so expiry of a
-conversion Task or result never hides pending work. `$prepare-review`
+ResearchSubject drafts rather than replaying `_upload-response`. ResearchStudy
+import Tasks are also excluded from generic TTL cleanup, so both the activity
+record and pending work remain discoverable until an explicit governed
+study/history deletion. `$prepare-review`
 idempotently converts preserved canonical `*-text` claims that predate proposal
 materialization into resource-owned terminology proposals; `$review-pending`
 lists them and `$review` records bounded human decisions. None of these
@@ -432,7 +434,8 @@ preconversion-cleanup --dry-run --pretty
 
 Operational settings already integrated in the runtime:
 
-- Job response TTL: `PRECONV_JOB_RESULT_TTL_SECONDS`
+- Non-study operational job response TTL: `PRECONV_JOB_RESULT_TTL_SECONDS`.
+  ResearchStudy import Tasks are retained until explicit governed deletion.
 - Global cleanup cron: `PRECONV_CLEANUP_SCHEDULE`
 - Structured JSON lifecycle logs such as `job_created`, `job_response_delivered`, and `job_expired_deleted`
 

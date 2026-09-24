@@ -1,5 +1,7 @@
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
+# Flow contract: generic operational jobs may expire, but a ResearchStudy import
+# Task remains durable until an explicit governed study/history deletion.
 
 from __future__ import annotations
 
@@ -186,6 +188,35 @@ class RuntimeControlPlaneTests(unittest.TestCase):
 
         report = control.cleanup_expired_jobs(ttl_seconds=300, dry_run=True)
         self.assertEqual(report["expired"], 1)
+        self.assertEqual(report["deleted"], 0)
+        self.assertIsNotNone(control.get_job(done.job_id))
+
+    def test_cleanup_preserves_research_import_history_until_governed_deletion(self) -> None:
+        """A study import Task remains discoverable for review regardless of the generic job TTL."""
+        control = PreconversionControlPlane(
+            config_store=InMemoryConfigStore(),
+            job_store=InMemoryJobStore(),
+            job_queue=InMemoryJobQueue(),
+        )
+        control.submit_job(
+            JobRequest(
+                alternate_name="tenant-research",
+                manufacturer="qvet",
+                input_ref="upload://research-1",
+                research_study_reference="ResearchStudy/study-1",
+            )
+        )
+        running = control.claim_next_job(worker_id="worker")
+        self.assertIsNotNone(running)
+        done = control.mark_job_succeeded(
+            running.job_id,
+            result_ref="mem://jobs/research-1/summary.json",
+        )
+        control.job_store.put(replace(done, finished_at=self._iso_utc(-1000)))
+
+        report = control.cleanup_expired_jobs(ttl_seconds=300)
+
+        self.assertEqual(report["expired"], 0)
         self.assertEqual(report["deleted"], 0)
         self.assertIsNotNone(control.get_job(done.job_id))
 

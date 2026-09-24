@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.8.13 - 2026-09-23
+
+- Preserve ResearchStudy import Tasks beyond the generic operational job TTL,
+  so import activity and unresolved review work remain discoverable until an
+  explicit governed study/history deletion.
+
 ## 0.8.12 - 2026-09-23
 
 - Add a study-scoped durable coding-review queue over Firestore

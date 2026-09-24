@@ -78,13 +78,31 @@ Nota sobre `sourceId`:
 Request de alta/actualización de configuración por organización (acepta una o varias entries en `body.data[]`).
 Cada item de `data[]` es un objeto de configuración directo (sin wrapper `payload`), usando `config` como wrapper interno.
 
-2. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
+2. `POST /publisher/cds-{jurisdiction}/v1/{sector}/{alternate-name}/config/_search`
+Catálogo propio de DataConv, no búsqueda FHIR. Exige un token de estudio ligado
+al tenant con `dataconv.config.read`; un profesional autorizado puede listar y
+seleccionar versiones, pero solo el controller con `dataconv.config.write`
+puede copiar estas configuraciones. Devuelve `mappingConfig` editable, nunca el `schemaConfig`
+interno. Una copia se guarda con otro `softwareId`/`softwareVersion` mediante
+`_create`, sin modificar la versión de origen.
+
+Para la hoja Pinol se conserva `Anamnesis -> concept`, se corrige
+`Diagnostico -> Condition.code-text` y el texto de tratamiento se guarda como
+`Procedure.code-text`. `DiagnosticReport.code-text` identifica el informe o
+panel y no la condición diagnosticada.
+
+El `softwareId` legible de la configuración no selecciona código ejecutable.
+`runtimeDefaults.adapterId` conserva el parser controlado (para estas copias
+derivadas de un Excel, `api-config`) y el nombre/versión solo resuelve la
+configuración del tenant.
+
+3. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
 Retrieve de respuesta de `_create` por `thid` (patrón `action` -> `action-response`).
 
-3. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
+4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
 Request de subida y encolado asíncrono de conversión.
 
-4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
+5. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
 Retrieve de estado/resultado asíncrono por `thid` (patrón `action` -> `action-response`).
 
 Respuesta:

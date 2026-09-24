@@ -22,6 +22,9 @@ class InMemoryConfigStore(ConfigStore):
         token = key.normalized().as_token()
         return self._items.get(token)
 
+    def list(self) -> list[StoredConfig]:
+        return list(self._items.values())
+
 
 class InMemoryJobStore(JobStore):
     def __init__(self) -> None:

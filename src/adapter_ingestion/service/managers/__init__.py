@@ -7,6 +7,7 @@ from .conversion_batch import ConversionBatchManager
 from .dependencies import ApiManagerDependencies
 from .tenant_config_create import TenantConfigCreateManager
 from .tenant_config_poll import TenantConfigPollManager
+from .tenant_config_search import TenantConfigSearchManager
 
 from .conversion_patch import ConversionPatchManager
 from .conversion_search import ConversionSearchManager
@@ -32,6 +33,7 @@ __all__ = [
     "TenantApiKeyManager",
     "TenantConfigCreateManager",
     "TenantConfigPollManager",
+    "TenantConfigSearchManager",
     "TokenExchangeManager",
     "SmartResearchTokenExchangeManager",
     "ConnectIcaOrganizationProofVerifierClient",

@@ -52,6 +52,18 @@ FHIR query parameters:     code and code:text
 - Reuse the neutral builders, paths and package-owned examples from
   `fhir-data-utils-ts`; DataConv mirrors that cross-language contract and does
   not redefine it as a SOSChain rule.
+- Treat `config/_search` as a DataConv catalog operation for authorized study
+  importers, not native FHIR. Require `dataconv.config.read`, return public
+  `mappingConfig`, and require `dataconv.config.write` for research-session
+  creation or versioned copies, which remain controller-only. Never return
+  internal `schemaConfig`; create a new `softwareId`/`softwareVersion` when a
+  mapping is copied.
+- Keep a named configuration identity separate from executable adapter choice.
+  Workbook-derived copies retain the controlled `runtimeDefaults.adapterId`
+  (`api-config`); never derive or dynamically import code from a friendly name.
+- A local diagnosis belongs in canonical `Condition.code-text`; a performed
+  treatment belongs in `Procedure.code-text`. Use `DiagnosticReport.code-text`
+  only for the name or code of the diagnostic report or panel.
 
 ## TDD workflow
 

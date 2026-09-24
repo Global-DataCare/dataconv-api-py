@@ -86,6 +86,10 @@ class PreconversionControlPlane:
                 return found
         return None
 
+    def list_configs(self) -> list[StoredConfig]:
+        """Return configuration records; callers must enforce tenant boundaries."""
+        return self.config_store.list()
+
     def submit_job(self, request: JobRequest) -> JobRecord:
         queued = JobRecord.new_queued(request=request)
         self.job_store.put(queued)

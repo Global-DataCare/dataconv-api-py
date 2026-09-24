@@ -15,6 +15,7 @@ from ..api_support import (
     _compose_software_id_token,
     _diagnostics_from_error_detail,
     _enforce_auth_context,
+    _enforce_research_config_write,
     _error_issue_code,
     _extract_config_entry_payload,
     _extract_data_entries,
@@ -178,6 +179,11 @@ class TenantConfigCreateManager:
                 self._deps.settings,
                 authorization_header=auth_header,
                 require_token=True,
+                expected_organization=tenant_id,
+            )
+            _enforce_research_config_write(
+                auth_header,
+                self._deps.settings,
                 expected_organization=tenant_id,
             )
             if is_reserved_api_config_software_id(software_id):

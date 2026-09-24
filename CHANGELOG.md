@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 0.8.14 - 2026-09-24
+
+- Add a tenant-filtered configuration catalog protected by
+  `dataconv.config.read` for authorized study importers, with creation and
+  versioned copies restricted to controllers by `dataconv.config.write`.
+- Resolve a named mapping's controlled parser through
+  `runtimeDefaults.adapterId`, keeping friendly configuration identity separate
+  from executable adapter selection.
+- Publish canonical `Condition.code-text` and `Procedure.code-text` as
+  supported mapping targets for diagnosis and treatment free text.
+- Keep professional research tokens unable to list or copy tenant mappings,
+  including in local demo mode.
+
 ## 0.8.13 - 2026-09-23
 
 - Preserve ResearchStudy import Tasks beyond the generic operational job TTL,

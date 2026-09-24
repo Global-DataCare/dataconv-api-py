@@ -160,6 +160,14 @@ class ApiConfigTests(unittest.TestCase):
             "Nombre o diagnóstico local sin código terminológico",
         )
         self.assertEqual(
+            payload["supportedFields"]["Condition.code-text"],
+            "Texto local del diagnóstico o problema clínico",
+        )
+        self.assertEqual(
+            payload["supportedFields"]["Procedure.code-text"],
+            "Texto local del procedimiento o tratamiento realizado",
+        )
+        self.assertEqual(
             payload["supportedFields"]["ChargeItem.supporting-information"],
             "Supporting Invoice reference; never encoded as ChargeItem.part-of",
         )

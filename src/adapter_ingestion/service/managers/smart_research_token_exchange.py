@@ -22,8 +22,19 @@ from ..research_study import normalize_research_study_reference
 
 SMART_ACCESS_TOKEN_TYPE = "urn:ietf:params:oauth:token-type:access_token"
 SMART_RESEARCH_PURPOSE = "HRESCH"
-DATACONV_CONTROLLER_SCOPES = ["dataconv.upload", "dataconv.read", "dataconv.review"]
-DATACONV_REVIEWER_SCOPES = ["dataconv.upload", "dataconv.read", "dataconv.review"]
+DATACONV_CONTROLLER_SCOPES = [
+    "dataconv.upload",
+    "dataconv.read",
+    "dataconv.review",
+    "dataconv.config.read",
+    "dataconv.config.write",
+]
+DATACONV_REVIEWER_SCOPES = [
+    "dataconv.upload",
+    "dataconv.read",
+    "dataconv.review",
+    "dataconv.config.read",
+]
 DATACONV_READER_SCOPES = ["dataconv.read"]
 PROFESSIONAL_RESEARCH_TOKEN_PROFILE = "professional_research"
 RESEARCH_READER_TOKEN_PROFILE = "research_reader"

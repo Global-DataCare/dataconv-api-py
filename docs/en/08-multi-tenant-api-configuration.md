@@ -62,13 +62,28 @@ Do not overwrite records without optimistic locking by `revision`.
 ## 3) Implemented endpoints
 
 1. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create`
-2. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
-3. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
-4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
+2. `POST /publisher/cds-{jurisdiction}/v1/{sector}/{alternate-name}/config/_search`
+3. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
+4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
+5. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
 
 Behavior summary:
 
 - `_create` returns `202` with `Location` and `Retry-After`, without a functional body.
+- `config/_search` is a DataConv catalog operation, not a FHIR search. It
+  requires a tenant-bound study token with `dataconv.config.read`; authorized
+  professionals may list and select configurations but cannot create copies.
+  It returns editable public `mappingConfig` content and keeps internal
+  `schemaConfig` private.
+- Copying creates a new `softwareId`/`softwareVersion` through `_create`; it
+  never mutates the source version. For the Pinol workbook keep
+  `Anamnesis -> concept`, map `Diagnostico -> Condition.code-text`, and map
+  treatment free text to `Procedure.code-text`. `DiagnosticReport.code-text`
+  names a diagnostic report or panel, not the diagnosed condition.
+- A friendly configuration `softwareId` does not select executable code.
+  `runtimeDefaults.adapterId` retains the controlled parser implementation
+  (for these workbook-derived copies, `api-config`) while the named version is
+  used only to resolve the tenant configuration.
 - `_create-response` returns a DIDComm-like `Bundle` of type `batch-response`.
 - Each `body.data[]` entry includes `response.status`, `response.outcome`, and the persisted `resource` preview.
 - `_create-response` is single-consumption POP semantics.

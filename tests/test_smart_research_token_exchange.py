@@ -12,7 +12,11 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from adapter_ingestion.service.api_support import HTTPException, _enforce_auth_context
+from adapter_ingestion.service.api_support import (
+    HTTPException,
+    _enforce_auth_context,
+    _enforce_research_config_write,
+)
 from adapter_ingestion.service.auth_exchange import (
     issue_session_access_token,
     parse_jwt_unverified,
@@ -122,7 +126,13 @@ def test_exchanges_verified_smart_access_token_for_minimal_study_bound_dataconv_
     assert result.organization == TENANT
     assert result.study == STUDY
     assert 1 <= result.expires_in <= 300
-    assert result.granted_scopes == ["dataconv.upload", "dataconv.read", "dataconv.review"]
+    assert result.granted_scopes == [
+        "dataconv.upload",
+        "dataconv.read",
+        "dataconv.review",
+        "dataconv.config.read",
+    ]
+    assert "dataconv.config.write" not in result.granted_scopes
     assert claims["actor"] == ACTOR
     assert claims["organization"] == TENANT
     assert claims["study"] == STUDY
@@ -137,6 +147,33 @@ def test_exchanges_verified_smart_access_token_for_minimal_study_bound_dataconv_
         expected_research_study=STUDY,
         require_study_research=True,
     )
+    _enforce_auth_context(
+        {"iss": ACTOR},
+        _settings(),
+        authorization_header=f"Bearer {result.access_token}",
+        required_scopes={"dataconv.config.read"},
+        expected_organization=TENANT,
+        enforce_scopes_in_demo=True,
+    )
+    with pytest.raises(Exception, match="insufficient scope: missing dataconv.config.write"):
+        _enforce_auth_context(
+            {"iss": ACTOR},
+            _settings(),
+            authorization_header=f"Bearer {result.access_token}",
+            required_scopes={"dataconv.config.write"},
+            expected_organization=TENANT,
+            enforce_scopes_in_demo=True,
+        )
+    demo_settings = SimpleNamespace(**{**vars(_settings()), "demo_mode": True})
+    with pytest.raises(Exception, match="insufficient scope: missing dataconv.config.write"):
+        _enforce_auth_context(
+            {"iss": ACTOR},
+            demo_settings,
+            authorization_header=f"Bearer {result.access_token}",
+            required_scopes={"dataconv.config.write"},
+            expected_organization=TENANT,
+            enforce_scopes_in_demo=True,
+        )
 
 
 def test_exchanges_read_search_researcher_scope_without_create_or_review() -> None:
@@ -178,7 +215,13 @@ def test_exchanges_controller_create_scope_without_masquerading_as_a_professiona
     assert result.subject == controller
     assert claims["token_profile"] == "organization_research"
     assert claims["study"] == STUDY
-    assert result.granted_scopes == ["dataconv.upload", "dataconv.read", "dataconv.review"]
+    assert result.granted_scopes == [
+        "dataconv.upload",
+        "dataconv.read",
+        "dataconv.review",
+        "dataconv.config.read",
+        "dataconv.config.write",
+    ]
     _enforce_auth_context(
         {"iss": controller},
         _settings(),
@@ -188,6 +231,31 @@ def test_exchanges_controller_create_scope_without_masquerading_as_a_professiona
         expected_research_study=STUDY,
         require_study_research=True,
     )
+    _enforce_research_config_write(
+        f"Bearer {result.access_token}",
+        _settings(),
+        expected_organization=TENANT,
+    )
+
+
+def test_professional_research_token_cannot_create_or_copy_a_tenant_configuration() -> None:
+    private_key = ec.generate_private_key(ec.SECP384R1())
+    result = _manager(private_key).exchange(
+        {
+            "subject_token": _smart_token(private_key),
+            "subject_token_type": SMART_ACCESS_TOKEN_TYPE,
+        },
+        tenant_id=TENANT,
+        jurisdiction="CA-BC",
+        sector="animal-research",
+    )
+
+    with pytest.raises(Exception, match="insufficient scope: missing dataconv.config.write"):
+        _enforce_research_config_write(
+            f"Bearer {result.access_token}",
+            _settings(),
+            expected_organization=TENANT,
+        )
 
 
 def test_legacy_issuer_binding_does_not_override_the_exact_tenant_did_route() -> None:

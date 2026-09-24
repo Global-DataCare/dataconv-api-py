@@ -321,6 +321,14 @@ class FirestoreConfigStore(ConfigStore):
         payload = snap.to_dict()
         return _dict_to_config(payload) if isinstance(payload, dict) else None
 
+    def list(self) -> list[StoredConfig]:
+        configs: list[StoredConfig] = []
+        for snap in self._client.collection(self._collection).stream():
+            payload = snap.to_dict()
+            if isinstance(payload, dict):
+                configs.append(_dict_to_config(payload))
+        return configs
+
 
 class FirestoreJobStore(JobStore):
     def __init__(self, *, project_id: str, collection: str) -> None:

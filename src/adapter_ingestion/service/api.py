@@ -34,6 +34,7 @@ from .managers import (
     ConversionPatchManager,
     ConversionSearchManager,
     ConversionJobSearchManager,
+    ResearchCodingReviewManager,
     ConversionUploadManager,
     ConversionUploadPollManager,
     ConnectIcaOrganizationProofVerifierClient,
@@ -45,6 +46,7 @@ from .managers import (
     SmartResearchTokenExchangeManager,
 )
 from .observability import configure_logging
+from ..ai.http import HttpTerminologyClient
 from .openapi_contract import build_custom_openapi
 from .routes_config import register_config_routes
 from .routes_digital_twin import register_digital_twin_routes
@@ -83,6 +85,14 @@ def create_app():
         search_repo=search_repo,
         config_create_responses=config_create_responses,
         coding_feedback_sink=build_coding_feedback_sink(settings),
+        terminology_client=(
+            HttpTerminologyClient(
+                base_url=settings.terminology_base_url,
+                token=settings.terminology_token,
+                timeout_seconds=settings.terminology_timeout_seconds,
+            )
+            if settings.terminology_base_url else None
+        ),
     )
     config_create_manager = TenantConfigCreateManager(deps)
     config_poll_manager = TenantConfigPollManager(deps)
@@ -92,6 +102,7 @@ def create_app():
     patch_manager = ConversionPatchManager(deps)
     search_manager = ConversionSearchManager(deps)
     job_search_manager = ConversionJobSearchManager(deps)
+    research_coding_review_manager = ResearchCodingReviewManager(deps)
     tenant_api_key_manager = TenantApiKeyManager(deps)
     exchange_manager = TokenExchangeManager(settings, tenant_api_key_manager=tenant_api_key_manager)
     def _research_tenant_is_active(tenant_id: str, jurisdiction: str, sector: str) -> bool:
@@ -148,6 +159,7 @@ def create_app():
             "- 4.4 Dataset Search: `_search`\n"
             "- 4.5 Dataset Batch Promotion: `_batch`\n\n"
             "- 4.6 Conversion Job Search: `/jobs/Task/_search`\n\n"
+            "- 4.7 Research Coding Review: durable ResearchSubject `$prepare-review`, `$review-pending` and `$review`\n\n"
             "**Identity model**\n\n"
             "Requester identity is taken from DIDComm payload field `iss`. The query parameter `requestedBy` is not used.\n\n"
             "**Authentication**\n\n"
@@ -215,6 +227,10 @@ def create_app():
             {
                 "name": "4.6 Publisher Job Search",
                 "description": "Lists study-scoped conversion jobs as flat FHIR-like Task resources in a searchset Bundle.",
+            },
+            {
+                "name": "4.7 Research Coding Review",
+                "description": "Prepares, lists and resolves durable study coding proposals independently of job retention.",
             },
             {
                 "name": "9. Legacy Endpoints",
@@ -311,6 +327,7 @@ def create_app():
         batch_manager=batch_manager,
         search_manager=search_manager,
         job_search_manager=job_search_manager,
+        research_coding_review_manager=research_coding_review_manager,
     )
     app.include_router(pkce_router)
     register_exchange_routes(

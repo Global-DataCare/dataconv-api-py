@@ -98,6 +98,15 @@ El ciclo persistente es:
 GCS -> Firestore draft -> human review -> PostgreSQL search index
 ```
 
+La revisión se recupera de Firestore por el ResearchStudy autorizado, no desde
+un Task de conversión retenido. Las operaciones duraderas son
+`$prepare-review`, que materializa de forma idempotente propuestas desde los
+`*-text` conservados; `$review-pending`, que devuelve los ResearchSubject
+pendientes; y `$review`, que registra las decisiones humanas explícitas. La
+caducidad del job o de su resultado no obliga a volver a subir el Excel. La
+preparación puede añadir candidatos terminológicos gobernados, pero nunca elige
+ni promueve uno automáticamente.
+
 1. GCS guarda el archivo de origen y los artefactos generados por el job.
 2. DataConv genera recursos procesados de forma FHIR-like con flat claims
    canónicas.

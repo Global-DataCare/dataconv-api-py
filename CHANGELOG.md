@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.8.12 - 2026-09-23
+
+- Add a study-scoped durable coding-review queue over Firestore
+  `ResearchSubject` drafts, independent of conversion Task and result TTL.
+- Prepare missing proposals idempotently from preserved canonical `*-text`
+  claims and governed terminology candidates, so historical drafts can be
+  reviewed without uploading the workbook again.
+- Apply bounded human decisions directly to the authorized study drafts and
+  promote each ResearchSubject only after its own proposals are resolved.
+
 ## 0.8.11 - 2026-09-23
 
 - Allow one explicitly trusted GW host pattern to serve multiple activated

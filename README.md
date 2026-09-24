@@ -169,6 +169,14 @@ The persistent research lifecycle is deliberately:
 GCS -> Firestore draft -> human review -> PostgreSQL search index
 ```
 
+The review queue is study-scoped and durable. Clients load it from the stored
+ResearchSubject drafts rather than replaying `_upload-response`, so expiry of a
+conversion Task or result never hides pending work. `$prepare-review`
+idempotently converts preserved canonical `*-text` claims that predate proposal
+materialization into resource-owned terminology proposals; `$review-pending`
+lists them and `$review` records bounded human decisions. None of these
+operations uploads the workbook again.
+
 - GCS stores the uploaded workbook and generated job artifacts.
 - The conversion pipeline produces FHIR-like resources with canonical flat
   claims in `resource.meta.claims`.

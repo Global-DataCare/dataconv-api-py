@@ -88,6 +88,8 @@ GCS -> Firestore draft -> human review -> PostgreSQL search index
 - Load pending review from the durable Firestore ResearchSubject drafts by the
   authorized `ResearchSubject.study`; never require a retained Task, `thid` or
   `_upload-response` artifact to reopen review.
+- Preserve ResearchStudy import Tasks outside generic operational TTL cleanup;
+  removal requires an explicit governed study/history lifecycle operation.
 - For historical drafts that preserve canonical `*-text` but predate proposal
   materialization, run the explicit idempotent `$prepare-review` operation.
   It may retrieve governed terminology candidates and add resource-owned

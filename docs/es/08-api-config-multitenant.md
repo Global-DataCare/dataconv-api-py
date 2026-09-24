@@ -107,7 +107,10 @@ Respuesta:
 - Si faltan mapeos `section:family -> LOINC`, esas filas se omiten.
 - Por cada fila omitida se añade un recurso `OperationOutcome` como entrada primaria de la respuesta (`body.data[].resource`).
 - El diagnóstico agregado también se expone en `body.issues.issue[].diagnostics` y en `body.data[0].response.outcome.issue[].diagnostics`.
-- Las respuestas terminales de `_upload-response` expiran según `PRECONV_JOB_RESULT_TTL_SECONDS` (por defecto 3600s).
+- Las respuestas terminales ajenas a estudios de `_upload-response` expiran
+  según `PRECONV_JOB_RESULT_TTL_SECONDS` (por defecto 3600s). Los Tasks de
+  importación de ResearchStudy permanecen hasta una eliminación explícita y
+  gobernada del estudio o de su historial.
 - La limpieza global (todos los tenants) se ejecuta con `preconversion-cleanup` y se recomienda programarla con cron/CronJob.
 - Errores del contrato público se devuelven como `OperationOutcome` (`400/401/403/404/500`); no se documenta `422`.
 - El lifecycle deja trazas JSON estructuradas en logs (`job_created`, `job_response_delivered`, `job_expired_deleted`, `job_cleanup_*`) con `tenantId`, `softwareId`, `thid`, `jobId`, etc.

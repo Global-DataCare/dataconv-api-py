@@ -74,7 +74,9 @@ Behavior summary:
 - `_create-response` is single-consumption POP semantics.
 - `_upload` returns `202` with `Location` and `Retry-After`.
 - `_upload-response` returns `202` while the job is queued or running, and `200` on terminal success or failure.
-- Terminal `_upload-response` payloads expire according to `PRECONV_JOB_RESULT_TTL_SECONDS`.
+- Terminal non-study `_upload-response` payloads expire according to
+  `PRECONV_JOB_RESULT_TTL_SECONDS`. ResearchStudy import Tasks remain durable
+  until an explicit governed study/history deletion.
 - Public contract errors are exposed as `OperationOutcome` with `400`, `401`, `403`, `404`, or `500`.
 
 Runtime and logging notes:

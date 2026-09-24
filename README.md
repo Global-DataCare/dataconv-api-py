@@ -131,10 +131,11 @@ grants access to a ResearchStudy.
 The research exchange accepts only RFC 8693 `subject_token` plus
 `subject_token_type=urn:ietf:params:oauth:token-type:access_token`. It accepts
 neither an OIDC id token nor a controller VP as a substitute for the SMART
-token. Configure exact
-trusted GW issuers and audiences with `SMART_GW_ALLOWED_ISSUERS` and
-`SMART_GW_EXPECTED_AUDIENCES`. Never compare the index-provider identifier with
-the hosted organization tenant id. Production resolves only HTTPS DID Web
+token. Configure explicit trusted GW host patterns and audiences with
+`SMART_GW_ALLOWED_ISSUERS` and `SMART_GW_EXPECTED_AUDIENCES`. The signed
+issuer DID path must also match the exact tenant, jurisdiction, version and
+research sector addressed by the request; a valid token for one tenant cannot
+be replayed on another tenant route. Production resolves only HTTPS DID Web
 documents; HTTP is limited to localhost in demo/test mode.
 
 The optional cross-custodian

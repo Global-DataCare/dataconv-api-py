@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.8.11 - 2026-09-23
+
+- Allow one explicitly trusted GW host pattern to serve multiple activated
+  tenants while binding every SMART `iss` and `aud` to the exact tenant,
+  jurisdiction and research-sector DID path addressed by the request. A token
+  issued for one tenant can no longer be exchanged on another tenant route.
+
 ## 0.8.10 - 2026-09-23
 
 - Bound only the external terminology candidate-search text to the service's

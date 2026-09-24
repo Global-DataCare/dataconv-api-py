@@ -83,6 +83,27 @@ def _allowed(value: str, patterns: tuple[str, ...]) -> bool:
     return any(pattern and fnmatchcase(value, pattern) for pattern in patterns)
 
 
+def _issuer_matches_tenant_route(
+    issuer: str,
+    *,
+    tenant_id: str,
+    jurisdiction: str,
+    sector: str,
+) -> bool:
+    """Bind one trusted did:web issuer to the exact addressed GW tenant route."""
+    prefix = "did:web:"
+    if not issuer.startswith(prefix):
+        return False
+    path = tuple(unquote(part) for part in issuer[len(prefix):].split(":")[1:] if part)
+    expected = (
+        str(tenant_id or "").strip(),
+        f"cds-{str(jurisdiction or '').strip().upper()}",
+        "v1",
+        str(sector or "").strip().lower(),
+    )
+    return path == expected
+
+
 class SmartResearchTokenExchangeManager:
     """Validate one GW SMART JWT offline and mint a study-pinned DataConv JWT.
 
@@ -126,13 +147,21 @@ class SmartResearchTokenExchangeManager:
             self._did_cache[url] = (now + ttl, document)
         return document
 
-    def _validate(self, token: str, *, tenant_id: str) -> dict[str, Any]:
+    def _validate(
+        self,
+        token: str,
+        *,
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+    ) -> dict[str, Any]:
         """Validate the index-provider SMART grant for one hosted tenant route.
 
-        ``iss`` and ``aud`` identify the GW tenant that provides the index.
-        They do not identify the hosted clinic or other organization whose
-        ResearchStudy is addressed by ``tenant_id``. That organization is
-        independently required to be active by :meth:`exchange`.
+        ``iss`` and ``aud`` identify the exact GW tenant that provides the
+        addressed index. The trusted host allowlist may cover multiple tenants,
+        but the DID path must still match ``tenant_id``, jurisdiction and sector.
+        The same tenant is independently required to be active by
+        :meth:`exchange`.
         """
         if jwt is None:
             raise ValueError("SMART JWT validation requires PyJWT[crypto]")
@@ -145,6 +174,13 @@ class SmartResearchTokenExchangeManager:
         )
         if not patterns or not _allowed(issuer, patterns):
             raise ValueError("SMART issuer is not explicitly allowed")
+        if not _issuer_matches_tenant_route(
+            issuer,
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+        ):
+            raise ValueError("SMART issuer does not match the addressed tenant route")
 
         demo_mode = bool(getattr(self._settings, "demo_mode", False)) or str(
             getattr(self._settings, "network_mode", "") or ""
@@ -190,7 +226,7 @@ class SmartResearchTokenExchangeManager:
             for item in getattr(self._settings, "smart_gw_expected_audiences", ())
             if str(item or "").strip()
         )
-        if not expected_audiences or issuer not in expected_audiences:
+        if not expected_audiences or not _allowed(issuer, expected_audiences):
             raise ValueError("SMART audience is not explicitly configured")
         try:
             decoded = jwt.decode(
@@ -251,7 +287,12 @@ class SmartResearchTokenExchangeManager:
             raise ValueError("subject_token is required")
         if not self._tenant_is_active(tenant_id, jurisdiction, sector):
             raise PermissionError("DataConv tenant is not active for this network, sector and jurisdiction")
-        claims = self._validate(subject_token, tenant_id=tenant_id)
+        claims = self._validate(
+            subject_token,
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+        )
         subject = str(claims["sub"])
         study = str(claims["study"])
         token_profile = str(claims["_dataconv_token_profile"])

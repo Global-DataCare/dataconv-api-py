@@ -18,6 +18,11 @@ class ConfigStore(ABC):
     def get(self, key: ConfigKey) -> StoredConfig | None:
         raise NotImplementedError
 
+    @abstractmethod
+    def list(self) -> list[StoredConfig]:
+        """Return stored configurations for manager-owned authorization/filtering."""
+        raise NotImplementedError
+
 
 class JobStore(ABC):
     @abstractmethod

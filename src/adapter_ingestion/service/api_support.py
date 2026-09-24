@@ -15,7 +15,7 @@ import uuid
 from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
 from urllib.request import Request as UrlRequest, urlopen
 
-from .auth_exchange import validate_session_access_token
+from .auth_exchange import _scope_pattern_matches, validate_session_access_token
 
 try:
     import certifi
@@ -695,6 +695,41 @@ def _scope_is_satisfied(required_scope: str, available_scopes: set[str]) -> bool
     return any(_scope_pattern_matches(required, item) for item in available)
 
 
+def _enforce_research_config_write(
+    authorization_header: str,
+    settings: Any,
+    *,
+    expected_organization: str,
+) -> None:
+    """Require write authority when a research-session token creates config.
+
+    ICA/bootstrap callers keep their existing config creation contract. Tokens
+    minted by the research SMART exchange are narrower: professionals may read
+    reusable mappings, while only an organization controller may create a new
+    named/versioned copy.
+    """
+    bearer_token = _extract_bearer_token(authorization_header)
+    if not bearer_token:
+        return
+    try:
+        claims = validate_session_access_token(bearer_token, settings)
+    except Exception:
+        # The ordinary authorization gate owns invalid-token reporting.
+        return
+    token_profile = str(claims.get("token_profile") or "").strip()
+    if token_profile not in {"professional_research", "organization_research"}:
+        return
+    _enforce_auth_context(
+        {},
+        settings,
+        authorization_header=authorization_header,
+        require_token=True,
+        required_scopes={"dataconv.config.write"},
+        expected_organization=expected_organization,
+        enforce_scopes_in_demo=True,
+    )
+
+
 def _enforce_auth_context(
     payload: dict[str, Any],
     settings: Any,
@@ -705,6 +740,7 @@ def _enforce_auth_context(
     expected_organization: str = "",
     expected_research_study: str = "",
     require_study_research: bool = False,
+    enforce_scopes_in_demo: bool = False,
 ) -> None:
     demo_mode = bool(getattr(settings, "demo_mode", True))
     bearer_token = _extract_bearer_token(authorization_header)
@@ -723,7 +759,7 @@ def _enforce_auth_context(
             required_organization = str(expected_organization or "").strip().lower()
             if required_organization and token_organization != required_organization:
                 raise HTTPException(status_code=403, detail="Bearer token organization does not match tenant")
-            if required_scopes and (not demo_mode or require_study_research):
+            if required_scopes and (not demo_mode or require_study_research or enforce_scopes_in_demo):
                 available = {item for item in str(session_claims.get("scope") or "").split(" ") if item}
                 available.update({item for item in session_claims.get("scopes", []) if isinstance(item, str) and item})
                 missing = sorted(scope for scope in required_scopes if not _scope_is_satisfied(scope, available))
@@ -747,10 +783,10 @@ def _enforce_auth_context(
                     raise HTTPException(status_code=403, detail="Bearer token ResearchStudy does not match request")
             return
         except HTTPException:
-            if not demo_mode or require_study_research:
+            if not demo_mode or require_study_research or enforce_scopes_in_demo:
                 raise
         except Exception:
-            if not demo_mode or require_study_research:
+            if not demo_mode or require_study_research or enforce_scopes_in_demo:
                 raise HTTPException(status_code=401, detail="invalid or expired Bearer token")
 
     if not demo_mode:

@@ -316,7 +316,16 @@ def process_one_job(
             network_kind=settings.network_mode,
             settings_target_sector=job.request.sector,
         )
-        adapter = get_adapter(job.request.manufacturer)
+        runtime_defaults = config_payload.get("runtimeDefaults")
+        configured_adapter_id = (
+            str(runtime_defaults.get("adapterId") or "").strip()
+            if isinstance(runtime_defaults, dict)
+            else ""
+        )
+        # A named/versioned mapping is a configuration identity, not necessarily
+        # a parser implementation name. Copies may therefore retain the generic
+        # API-CONFIG tabular adapter while receiving a human-owned software id.
+        adapter = get_adapter(configured_adapter_id or job.request.manufacturer)
         records = adapter.read_records(input_path=tmp_path, context=context)
         adapter_report = adapter.get_last_report() if hasattr(adapter, "get_last_report") else {}
         row_issues = adapter_report.get("rowIssues", []) if isinstance(adapter_report, dict) else []

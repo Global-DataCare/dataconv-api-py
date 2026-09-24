@@ -876,7 +876,17 @@ def _exchange_schemas() -> dict[str, Any]:
                 "issued_token_type": {"type": "string", "enum": ["urn:ietf:params:oauth:token-type:access_token"]},
                 "token_type": {"type": "string", "enum": ["Bearer"]},
                 "expires_in": {"type": "integer"},
-                "scope": {"type": "string", "enum": ["dataconv.upload dataconv.read dataconv.review"]},
+                "scope": {
+                    "type": "string",
+                    "description": (
+                        "Granted DataConv scopes. Authorized importers include dataconv.config.read; "
+                        "organization-controller tokens additionally include dataconv.config.write."
+                    ),
+                    "examples": [
+                        "dataconv.upload dataconv.read dataconv.review",
+                        "dataconv.upload dataconv.read dataconv.review dataconv.config.read dataconv.config.write",
+                    ],
+                },
                 "subject": {"type": "string", "description": "Authorized professional or organization-controller DID."},
                 "organization": {"type": "string", "description": "DataConv tenant bound to the trusted GW issuer."},
                 "study": {"type": "string", "pattern": "^ResearchStudy/[A-Za-z0-9\\-.]{1,64}$"},

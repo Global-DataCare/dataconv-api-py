@@ -108,12 +108,13 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         queued = control_plane.submit_job(
             JobRequest(
                 alternate_name="ESB12345678",
-                manufacturer="qvet",
-                manufacturer_version="v1.0",
+                manufacturer="pinol-condition",
+                manufacturer_version="v2",
                 country="ES",
                 input_ref=input_ref,
                 requested_by="did:web:clinic.example:employee:loader",
                 mode="demo-ephemeral",
+                inline_config={"runtimeDefaults": {"adapterId": "api-config"}},
                 thid="job-research-001",
                 research_study_reference="ResearchStudy/study-job-processor-1",
             )
@@ -180,7 +181,7 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
             summary={"recordsTotal": 1, "subjectsTotal": 1},
         )
 
-        with patch("adapter_ingestion.service.job_processor.get_adapter", return_value=_FakeAdapter()):
+        with patch("adapter_ingestion.service.job_processor.get_adapter", return_value=_FakeAdapter()) as get_adapter:
             with patch("adapter_ingestion.service.job_processor.run_pipeline", return_value=fake_result):
                 processed_job_id = process_one_job(
                     control_plane=control_plane,
@@ -189,6 +190,8 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
                     settings=settings,
                     worker_id="worker-test",
                 )
+
+        get_adapter.assert_called_once_with("api-config")
 
         self.assertEqual(processed_job_id, queued.job_id)
         stored_job = control_plane.get_job(queued.job_id)
@@ -216,7 +219,7 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         summary_payload = json.loads(blob_store.get_bytes(f"jobs/{queued.job_id}/summary.json").decode("utf-8"))
         self.assertEqual(summary_payload.get("researchDraftsPersisted"), 4)
         self.assertEqual(summary_payload.get("vaultId"), vault_id)
-        self.assertEqual(summary_payload.get("softwareId"), "qvet-v1.0")
+        self.assertEqual(summary_payload.get("softwareId"), "pinol-condition-v2")
 
         composition_payload = json.loads(
             blob_store.get_bytes(f"jobs/{queued.job_id}/composition-message.json").decode("utf-8")

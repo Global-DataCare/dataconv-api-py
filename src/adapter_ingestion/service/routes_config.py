@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover
 from .api_support import Body, DidcommJSONResponse, Path, Request, Response
 
 
-def register_config_routes(app, *, config_create_manager, config_poll_manager) -> None:  # type: ignore[no-untyped-def]
+def register_config_routes(app, *, config_create_manager, config_poll_manager, config_search_manager) -> None:  # type: ignore[no-untyped-def]
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create",
         status_code=202,
@@ -109,6 +109,31 @@ def register_config_routes(app, *, config_create_manager, config_poll_manager) -
             tenant_id=alternate_name,
             jurisdiction=jurisdiction,
             software_id=manufacturer,
+            request=request,
+            body=body,
+        )
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/config/_search",
+        tags=["3.3 Publisher Config Catalog"],
+        summary="List tenant adapter configurations",
+        description=(
+            "Lists the authenticated tenant's editable adapter configurations, including named "
+            "software versions and public mapping content. This is a DataConv catalog operation, "
+            "not a native FHIR search."
+        ),
+    )
+    def search_tenant_configs(
+        tenant_id: str,
+        sector: str,
+        jurisdiction: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return config_search_manager.search(
+            tenant_id=tenant_id,
+            sector=sector,
+            jurisdiction=jurisdiction,
             request=request,
             body=body,
         )

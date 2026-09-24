@@ -24,6 +24,9 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from adapter_ingestion.runtime import ConfigKey
+from adapter_ingestion.service.auth_exchange import issue_session_access_token
+
 
 @unittest.skipIf(Response is None, "fastapi runtime dependencies are not installed")
 class ServiceApiSectorRouteTests(unittest.TestCase):
@@ -61,6 +64,7 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         paths = self._route_paths()
         self.assertIn("/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create", paths)
         self.assertIn("/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create-response", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/config/_search", paths)
         self.assertIn("/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload", paths)
         self.assertIn("/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload-response", paths)
         self.assertIn("/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_patch", paths)
@@ -70,6 +74,7 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         schema = self.app.openapi()
         paths = schema.get("paths", {})
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/{software-id}/config/_create", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/config/_search", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_upload", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_patch", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{resource-type}/_search", paths)
@@ -115,6 +120,47 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         self.assertEqual(bundle["resourceType"], "Bundle")
         self.assertEqual(bundle["type"], "searchset")
         self.assertEqual(bundle["total"], 1)
+
+    def test_authorized_importers_list_saved_versions_without_receiving_write_scope(self) -> None:
+        self.assertIsNotNone(TestClient)
+        self.app.state.control_plane.upsert_config(
+            ConfigKey(
+                alternate_name="clinic-a",
+                manufacturer="pinol-condition",
+                manufacturer_version="v2",
+                sector="animal-research",
+                country="CA-BC",
+            ),
+            {"schemaConfig": {"headerRowIndex": 2, "fieldMap": {"Condition.code-text": "Diagnostico"}}},
+            updated_by="did:web:clinic.example:controller",
+        )
+        controller_token, _, _ = issue_session_access_token(
+            subject="did:web:clinic.example:controller",
+            organization="clinic-a",
+            scopes=["dataconv.config.read", "dataconv.config.write"],
+            settings=self.app.state.settings,
+        )
+        response = TestClient(self.app).post(
+            "/publisher/cds-CA-BC/v1/animal-research/clinic-a/config/_search",
+            json={"_count": 20, "_offset": 0},
+            headers={"Authorization": f"Bearer {controller_token}"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"][0]["softwareId"], "pinol-condition-v2")
+
+        professional_token, _, _ = issue_session_access_token(
+            subject="did:web:clinic.example:employee:vet",
+            organization="clinic-a",
+            scopes=["dataconv.upload", "dataconv.review", "dataconv.config.read"],
+            settings=self.app.state.settings,
+        )
+        allowed = TestClient(self.app).post(
+            "/publisher/cds-CA-BC/v1/animal-research/clinic-a/config/_search",
+            json={},
+            headers={"Authorization": f"Bearer {professional_token}"},
+        )
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(allowed.json()["data"][0]["softwareId"], "pinol-condition-v2")
 
 
 if __name__ == "__main__":

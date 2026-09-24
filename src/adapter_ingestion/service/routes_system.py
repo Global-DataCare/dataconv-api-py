@@ -7,7 +7,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from gdc_data_utils import ChargeItemClaim, DiagnosticReportClaim, InvoiceClaim
+from gdc_data_utils import (
+    ChargeItemClaim,
+    ConditionClaim,
+    DiagnosticReportClaim,
+    InvoiceClaim,
+    ProcedureClaim,
+)
 
 from .api_support import HTMLResponse, build_api_docs_html
 from ..base_config_contract import BASE_CONFIG_FIELDS, BaseConfigFieldKind
@@ -63,6 +69,8 @@ def register_system_routes(app, settings) -> None:  # type: ignore[no-untyped-de
             "procedure_subpotent-date": "Fecha en la que expira el efecto del tratamiento",
             "procedure_target-display": "Problemas que cubre este tratamiento",
             DiagnosticReportClaim.CODE_TEXT: "Nombre o diagnóstico local sin código terminológico",
+            ConditionClaim.CODE_TEXT: "Texto local del diagnóstico o problema clínico",
+            ProcedureClaim.CODE_TEXT: "Texto local del procedimiento o tratamiento realizado",
         }
         pending_fields = {
             name: entry.note

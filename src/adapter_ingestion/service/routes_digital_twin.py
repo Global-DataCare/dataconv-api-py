@@ -27,7 +27,83 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     batch_manager,
     search_manager,
     job_search_manager,
+    research_coding_review_manager,
 ) -> None:
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$prepare-review",
+        tags=["4.7 Research Coding Review"],
+        summary="Prepare durable local text for coding review",
+        response_class=JSONResponse,
+        description=(
+            "Creates missing `meta.codingProposals[]` from durable local `*-text` claims and the "
+            "configured terminology service. It does not require or repeat the original import."
+        ),
+    )
+    def prepare_pending_research_coding_reviews(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return research_coding_review_manager.prepare_pending(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            body=body,
+        )
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$review-pending",
+        tags=["4.7 Research Coding Review"],
+        summary="Search durable pending coding reviews by study",
+        response_class=JSONResponse,
+        description=(
+            "Returns ResearchSubject drafts that still contain `meta.codingProposals[]` for the "
+            "authorized ResearchStudy. This durable view does not depend on conversion Task retention."
+        ),
+    )
+    def search_pending_research_coding_reviews(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return research_coding_review_manager.search_pending(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            body=body,
+        )
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$review",
+        tags=["4.7 Research Coding Review"],
+        summary="Apply coding reviews to durable study drafts",
+        response_class=JSONResponse,
+        description=(
+            "Applies explicit human coding selections to the authorized ResearchStudy drafts and "
+            "promotes each ResearchSubject only after all of its proposals are resolved."
+        ),
+    )
+    def apply_research_coding_reviews(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return research_coding_review_manager.apply_reviews(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            body=body,
+        )
+
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/jobs/Task/_search",
         tags=["4.6 Publisher Job Search"],

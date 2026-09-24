@@ -9,6 +9,7 @@ from typing import Any
 from ...runtime import BlobStore, ISearchRepository, IVaultRepository, PreconversionControlPlane
 from ..settings import ServiceSettings
 from ..coding_review import CodingFeedbackSink, NoopCodingFeedbackSink
+from ...ai.terminology import TerminologyClient
 
 
 @dataclass(frozen=True)
@@ -20,3 +21,4 @@ class ApiManagerDependencies:
     search_repo: ISearchRepository
     config_create_responses: dict[str, dict[str, Any]]
     coding_feedback_sink: CodingFeedbackSink = field(default_factory=NoopCodingFeedbackSink)
+    terminology_client: TerminologyClient | None = None

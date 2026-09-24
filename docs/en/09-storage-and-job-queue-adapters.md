@@ -91,6 +91,14 @@ The persistent research lifecycle is:
 GCS -> Firestore draft -> human review -> PostgreSQL search index
 ```
 
+Review is recovered from Firestore by the authorized ResearchStudy, not from a
+retained conversion Task. The durable operations are `$prepare-review` for
+idempotent proposal materialization from preserved `*-text`, `$review-pending`
+for the pending ResearchSubject searchset, and `$review` for explicit human
+decisions. Job/result expiry therefore does not require another workbook
+upload. Preparation may add governed terminology candidates, but it never
+selects or promotes one automatically.
+
 1. GCS stores the uploaded source and generated job artifacts.
 2. DataConv produces processed FHIR-like resources with canonical flat claims.
 3. Firestore stores those resources with resource-owned

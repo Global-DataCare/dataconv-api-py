@@ -85,6 +85,14 @@ GCS -> Firestore draft -> human review -> PostgreSQL search index
 - Copy each ResearchSubject to PostgreSQL independently as soon as all of its
   own mandatory proposals are resolved. Keep other subjects in the same import
   available for progressive review without re-upload.
+- Load pending review from the durable Firestore ResearchSubject drafts by the
+  authorized `ResearchSubject.study`; never require a retained Task, `thid` or
+  `_upload-response` artifact to reopen review.
+- For historical drafts that preserve canonical `*-text` but predate proposal
+  materialization, run the explicit idempotent `$prepare-review` operation.
+  It may retrieve governed terminology candidates and add resource-owned
+  `meta.codingProposals[]`, but it must not select a candidate, rewrite the
+  source text or require the workbook to be uploaded again.
 - PostgreSQL stores the exact `claims`, derived `search_fields`, and the same
   complete processed `resource`; searches filter `search_fields` and return
   `resource`.

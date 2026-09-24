@@ -26,9 +26,9 @@ from adapter_ingestion.service.managers.smart_research_token_exchange import (
 from adapter_ingestion.service.routes_exchange import register_exchange_routes
 
 
-ISSUER = "did:web:gw.example:tenant:research"
 ACTOR = "did:web:professional.example:employee:reviewer"
 TENANT = "CA-BC-7654321"
+ISSUER = f"did:web:gw.example:{TENANT}:cds-CA-BC:v1:animal-research"
 STUDY = "ResearchStudy/study-2026-01"
 SMART_SCOPE = f"organization/ResearchSubject.crus?study={STUDY}"
 RESEARCHER_SCOPE = f"organization/ResearchSubject.rs?study={STUDY}"
@@ -63,8 +63,8 @@ def _settings() -> SimpleNamespace:
     return SimpleNamespace(
         demo_mode=False,
         network_mode="test-network",
-        smart_gw_allowed_issuers=(ISSUER,),
-        smart_gw_expected_audiences=(ISSUER,),
+        smart_gw_allowed_issuers=("did:web:gw.example:*:cds-CA-BC:v1:animal-research",),
+        smart_gw_expected_audiences=("did:web:gw.example:*:cds-CA-BC:v1:animal-research",),
         smart_gw_issuer_tenant_bindings={ISSUER: TENANT},
         smart_gw_did_cache_ttl_seconds=300,
         smart_gw_http_timeout_seconds=2,
@@ -93,7 +93,9 @@ def _manager(private_key: ec.EllipticCurvePrivateKey) -> SmartResearchTokenExcha
 
 
 def test_resolves_standard_did_web_paths_and_restricts_local_http_to_test_modes() -> None:
-    assert did_web_document_url(ISSUER, demo_mode=False) == "https://gw.example/tenant/research/did.json"
+    assert did_web_document_url(ISSUER, demo_mode=False) == (
+        "https://gw.example/CA-BC-7654321/cds-CA-BC/v1/animal-research/did.json"
+    )
     assert did_web_document_url("did:web:localhost%3A3200:tenant", demo_mode=True) == (
         "http://localhost:3200/tenant/did.json"
     )
@@ -188,8 +190,8 @@ def test_exchanges_controller_create_scope_without_masquerading_as_a_professiona
     )
 
 
-def test_trusted_index_provider_is_not_mistaken_for_the_importing_organization() -> None:
-    """One index-provider GW may authorize studies owned by hosted organizations."""
+def test_legacy_issuer_binding_does_not_override_the_exact_tenant_did_route() -> None:
+    """The signed tenant DID path, not a legacy side mapping, binds the route."""
     private_key = ec.generate_private_key(ec.SECP384R1())
     settings = SimpleNamespace(
         **{
@@ -229,6 +231,22 @@ def test_trusted_index_provider_is_not_mistaken_for_the_importing_organization()
 
     assert result.organization == TENANT
     assert result.study == STUDY
+
+
+def test_rejects_an_allowlisted_smart_issuer_for_a_different_tenant_route() -> None:
+    """A trusted GW host cannot reuse one tenant JWT on another tenant route."""
+    private_key = ec.generate_private_key(ec.SECP384R1())
+
+    with pytest.raises(ValueError, match="tenant route"):
+        _manager(private_key).exchange(
+            {
+                "subject_token": _smart_token(private_key),
+                "subject_token_type": SMART_ACCESS_TOKEN_TYPE,
+            },
+            tenant_id="different-tenant",
+            jurisdiction="CA-BC",
+            sector="animal-research",
+        )
 
 
 @pytest.mark.parametrize(

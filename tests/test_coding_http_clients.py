@@ -80,6 +80,20 @@ def test_terminology_query_bounds_long_clinical_text_without_changing_the_source
     assert request.text == source_text
 
 
+def test_terminology_query_forwards_the_exact_governed_source_selection() -> None:
+    transport = RecordingTransport(responses=[{"jsonapi": {"version": "1.1"}, "data": []}])
+    client = HttpTerminologyClient(base_url="https://terminology.example", transport=transport)
+
+    client.search(TerminologySearchRequest(
+        text="corneal ulcer", language="en", fhir_version="R4", sector="animal-care",
+        jurisdiction="CA-BC", resource_type="Condition", field="Condition.code",
+        sources=("ICD10", "SNOMED_CT"),
+    ))
+
+    query = parse_qs(urlparse(transport.calls[0]["url"]).query)
+    assert query["source"] == ["ICD10", "SNOMED_CT"]
+
+
 def test_terminology_query_skips_text_shorter_than_the_service_contract() -> None:
     transport = RecordingTransport(responses=[])
     client = HttpTerminologyClient(base_url="https://terminology.example", transport=transport)

@@ -38,6 +38,15 @@ shorter than two characters is not queried and text longer than 160 characters
 is queried with its first 160 characters. The complete source remains visible
 to the professional reviewer.
 
+During review, a professional may search again with a different bounded phrase,
+language and one governed terminology source. DataConv performs that lookup at
+`ResearchSubject/$review-candidates`, stores only candidates returned by the
+terminology service on the existing proposal, and never lets the query change
+the proposal's imported resource type or claim. An incorrectly mapped
+`DiagnosticReport.code-text` must therefore be corrected in a copied API
+configuration and reimported as `Condition.code-text`; a review search cannot
+disguise or repair the wrong resource family.
+
 An optional tabular review projection keeps three namespaces separate:
 
 ```text

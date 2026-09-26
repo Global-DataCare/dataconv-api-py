@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 0.8.15 - 2026-09-25
+
+- Add a study-authorized candidate-search operation for one pending coding
+  proposal. DataConv calls the governed terminology service, persists only its
+  candidates and keeps the imported resource type and claim immutable.
+- Forward an exact optional terminology-source selection so a reviewer can
+  search ICD-10, SNOMED CT or another source permitted for that FHIR field.
+
 ## 0.8.14 - 2026-09-24
 
 - Add a tenant-filtered configuration catalog protected by

@@ -34,6 +34,14 @@ contiene como hermanos la Composition y los recursos clínicos, enlazados por
 `Composition.entry`. La UI consume sus `meta.codingProposals[]`. Un Excel o CSV
 es únicamente una proyección opcional.
 
+Durante la revisión, el profesional puede repetir la búsqueda con otro texto
+acotado, idioma y una fuente terminológica permitida. DataConv ejecuta esa
+consulta mediante `ResearchSubject/$review-candidates`, guarda únicamente los
+candidatos devueltos por el servicio terminológico y no permite cambiar el tipo
+de recurso ni el claim importados. Por tanto, un `DiagnosticReport.code-text`
+mal mapeado se corrige copiando la configuración API y reimportando como
+`Condition.code-text`; la búsqueda de revisión no disfraza el tipo incorrecto.
+
 En esa proyección, `<Resource>.code-text` contiene el texto local original y
 canónico; `coding-proposal:*` contiene los candidatos no confirmados y
 `<Resource>.code`/`code-display` contienen la selección confirmada. Solo

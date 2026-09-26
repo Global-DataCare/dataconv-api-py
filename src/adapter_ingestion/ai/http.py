@@ -96,8 +96,7 @@ class HttpTerminologyClient(_AuthorizedClient):
         if len(query_text) < TERMINOLOGY_QUERY_TEXT_MIN_LENGTH:
             return []
         query_text = query_text[:TERMINOLOGY_QUERY_TEXT_MAX_LENGTH]
-        query = urlencode(
-            {
+        query_values: dict[str, object] = {
                 "text": query_text,
                 "language": request.language,
                 "fhirVersion": request.fhir_version,
@@ -106,8 +105,10 @@ class HttpTerminologyClient(_AuthorizedClient):
                 "resourceType": request.resource_type,
                 "field": request.field,
                 "limit": request.limit,
-            }
-        )
+        }
+        if request.sources:
+            query_values["source"] = request.sources
+        query = urlencode(query_values, doseq=True)
         document = self._transport.request(
             method="GET",
             url=f"{self._base_url}/v1/terminology/candidates?{query}",

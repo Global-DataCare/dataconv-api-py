@@ -20,6 +20,7 @@ class TerminologySearchRequest:
     jurisdiction: str
     resource_type: str
     field: str
+    sources: tuple[str, ...] = ()
     limit: int = 20
 
 

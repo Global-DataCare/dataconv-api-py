@@ -207,6 +207,92 @@ def test_search_uses_the_latest_canonical_contained_resource_state() -> None:
     assert result["total"] == 0
 
 
+def test_searches_and_persists_governed_candidates_for_one_pending_proposal() -> None:
+    terminology = RecordingTerminologyClient()
+    terminology.search = lambda request: (
+        terminology.requests.append(request) or [TerminologyCandidate(
+            system="http://hl7.org/fhir/sid/icd-10",
+            code="H16.0",
+            display="Corneal ulcer",
+            source="ICD10",
+        )]
+    )
+    manager, vault, _, _ = _manager(terminology_client=terminology)
+    subject = _research_subject("subject-1", STUDY)
+    condition = subject["contained"][0]
+    condition["resourceType"] = "Condition"
+    condition["id"] = "condition-subject-1"
+    proposal = condition["meta"]["codingProposals"][0]
+    proposal.update({
+        "id": "proposal-condition-1",
+        "field": "Condition.code",
+        "inputText": "ULCERA CORNEAL",
+        "language": "es",
+        "candidates": [],
+    })
+    vault.put(VAULT_ID, [subject], "ResearchSubject")
+    vault.put(VAULT_ID, [condition], "Condition")
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        result = manager.search_candidates(
+            tenant_id=TENANT,
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            request=_request(),
+            body={
+                "researchStudy": {"reference": STUDY},
+                "resourceType": "Condition",
+                "resourceId": "condition-subject-1",
+                "proposalId": "proposal-condition-1",
+                "text": "corneal ulcer",
+                "language": "en",
+                "sources": ["ICD10"],
+            },
+        )
+
+    assert terminology.requests[0].resource_type == "Condition"
+    assert terminology.requests[0].field == "Condition.code"
+    assert terminology.requests[0].text == "corneal ulcer"
+    assert terminology.requests[0].language == "en"
+    assert terminology.requests[0].sources == ("ICD10",)
+    assert result["proposalId"] == "proposal-condition-1"
+    assert result["candidates"][0]["code"] == "H16.0"
+    stored = vault.get(VAULT_ID, "condition-subject-1", "Condition")
+    assert stored["meta"]["codingProposals"][0]["candidates"][0]["code"] == "H16.0"
+
+
+def test_candidate_search_cannot_retype_the_imported_resource() -> None:
+    manager, vault, _, _ = _manager(terminology_client=RecordingTerminologyClient())
+    subject = _research_subject("subject-1", STUDY)
+    vault.put(VAULT_ID, [subject], "ResearchSubject")
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        try:
+            manager.search_candidates(
+                tenant_id=TENANT,
+                jurisdiction="CA-BC",
+                sector="animal-research",
+                request=_request(),
+                body={
+                    "researchStudy": {"reference": STUDY},
+                    "resourceType": "Condition",
+                    "resourceId": "immunization-subject-1",
+                    "proposalId": "proposal-subject-1",
+                    "text": "corneal ulcer",
+                    "language": "en",
+                    "sources": ["ICD10"],
+                },
+            )
+        except Exception as error:
+            assert getattr(error, "status_code", None) == 404
+        else:
+            raise AssertionError("candidate search must keep the imported FHIR resource type")
+
+
 def test_applies_review_to_durable_subject_and_promotes_it_without_conversion_task() -> None:
     manager, vault, search, feedback = _manager()
     subject = _research_subject("subject-1", STUDY)

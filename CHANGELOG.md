@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.8.16 - 2026-09-26
+
+- Add tenant-scoped deletion of one exact adapter configuration from the
+  DataConv catalog, restricted to controllers by `dataconv.config.write`.
+- Preserve existing conversion jobs and results when their reusable mapping
+  configuration is deleted.
+
 ## 0.8.15 - 2026-09-25
 
 - Add a study-authorized candidate-search operation for one pending coding

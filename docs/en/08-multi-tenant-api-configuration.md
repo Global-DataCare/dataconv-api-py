@@ -63,9 +63,10 @@ Do not overwrite records without optimistic locking by `revision`.
 
 1. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create`
 2. `POST /publisher/cds-{jurisdiction}/v1/{sector}/{alternate-name}/config/_search`
-3. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
-4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
-5. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
+3. `DELETE /publisher/cds-{jurisdiction}/v1/{sector}/{alternate-name}/config/{config-id}`
+4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
+5. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
+6. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
 
 Behavior summary:
 
@@ -80,6 +81,8 @@ Behavior summary:
   `Anamnesis -> concept`, map `Diagnostico -> Condition.code-text`, and map
   treatment free text to `Procedure.code-text`. `DiagnosticReport.code-text`
   names a diagnostic report or panel, not the diagnosed condition.
+- Deletion requires `dataconv.config.write`, is restricted to the exact tenant,
+  jurisdiction and sector, and does not remove completed or pending imports.
 - A friendly configuration `softwareId` does not select executable code.
   `runtimeDefaults.adapterId` retains the controlled parser implementation
   (for these workbook-derived copies, `api-config`) while the named version is

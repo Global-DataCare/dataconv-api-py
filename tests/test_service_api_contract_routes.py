@@ -119,6 +119,10 @@ class ServiceApiContractRoutesTests(unittest.TestCase):
             paths,
         )
         self.assertIn(
+            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/config/{config-id}",
+            paths,
+        )
+        self.assertIn(
             "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_upload",
             paths,
         )

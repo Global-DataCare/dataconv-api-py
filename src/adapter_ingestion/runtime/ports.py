@@ -23,6 +23,11 @@ class ConfigStore(ABC):
         """Return stored configurations for manager-owned authorization/filtering."""
         raise NotImplementedError
 
+    @abstractmethod
+    def delete(self, key: ConfigKey) -> bool:
+        """Delete one exact normalized configuration key."""
+        raise NotImplementedError
+
 
 class JobStore(ABC):
     @abstractmethod

@@ -90,6 +90,9 @@ class PreconversionControlPlane:
         """Return configuration records; callers must enforce tenant boundaries."""
         return self.config_store.list()
 
+    def delete_config(self, key: ConfigKey) -> bool:
+        return self.config_store.delete(key.normalized())
+
     def submit_job(self, request: JobRequest) -> JobRecord:
         queued = JobRecord.new_queued(request=request)
         self.job_store.put(queued)

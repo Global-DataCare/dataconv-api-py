@@ -8,6 +8,7 @@ from .dependencies import ApiManagerDependencies
 from .tenant_config_create import TenantConfigCreateManager
 from .tenant_config_poll import TenantConfigPollManager
 from .tenant_config_search import TenantConfigSearchManager
+from .tenant_config_delete import TenantConfigDeleteManager
 
 from .conversion_patch import ConversionPatchManager
 from .conversion_search import ConversionSearchManager
@@ -33,6 +34,7 @@ __all__ = [
     "TenantApiKeyManager",
     "TenantConfigCreateManager",
     "TenantConfigPollManager",
+    "TenantConfigDeleteManager",
     "TenantConfigSearchManager",
     "TokenExchangeManager",
     "SmartResearchTokenExchangeManager",

@@ -41,6 +41,7 @@ from .managers import (
     OrganizationTenantActivationManager,
     TenantApiKeyManager,
     TenantConfigCreateManager,
+    TenantConfigDeleteManager,
     TenantConfigPollManager,
     TenantConfigSearchManager,
     TokenExchangeManager,
@@ -98,6 +99,7 @@ def create_app():
     config_create_manager = TenantConfigCreateManager(deps)
     config_poll_manager = TenantConfigPollManager(deps)
     config_search_manager = TenantConfigSearchManager(deps)
+    config_delete_manager = TenantConfigDeleteManager(deps)
     upload_manager = ConversionUploadManager(deps)
     upload_poll_manager = ConversionUploadPollManager(deps)
     batch_manager = ConversionBatchManager(deps)
@@ -321,6 +323,7 @@ def create_app():
         config_create_manager=config_create_manager,
         config_poll_manager=config_poll_manager,
         config_search_manager=config_search_manager,
+        config_delete_manager=config_delete_manager,
     )
     register_digital_twin_routes(
         app,

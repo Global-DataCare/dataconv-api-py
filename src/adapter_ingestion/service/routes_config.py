@@ -17,7 +17,7 @@ except ImportError:  # pragma: no cover
 from .api_support import Body, DidcommJSONResponse, Path, Request, Response
 
 
-def register_config_routes(app, *, config_create_manager, config_poll_manager, config_search_manager) -> None:  # type: ignore[no-untyped-def]
+def register_config_routes(app, *, config_create_manager, config_poll_manager, config_search_manager, config_delete_manager) -> None:  # type: ignore[no-untyped-def]
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create",
         status_code=202,
@@ -136,4 +136,28 @@ def register_config_routes(app, *, config_create_manager, config_poll_manager, c
             jurisdiction=jurisdiction,
             request=request,
             body=body,
+        )
+
+    @app.delete(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/config/{config_id}",
+        tags=["3.3 Publisher Config Catalog"],
+        summary="Delete one tenant adapter configuration",
+        description=(
+            "Deletes one exact adapter configuration owned by the authenticated tenant. "
+            "The caller requires `dataconv.config.write`; existing conversion results are unchanged."
+        ),
+    )
+    def delete_tenant_config(
+        tenant_id: str,
+        sector: str,
+        jurisdiction: str,
+        config_id: str,
+        request: Request,
+    ) -> dict[str, Any]:
+        return config_delete_manager.delete(
+            tenant_id=tenant_id,
+            sector=sector,
+            jurisdiction=jurisdiction,
+            config_id=config_id,
+            request=request,
         )

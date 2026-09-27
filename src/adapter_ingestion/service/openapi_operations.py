@@ -22,6 +22,7 @@ from .openapi_constants import (
     BATCH_PATH,
     CREATE_PATH,
     CREATE_RESPONSE_PATH,
+    DELETE_CONFIG_PATH,
     CONTROLLER_EXCHANGE_PATH,
     CONTROLLER_EXCHANGE_RESPONSE_PATH,
     EXCHANGE_PATH,
@@ -162,6 +163,7 @@ def configure_operations(
 ) -> None:
     create_operation = rewritten_paths.get(CREATE_PATH, {}).get("post")
     create_response_operation = rewritten_paths.get(CREATE_RESPONSE_PATH, {}).get("post")
+    delete_config_operation = rewritten_paths.get(DELETE_CONFIG_PATH, {}).get("delete")
     upload_operation = rewritten_paths.get(UPLOAD_PATH, {}).get("post")
     upload_response_operation = rewritten_paths.get(UPLOAD_RESPONSE_PATH, {}).get("post")
     legacy_upload_operation = rewritten_paths.get(LEGACY_UPLOAD_PATH, {}).get("post")
@@ -186,6 +188,20 @@ def configure_operations(
     api_key_disable_operation = rewritten_paths.get(API_KEY_DISABLE_PATH, {}).get("post")
     api_key_remove_operation = rewritten_paths.get(API_KEY_REMOVE_PATH, {}).get("post")
     api_key_search_operation = rewritten_paths.get(API_KEY_SEARCH_PATH, {}).get("post")
+
+    if isinstance(delete_config_operation, dict):
+        delete_config_operation["security"] = [{"BearerAuth": []}]
+        set_path_param_description(
+            delete_config_operation,
+            "tenant-id",
+            "Stable organization identifier (`taxId` / `VAT`) used as tenant id.",
+        )
+        set_path_param_description(
+            delete_config_operation,
+            "config-id",
+            "Opaque configuration id returned by the tenant config catalog.",
+        )
+        set_operation_outcome_error_responses(delete_config_operation, include_404=True)
 
     if isinstance(create_operation, dict):
         create_operation["tags"] = ["3.1 Publisher Config Request"]

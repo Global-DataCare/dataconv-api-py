@@ -65,6 +65,7 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         self.assertIn("/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create", paths)
         self.assertIn("/host/cds-{jurisdiction}/v1/{sector}/{tenant_id}/{software_id}/config/_create-response", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/config/_search", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/config/{config_id}", paths)
         self.assertIn("/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload", paths)
         self.assertIn("/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_upload-response", paths)
         self.assertIn("/{tenant_id}/cds-{jurisdiction}/v1/{sector}/digitaltwin/{software_id}/{resource_type}/_patch", paths)
@@ -75,6 +76,7 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         paths = schema.get("paths", {})
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/{software-id}/config/_create", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/config/_search", paths)
+        self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/config/{config-id}", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_upload", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_patch", paths)
         self.assertIn("/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{resource-type}/_search", paths)
@@ -161,6 +163,19 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         )
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(allowed.json()["data"][0]["softwareId"], "pinol-condition-v2")
+
+        denied = TestClient(self.app).delete(
+            f"/publisher/cds-CA-BC/v1/animal-research/clinic-a/config/{response.json()['data'][0]['id']}",
+            headers={"Authorization": f"Bearer {professional_token}"},
+        )
+        self.assertEqual(denied.status_code, 403)
+
+        deleted = TestClient(self.app).delete(
+            f"/publisher/cds-CA-BC/v1/animal-research/clinic-a/config/{response.json()['data'][0]['id']}",
+            headers={"Authorization": f"Bearer {controller_token}"},
+        )
+        self.assertEqual(deleted.status_code, 200)
+        self.assertEqual(deleted.json(), {"deleted": True, "id": response.json()["data"][0]["id"]})
 
 
 if __name__ == "__main__":

@@ -25,6 +25,9 @@ class InMemoryConfigStore(ConfigStore):
     def list(self) -> list[StoredConfig]:
         return list(self._items.values())
 
+    def delete(self, key: ConfigKey) -> bool:
+        return self._items.pop(key.normalized().as_token(), None) is not None
+
 
 class InMemoryJobStore(JobStore):
     def __init__(self) -> None:

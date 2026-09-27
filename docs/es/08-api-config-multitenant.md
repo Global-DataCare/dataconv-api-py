@@ -96,13 +96,17 @@ El `softwareId` legible de la configuración no selecciona código ejecutable.
 derivadas de un Excel, `api-config`) y el nombre/versión solo resuelve la
 configuración del tenant.
 
-3. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
+3. `DELETE /publisher/cds-{jurisdiction}/v1/{sector}/{alternate-name}/config/{config-id}`
+Elimina una configuración exacta del tenant con `dataconv.config.write`. No
+elimina importaciones pendientes ni resultados ya generados.
+
+4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/{software-id}/config/_create-response`
 Retrieve de respuesta de `_create` por `thid` (patrón `action` -> `action-response`).
 
-4. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
+5. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload`
 Request de subida y encolado asíncrono de conversión.
 
-5. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
+6. `POST /publisher/cds-{jurisdiction}/v1/animal-care/{alternate-name}/dataset/{software-id}/{csv|excel}/_upload-response`
 Retrieve de estado/resultado asíncrono por `thid` (patrón `action` -> `action-response`).
 
 Respuesta:

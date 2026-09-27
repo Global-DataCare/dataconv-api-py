@@ -329,6 +329,14 @@ class FirestoreConfigStore(ConfigStore):
                 configs.append(_dict_to_config(payload))
         return configs
 
+    def delete(self, key: ConfigKey) -> bool:
+        doc_ref = self._client.collection(self._collection).document(_safe_token(key.normalized().as_token()))
+        snap = doc_ref.get()
+        if not snap.exists:
+            return False
+        doc_ref.delete()
+        return True
+
 
 class FirestoreJobStore(JobStore):
     def __init__(self, *, project_id: str, collection: str) -> None:

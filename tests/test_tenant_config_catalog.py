@@ -25,6 +25,7 @@ from adapter_ingestion.runtime.adapters import (
     InMemoryVaultRepository,
 )
 from adapter_ingestion.service.managers.dependencies import ApiManagerDependencies
+from adapter_ingestion.service.managers.tenant_config_delete import TenantConfigDeleteManager
 from adapter_ingestion.service.managers.tenant_config_search import TenantConfigSearchManager
 from adapter_ingestion.service.settings import load_settings
 from adapter_ingestion.service.api_support import _compose_software_id_token
@@ -46,6 +47,7 @@ class TenantConfigCatalogTests(unittest.TestCase):
             search_repo=InMemorySearchRepository(),
             config_create_responses={},
         ))
+        self.delete_manager = TenantConfigDeleteManager(self.manager._deps)
 
     def _save(self, *, tenant: str, software: str, version: str, target: str) -> None:
         self.control_plane.upsert_config(
@@ -117,6 +119,47 @@ class TenantConfigCatalogTests(unittest.TestCase):
             enforce_scopes_in_demo=True,
             expected_organization="clinic-a",
         )
+
+    @patch("adapter_ingestion.service.managers.tenant_config_delete._enforce_auth_context")
+    def test_deletes_only_the_exact_configuration_owned_by_the_authorized_tenant(self, enforce) -> None:
+        self._save(tenant="clinic-a", software="pinol-vepahi", version="v1", target="Condition.code-text")
+        self._save(tenant="clinic-b", software="pinol-vepahi", version="v1", target="Condition.code-text")
+        owned = next(config for config in self.control_plane.list_configs() if config.key.alternate_name == "clinic-a")
+
+        result = self.delete_manager.delete(
+            tenant_id="clinic-a",
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            config_id=owned.object_id,
+            request=SimpleNamespace(headers={"authorization": "Bearer controller-token"}),
+        )
+
+        self.assertEqual(result, {"deleted": True, "id": owned.object_id})
+        self.assertEqual([config.key.alternate_name for config in self.control_plane.list_configs()], ["clinic-b"])
+        enforce.assert_called_once_with(
+            {},
+            self.delete_manager._deps.settings,
+            authorization_header="Bearer controller-token",
+            require_token=True,
+            required_scopes={"dataconv.config.write"},
+            enforce_scopes_in_demo=True,
+            expected_organization="clinic-a",
+        )
+
+    @patch("adapter_ingestion.service.managers.tenant_config_delete._enforce_auth_context")
+    def test_hides_a_configuration_owned_by_another_tenant(self, _enforce) -> None:
+        self._save(tenant="clinic-b", software="pinol-vepahi", version="v1", target="Condition.code-text")
+        foreign = self.control_plane.list_configs()[0]
+
+        with self.assertRaisesRegex(Exception, "Tenant adapter configuration not found") as caught:
+            self.delete_manager.delete(
+                tenant_id="clinic-a",
+                jurisdiction="CA-BC",
+                sector="animal-research",
+                config_id=foreign.object_id,
+                request=SimpleNamespace(headers={"authorization": "Bearer controller-token"}),
+            )
+        self.assertEqual(getattr(caught.exception, "status_code", None), 404)
 
 
 if __name__ == "__main__":

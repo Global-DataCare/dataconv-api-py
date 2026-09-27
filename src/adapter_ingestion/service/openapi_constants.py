@@ -7,6 +7,7 @@ PUBLIC_PATH_PARAMS = {
     "tenant_id": "tenant-id",
     "manufacturer": "software-id",
     "software_id": "software-id",
+    "config_id": "config-id",
     "resource_type": "resource-type",
     "sector": "sector",
     "job_id": "job-id",
@@ -14,6 +15,7 @@ PUBLIC_PATH_PARAMS = {
 
 CREATE_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/{software-id}/config/_create"
 CREATE_RESPONSE_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/{software-id}/config/_create-response"
+DELETE_CONFIG_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/config/{config-id}"
 UPLOAD_PATH = "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_upload"
 UPLOAD_RESPONSE_PATH = (
     "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant-id}/dataset/{software-id}/{resource-type}/_upload-response"

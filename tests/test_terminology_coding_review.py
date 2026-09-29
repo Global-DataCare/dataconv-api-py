@@ -189,6 +189,11 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
     subject = result.composition_message["body"]["data"][0]["resource"]
     condition = next(item for item in subject["contained"] if item["resourceType"] == "Condition")
     proposal = condition["meta"]["codingProposals"][0]
+    proposal["reclassifiedFrom"] = {
+        "resourceType": "DiagnosticReport",
+        "resourceId": "diagnostic-source",
+        "field": "DiagnosticReport.code",
+    }
     sink = RecordingFeedbackSink()
 
     applied = apply_coding_reviews(
@@ -219,6 +224,11 @@ def test_human_selection_materializes_code_and_english_display_and_emits_feedbac
     assert sink.events[0]["fhirVersion"] == "R4"
     assert sink.events[0]["sector"] == "animal-care"
     assert sink.events[0]["jurisdiction"] == "CA-BC"
+    assert sink.events[0]["reclassifiedFrom"] == {
+        "resourceType": "DiagnosticReport",
+        "resourceId": "diagnostic-source",
+        "field": "DiagnosticReport.code",
+    }
 
     search = InMemorySearchRepository()
     search.upsert(vault_id="reviewed", resource_type="Condition", resource=condition)

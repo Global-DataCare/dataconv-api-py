@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from gdc_data_utils import CLAIMS_BY_RESOURCE, ProcedureClaim
+from gdc_data_utils import CLAIMS_BY_RESOURCE, ConditionClaim, DiagnosticReportClaim, ProcedureClaim
 import hashlib
 import re
 import uuid
@@ -26,6 +26,7 @@ from .xlsx_common import (
     slug,
 )
 from ..models import AdapterContext, CanonicalRecord, stable_id
+from ..source_concept_classification import classify_source_concept
 
 
 _BASE58BTC_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -833,6 +834,26 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                 subfamily=subfamily,
                 coding_input_rules=coding_input_rules,
             )
+            if not coding_inputs and concept:
+                concept_candidates = classify_source_concept(
+                    section=section,
+                    family=family,
+                    subfamily=subfamily,
+                    concept=concept,
+                    subject_kind=context.subject_kind,
+                )
+                concept_target = {
+                    "Condition": ConditionClaim.CODE,
+                    "Procedure": ProcedureClaim.CODE,
+                    "DiagnosticReport": DiagnosticReportClaim.CODE,
+                }
+                supported_targets = {
+                    concept_target[candidate.resource_type]
+                    for candidate in concept_candidates
+                    if candidate.resource_type in concept_target
+                }
+                if len(supported_targets) == 1:
+                    coding_inputs[next(iter(supported_targets))] = concept
             for target_claim, source_text in coding_inputs.items():
                 local_text_claim = f"{target_claim}-text"
                 if local_text_claim in _CANONICAL_FLAT_CLAIMS:

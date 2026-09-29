@@ -105,6 +105,56 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         )
 
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$review-reclassify",
+        tags=["4.7 Research Coding Review"],
+        summary="Reclassify one pending local-text proposal",
+        response_class=JSONResponse,
+        description=(
+            "Moves one unresolved proposal to an explicit supported FHIR resource and code field before "
+            "terminology search. Existing candidates are cleared because their capability belonged to the old field."
+        ),
+    )
+    def reclassify_pending_research_coding_proposal(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return research_coding_review_manager.reclassify_pending(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            body=body,
+        )
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$review-discard",
+        tags=["4.7 Research Coding Review"],
+        summary="Discard one exact pending import draft",
+        response_class=JSONResponse,
+        description=(
+            "Deletes only the still-unreviewed draft graph correlated by ResearchStudy and import thid. "
+            "The completed Task remains available as import audit history."
+        ),
+    )
+    def discard_pending_research_import(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return research_coding_review_manager.discard_pending_import(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            body=body,
+        )
+
+    @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$review",
         tags=["4.7 Research Coding Review"],
         summary="Apply coding reviews to durable study drafts",

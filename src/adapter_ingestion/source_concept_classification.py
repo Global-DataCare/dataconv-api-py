@@ -92,6 +92,10 @@ def classify_source_concept(
         return (_candidate("Procedure", source_text, "medium", "procedure hierarchy or wording"),)
     if any(word in coordinates for word in ("analisis", "laboratorio", "hemograma", "bioquimica")):
         return (_candidate("DiagnosticReport", source_text, "medium", "laboratory or analysis hierarchy"),)
+    if any(word in coordinates for word in (
+        "diagnostico", "patologia", "fractura", "lesion", "herida", "ulcera", "infeccion",
+    )):
+        return (_candidate("Condition", source_text, "medium", "diagnosis or pathology hierarchy and wording"),)
     if any(word in coordinates for word in ("consulta", "visita", "urgencia")):
         return (_candidate("Encounter", source_text, "medium", "encounter hierarchy or wording"),)
     if any(word in coordinates for word in ("medicamento", "farmaco")):

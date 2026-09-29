@@ -36,11 +36,31 @@ es únicamente una proyección opcional.
 
 Durante la revisión, el profesional puede repetir la búsqueda con otro texto
 acotado, idioma y una fuente terminológica permitida. DataConv ejecuta esa
-consulta mediante `ResearchSubject/$review-candidates`, guarda únicamente los
-candidatos devueltos por el servicio terminológico y no permite cambiar el tipo
-de recurso ni el claim importados. Por tanto, un `DiagnosticReport.code-text`
-mal mapeado se corrige copiando la configuración API y reimportando como
-`Condition.code-text`; la búsqueda de revisión no disfraza el tipo incorrecto.
+consulta mediante `ResearchSubject/$review-candidates` y guarda únicamente los
+candidatos devueltos por el servicio terminológico.
+
+Si el destino inferido es incorrecto, `ResearchSubject/$review-reclassify`
+mueve la propuesta todavía no resuelta a uno de los destinos clínicos
+gobernados (`Condition.code`, `Procedure.code` o `DiagnosticReport.code`). La
+operación conserva el texto original y `rowContext`, borra candidatos del
+destino anterior y obliga a buscar y confirmar de nuevo contra la terminología
+compatible con el nuevo recurso. No convierte LOINC en un código de diagnóstico
+ni cambia silenciosamente una propuesta ya revisada.
+
+`ResearchSubject/$review-discard` permite descartar el grafo draft todavía no
+revisado de un `thid` de importación exacto cuando el mapping de origen era
+incorrecto. La `Task` terminada no se borra: permanece como auditoría. Si existe
+alguna decisión ya resuelta, el descarte completo se rechaza para no eliminar
+trabajo profesional confirmado.
+
+La clasificación automática combina `section`, `family`, `subfamily`,
+`concept`, `treatment`, especie, idioma y el resto de `rowContext`. Las reglas
+deterministas crean el primer destino y la terminología aporta candidatos; una
+IA puede ordenarlos, pero no confirma códigos. Cada confirmación emite feedback
+con contexto, candidatos aceptados y rechazados, revisor y, cuando proceda,
+`reclassifiedFrom`. Es material para un dataset supervisado versionado y
+evaluado fuera de línea; nunca provoca aprendizaje automático en producción a
+partir de una única decisión.
 
 En esa proyección, `<Resource>.code-text` contiene el texto local original y
 canónico; `coding-proposal:*` contiene los candidatos no confirmados y

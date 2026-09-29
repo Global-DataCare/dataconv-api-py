@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.8.18 - 2026-09-29
+
+- Preserve the rejected terminology service status, route and bounded response
+  detail in conversion failures while redacting authorization and query values.
+  This keeps failed import Tasks actionable without disclosing clinical source
+  text or service credentials.
+
 ## 0.8.17 - 2026-09-29
 
 - Infer generic `concept` diagnosis, procedure and report targets from the

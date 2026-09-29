@@ -6,7 +6,8 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 from typing import Any, Callable, Protocol
-from urllib.parse import urlencode
+from urllib.error import HTTPError
+from urllib.parse import parse_qsl, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 from .base import CodingSuggestion
@@ -42,8 +43,20 @@ class UrlLibJsonTransport:
     ) -> dict[str, Any]:
         payload = None if body is None else json.dumps(body).encode("utf-8")
         request = Request(url=url, method=method, headers=headers, data=payload)
-        with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310 - configured service URL
-            parsed = json.loads(response.read().decode("utf-8"))
+        try:
+            with urlopen(request, timeout=self._timeout_seconds) as response:  # noqa: S310 - configured service URL
+                parsed = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            location = urlsplit(url)
+            detail = exc.read(2048).decode("utf-8", errors="replace").strip()
+            sensitive_values = [value for _, value in parse_qsl(location.query, keep_blank_values=False)]
+            sensitive_values.extend(str(value) for value in headers.values() if str(value))
+            for sensitive_value in sorted(set(sensitive_values), key=len, reverse=True):
+                detail = detail.replace(sensitive_value, "[redacted]")
+            suffix = f": {detail}" if detail else ""
+            raise RuntimeError(
+                f"service request rejected ({exc.code}) {location.path}{suffix}"
+            ) from exc
         if not isinstance(parsed, dict):
             raise RuntimeError("service response must be a JSON object")
         return parsed

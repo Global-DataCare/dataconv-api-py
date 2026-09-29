@@ -7,15 +7,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from io import BytesIO
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 import pytest
 
+import adapter_ingestion.ai.http as http_module
 from adapter_ingestion.ai.http import (
     TERMINOLOGY_QUERY_TEXT_MIN_LENGTH,
     TERMINOLOGY_QUERY_TEXT_MAX_LENGTH,
     HttpCodingModelClient,
     HttpReviewedTerminologySink,
     HttpTerminologyClient,
+    UrlLibJsonTransport,
 )
 from adapter_ingestion.ai.terminology import CodingRankRequest, TerminologyCandidate, TerminologySearchRequest
 
@@ -28,6 +32,36 @@ class RecordingTransport:
     def request(self, *, method: str, url: str, headers: dict[str, str], body: dict | None = None) -> dict:
         self.calls.append({"method": method, "url": url, "headers": headers, "body": body})
         return self.responses.pop(0)
+
+
+def test_url_transport_reports_rejected_service_contract_without_leaking_query_or_authorization(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject(*_args: object, **_kwargs: object) -> object:
+        raise HTTPError(
+            url="https://terminology.example/v1/terminology/candidates?text=private-clinical-text",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=BytesIO(b'{"errors":[{"code":"unsupported_field","detail":"Condition.code is required"}]}'),
+        )
+
+    monkeypatch.setattr(http_module, "urlopen", reject)
+
+    with pytest.raises(RuntimeError) as caught:
+        UrlLibJsonTransport().request(
+            method="GET",
+            url="https://terminology.example/v1/terminology/candidates?text=private-clinical-text",
+            headers={"authorization": "Bearer private-token"},
+        )
+
+    message = str(caught.value)
+    assert "400" in message
+    assert "/v1/terminology/candidates" in message
+    assert "unsupported_field" in message
+    assert "Condition.code is required" in message
+    assert "private-clinical-text" not in message
+    assert "private-token" not in message
 
 
 def test_terminology_jsonapi_response_preserves_every_code_and_system() -> None:

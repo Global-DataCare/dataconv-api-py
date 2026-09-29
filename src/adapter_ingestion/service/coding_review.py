@@ -176,6 +176,7 @@ def apply_coding_reviews(
                 "jurisdiction": str(proposal.get("jurisdiction", "")),
                 "subjectKind": str(proposal.get("subjectKind", "")),
                 "rowContext": dict(proposal.get("rowContext", {})),
+                "reclassifiedFrom": dict(proposal.get("reclassifiedFrom", {})),
                 "candidates": list(proposal.get("candidates", [])),
                 "selectedCandidateId": selected_id,
                 "rejectedCandidateIds": rejected,

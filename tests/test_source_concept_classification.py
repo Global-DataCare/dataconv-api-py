@@ -67,3 +67,16 @@ def test_unclassified_concept_stays_explicitly_pending() -> None:
 
     assert [item.resource_type for item in candidates] == ["Unclassified"]
     assert candidates[0].confidence == "pending"
+
+
+def test_fracture_concept_is_a_condition_candidate_not_a_diagnostic_report() -> None:
+    candidates = classify_source_concept(
+        section="CLINICA",
+        family="DIAGNOSTICO",
+        subfamily="TRAUMATOLOGIA",
+        concept="Fractura de sesamoideo",
+        subject_kind="animal",
+    )
+
+    assert [item.resource_type for item in candidates] == ["Condition"]
+    assert candidates[0].source_text == "Fractura de sesamoideo"

@@ -103,6 +103,33 @@ def test_explicit_diagnostic_report_text_remains_a_diagnostic_report_claim() -> 
     assert _search_fields(diagnostic_report)["diagnosticreport_code-text"] == "Informe radiológico"
 
 
+def test_generic_concept_derives_a_condition_proposal_from_all_hierarchy_coordinates() -> None:
+    csv_text = (
+        "API-CONFIG:language=es:subjectKind=animal:dataUse=secondary\n"
+        "date,subject_id,section,family,subfamily,concept\n"
+        "FECHA,SUJETO,SECCION,FAMILIA,SUBFAMILIA,CONCEPTO\n"
+        "2026-03-19,11111111-1111-4111-8111-111111111111,clinica,diagnostico,traumatologia,Fractura de sesamoideo\n"
+    )
+    with NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as tmp:
+        tmp.write(csv_text)
+        path = Path(tmp.name)
+    try:
+        embedded = extract_embedded_api_config(path)
+        assert embedded is not None
+        records = get_adapter("api-config").read_records(path, _context(embedded["schemaConfig"]))
+    finally:
+        path.unlink(missing_ok=True)
+
+    assert records[0].coding_inputs == {ConditionClaim.CODE: "Fractura de sesamoideo"}
+    assert records[0].flat_claims[ConditionClaim.CODE_TEXT] == "Fractura de sesamoideo"
+    result = run_pipeline(records, _context(embedded["schemaConfig"]), NoopCodingAssistant())
+    aggregate = result.composition_message["body"]["data"][0]["resource"]
+    condition = next(resource for resource in aggregate["contained"] if resource.get("resourceType") == "Condition")
+    assert condition["meta"]["codingProposals"][0]["field"] == ConditionClaim.CODE
+    assert condition["meta"]["codingProposals"][0]["candidates"] == []
+    assert not any(resource.get("resourceType") == "DiagnosticReport" for resource in aggregate["contained"])
+
+
 def test_orphan_procedure_display_is_normalized_to_local_text_for_review() -> None:
     csv_text = (
         "API-CONFIG:language=es:subjectKind=animal:dataUse=secondary\n"

@@ -80,3 +80,94 @@ def test_http_search_returns_durable_pending_research_subjects() -> None:
     payload = response.json()
     assert payload["total"] == 1
     assert payload["entry"][0]["resource"]["contained"][0]["meta"]["codingProposals"][0]["id"] == "proposal-1"
+
+
+def test_http_reclassifies_then_discards_the_exact_pending_import() -> None:
+    environment = {
+        "NODE_ENV": "test",
+        "HOST_INTERNAL_IP": "127.0.0.1",
+        "PORT": "8080",
+        "DB_PROVIDER": "mem",
+        "SEARCH_PROVIDER": "mem",
+        "QUEUE_PROVIDER": "mem",
+        "STORAGE_PROVIDER": "mem",
+        "NETWORK_KIND": "test",
+        "PRECONV_LOCAL_DATA_DIR": str(ROOT / "artifacts" / "test-runtime"),
+        "PRECONV_DEFAULT_SPECIES_FHIR_FILE": str(
+            ROOT / "configs" / "fhir-target-species.template.editable.json"
+        ),
+        "ICLAIMS_APP_ID": "vet-claims-api",
+        "ICLAIMS_VERTICAL": "vet",
+        "ICLAIMS_LOCALE": "es",
+        "ICLAIMS_CODE_DOMAIN": "none",
+        "ICLAIMS_INFERENCE_DOMAIN": "none",
+        "DEMO_MODE": "true",
+    }
+    with patch.dict(os.environ, environment, clear=False):
+        sys.modules.pop("adapter_ingestion.service.api", None)
+        service_api = importlib.import_module("adapter_ingestion.service.api")
+        app = importlib.reload(service_api).create_app()
+        vault_id = "test__ca-bc__animal-research__research-tenant"
+        subject = {
+            "resourceType": "ResearchSubject",
+            "id": "subject-http-reclassify",
+            "meta": {"claims": {"ResearchSubject.study": "ResearchStudy/study-http-review"}},
+            "contained": [
+                {
+                    "resourceType": "Composition",
+                    "id": "composition-http-reclassify",
+                    "meta": {"claims": {
+                        "Composition.subject": "ResearchSubject/subject-http-reclassify",
+                        "Composition.section": "http://loinc.org|11450-4",
+                        "Composition.entry": "urn:uuid:diagnostic-http-reclassify",
+                        "Composition.relatesto-target": "job-http-reclassify",
+                    }},
+                },
+                {
+                    "resourceType": "DiagnosticReport",
+                    "id": "diagnostic-http-reclassify",
+                    "meta": {
+                        "claims": {"DiagnosticReport.code-text": "fractura de sesamoideo"},
+                        "codingProposals": [{
+                            "id": "proposal-http-reclassify",
+                            "status": "proposed",
+                            "field": "DiagnosticReport.code",
+                            "inputText": "fractura de sesamoideo",
+                            "language": "es",
+                            "rowContext": {},
+                            "candidates": [],
+                        }],
+                    },
+                },
+            ],
+        }
+        app.state.vault_repo.put(vault_id, [subject], "ResearchSubject")
+        app.state.vault_repo.put(vault_id, subject["contained"], "Composition")
+        app.state.vault_repo.put(vault_id, [subject["contained"][1]], "DiagnosticReport")
+        client = TestClient(app)
+        route = "/publisher/cds-CA-BC/v1/animal-research/research-tenant/dataset/ResearchSubject"
+        reclassified = client.post(
+            f"{route}/$review-reclassify",
+            headers={"Authorization": "Bearer demo-token"},
+            json={
+                "researchStudy": {"reference": "ResearchStudy/study-http-review"},
+                "resourceType": "DiagnosticReport",
+                "resourceId": "diagnostic-http-reclassify",
+                "proposalId": "proposal-http-reclassify",
+                "targetResourceType": "Condition",
+                "targetField": "Condition.code",
+            },
+        )
+        discarded = client.post(
+            f"{route}/$review-discard",
+            headers={"Authorization": "Bearer demo-token"},
+            json={
+                "researchStudy": {"reference": "ResearchStudy/study-http-review"},
+                "thid": "job-http-reclassify",
+            },
+        )
+
+    assert reclassified.status_code == 200
+    assert reclassified.json()["field"] == "Condition.code"
+    assert discarded.status_code == 200
+    assert discarded.json()["discardedSubjectCount"] == 1

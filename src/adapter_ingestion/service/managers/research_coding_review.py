@@ -10,10 +10,12 @@ import re
 from typing import Any
 
 from ...ai.terminology import TerminologyCandidate, TerminologySearchRequest
+from gdc_data_utils import ConditionClaim, DiagnosticReportClaim, FHIR_API_CONTEXT, ProcedureClaim
 from ...models import stable_uuid
 from ..api_support import HTTPException, _enforce_auth_context, _enforce_supported_scope
 from ..coding_review import apply_coding_reviews, has_pending_coding_proposals
 from ..research import build_storage_namespace
+from ..research_drafts import _safe_token
 from ..research_study import (
     RESEARCH_SUBJECT_STUDY_CLAIM,
     normalize_research_study_reference,
@@ -60,6 +62,51 @@ def _candidate(resource_type: str, field: str, value: TerminologyCandidate) -> d
         "recommendationPercent": 0.0,
         "evidence": "terminology candidate",
     }
+
+
+_RECLASSIFICATION_TARGETS = {
+    ("Condition", ConditionClaim.CODE): {
+        "identifier": ConditionClaim.IDENTIFIER,
+        "subject": ConditionClaim.SUBJECT,
+        "status": {
+            ConditionClaim.CLINICAL_STATUS: "active",
+            ConditionClaim.VERIFICATION_STATUS: "provisional",
+        },
+    },
+    ("Procedure", ProcedureClaim.CODE): {
+        "identifier": ProcedureClaim.IDENTIFIER,
+        "subject": ProcedureClaim.SUBJECT,
+        "status": {ProcedureClaim.STATUS: "unknown"},
+    },
+    ("DiagnosticReport", DiagnosticReportClaim.CODE): {
+        "identifier": DiagnosticReportClaim.IDENTIFIER,
+        "subject": DiagnosticReportClaim.SUBJECT,
+        "status": {DiagnosticReportClaim.STATUS: "unknown"},
+    },
+}
+
+
+def _reference_ids(value: Any) -> list[str]:
+    return [
+        token.strip().removeprefix("urn:uuid:").rsplit("/", 1)[-1]
+        for token in str(value or "").split(",")
+        if token.strip()
+    ]
+
+
+def _resource_claims(resource: dict[str, Any]) -> dict[str, Any]:
+    meta = resource.get("meta")
+    claims = meta.get("claims") if isinstance(meta, dict) else None
+    return claims if isinstance(claims, dict) else {}
+
+
+def _pending_proposals(resource: dict[str, Any]) -> list[dict[str, Any]]:
+    meta = resource.get("meta")
+    proposals = meta.get("codingProposals") if isinstance(meta, dict) else None
+    return [
+        proposal for proposal in proposals or []
+        if isinstance(proposal, dict) and str(proposal.get("status", "")).strip() == "proposed"
+    ]
 
 
 def _hydrate_subject(
@@ -280,6 +327,244 @@ class ResearchCodingReviewManager:
                 "candidates": proposal["candidates"],
             }
         raise HTTPException(status_code=404, detail="pending coding proposal was not found in the authorized study")
+
+    def reclassify_pending(
+        self,
+        *,
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Any,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Move one unresolved local text proposal to an explicit FHIR target."""
+
+        payload = body if isinstance(body, dict) else {}
+        study = _study_from_reference(payload.get("researchStudy"))
+        vault_id = self._authorize(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            study=study,
+        )
+        source_type = str(payload.get("resourceType", "") or "").strip()
+        source_id = str(payload.get("resourceId", "") or "").strip()
+        proposal_id = str(payload.get("proposalId", "") or "").strip()
+        target_type = str(payload.get("targetResourceType", "") or "").strip()
+        target_field = str(payload.get("targetField", "") or "").strip()
+        target_profile = _RECLASSIFICATION_TARGETS.get((target_type, target_field))
+        if (
+            not re.fullmatch(r"[A-Z][A-Za-z0-9]*", source_type)
+            or not source_id
+            or not proposal_id
+            or target_profile is None
+        ):
+            raise HTTPException(status_code=400, detail="coding proposal reclassification target is invalid")
+
+        subjects = self._deps.vault_repo.query(
+            vault_id,
+            {RESEARCH_SUBJECT_STUDY_CLAIM: study},
+            "ResearchSubject",
+        )
+        for stored_subject in subjects:
+            subject = _hydrate_subject(self._deps.vault_repo, vault_id, stored_subject)
+            contained = subject.get("contained")
+            if not isinstance(contained, list):
+                continue
+            source = next((
+                resource for resource in contained
+                if isinstance(resource, dict)
+                and str(resource.get("resourceType", "")) == source_type
+                and str(resource.get("id", "")) == source_id
+            ), None)
+            if source is None:
+                continue
+            source_meta = source.get("meta")
+            proposals = source_meta.get("codingProposals") if isinstance(source_meta, dict) else None
+            proposal = next((
+                item for item in proposals or []
+                if isinstance(item, dict)
+                and str(item.get("id", "")) == proposal_id
+                and str(item.get("status", "")) == "proposed"
+            ), None)
+            if proposal is None:
+                continue
+            input_text = str(proposal.get("inputText", "") or "").strip()
+            language = str(proposal.get("language", "") or "und").strip() or "und"
+            if not input_text:
+                raise HTTPException(status_code=409, detail="coding proposal has no local text")
+            subject_id = str(subject.get("id", "") or "").strip()
+            target_id = stable_uuid(vault_id, subject_id, "reclassified", proposal_id, target_type, target_field)
+            target_claims = {
+                "@context": FHIR_API_CONTEXT,
+                str(target_profile["identifier"]): target_id,
+                str(target_profile["subject"]): f"ResearchSubject/{subject_id}",
+                f"{target_type}.language": language,
+                f"{target_field}-text": input_text,
+                **dict(target_profile["status"]),
+            }
+            moved_proposal = deepcopy(proposal)
+            moved_proposal["field"] = target_field
+            moved_proposal["candidates"] = []
+            moved_proposal.pop("selectedCandidateId", None)
+            moved_proposal.pop("userSelected", None)
+            moved_proposal.pop("reviewedAt", None)
+            moved_proposal["reclassifiedFrom"] = {
+                "resourceType": source_type,
+                "resourceId": source_id,
+                "field": str(proposal.get("field", "") or ""),
+            }
+            target = {
+                "resourceType": target_type,
+                "id": target_id,
+                "meta": {"claims": target_claims, "codingProposals": [moved_proposal]},
+            }
+
+            remaining_proposals = [item for item in proposals or [] if item is not proposal]
+            source_claims = _resource_claims(source)
+            source_claims.pop(f"{str(proposal.get('field', '') or '')}-text", None)
+            source_meta["codingProposals"] = remaining_proposals
+            meaningful_source_claims = [
+                key for key, value in source_claims.items()
+                if key != "@context" and str(value or "").strip()
+            ]
+            remove_source = not remaining_proposals and not meaningful_source_claims
+
+            updated_contained = [
+                item for item in contained
+                if not remove_source or item is not source
+            ]
+            updated_contained.append(target)
+            subject["contained"] = updated_contained
+
+            for resource in updated_contained:
+                if not isinstance(resource, dict) or str(resource.get("resourceType", "")) != "Composition":
+                    continue
+                claims = _resource_claims(resource)
+                entry_ids = _reference_ids(claims.get("Composition.entry"))
+                if source_id not in entry_ids:
+                    continue
+                replacement = [target_id if entry_id == source_id and remove_source else entry_id for entry_id in entry_ids]
+                if not remove_source:
+                    replacement.append(target_id)
+                claims["Composition.entry"] = ",".join(f"urn:uuid:{entry_id}" for entry_id in dict.fromkeys(replacement))
+                self._deps.vault_repo.put(vault_id, [resource], "Composition")
+
+            self._deps.vault_repo.put(vault_id, [target], target_type)
+            if remove_source:
+                self._deps.vault_repo.delete(vault_id, source_id, source_type)
+            else:
+                self._deps.vault_repo.put(vault_id, [source], source_type)
+            self._deps.vault_repo.put(vault_id, [subject], "ResearchSubject")
+            return {
+                "proposalId": proposal_id,
+                "resourceType": target_type,
+                "resourceId": target_id,
+                "field": target_field,
+            }
+        raise HTTPException(status_code=404, detail="pending coding proposal was not found in the authorized study")
+
+    def discard_pending_import(
+        self,
+        *,
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Any,
+        body: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Discard the still-unreviewed draft graph for one exact import thread."""
+
+        payload = body if isinstance(body, dict) else {}
+        study = _study_from_reference(payload.get("researchStudy"))
+        thid = str(payload.get("thid", "") or "").strip()
+        if not thid or len(thid) > 200:
+            raise HTTPException(status_code=400, detail="thid is required")
+        vault_id = self._authorize(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            study=study,
+        )
+        discarded_subjects = 0
+        discarded_resources = 0
+        subjects = self._deps.vault_repo.query(
+            vault_id,
+            {RESEARCH_SUBJECT_STUDY_CLAIM: study},
+            "ResearchSubject",
+        )
+        for stored_subject in subjects:
+            subject = _hydrate_subject(self._deps.vault_repo, vault_id, stored_subject)
+            contained = subject.get("contained")
+            if not isinstance(contained, list):
+                continue
+            compositions = [
+                item for item in contained
+                if isinstance(item, dict)
+                and str(item.get("resourceType", "")) == "Composition"
+                and str(_resource_claims(item).get("Composition.relatesto-target", "")) == thid
+            ]
+            if not compositions:
+                continue
+            entry_ids = {
+                entry_id
+                for composition in compositions
+                for entry_id in _reference_ids(_resource_claims(composition).get("Composition.entry"))
+            }
+            entries = [
+                item for item in contained
+                if isinstance(item, dict) and str(item.get("id", "")) in entry_ids
+            ]
+            proposals = [proposal for resource in entries for proposal in _pending_proposals(resource)]
+            has_resolved = any(
+                isinstance(proposal, dict) and str(proposal.get("status", "")) != "proposed"
+                for resource in entries
+                for proposal in (resource.get("meta", {}).get("codingProposals", []) or [])
+            )
+            if not proposals or has_resolved:
+                raise HTTPException(status_code=409, detail="only an entirely pending import draft can be discarded")
+            removed_ids = entry_ids | {str(item.get("id", "")) for item in compositions}
+            subject["contained"] = [
+                item for item in contained
+                if not isinstance(item, dict) or str(item.get("id", "")) not in removed_ids
+            ]
+            subject_id = str(subject.get("id", "") or "")
+            for composition in compositions:
+                claims = _resource_claims(composition)
+                section = _safe_token(str(claims.get("Composition.section", "")).split("|")[-1])
+                link_section = f"{subject_id}_{section}"
+                for entry_id in _reference_ids(claims.get("Composition.entry")):
+                    self._deps.vault_repo.delete(vault_id, entry_id, link_section)
+            for resource in [*compositions, *entries]:
+                resource_type = str(resource.get("resourceType", "") or "")
+                resource_id = str(resource.get("id", "") or "")
+                if resource_type and resource_id:
+                    self._deps.vault_repo.delete(vault_id, resource_id, resource_type)
+                    self._deps.search_repo.delete(
+                        vault_id=vault_id,
+                        resource_type=resource_type,
+                        resource_id=resource_id,
+                    )
+            if subject["contained"]:
+                self._deps.vault_repo.put(vault_id, [subject], "ResearchSubject")
+            else:
+                self._deps.vault_repo.delete(vault_id, subject_id, "ResearchSubject")
+                self._deps.search_repo.delete(
+                    vault_id=vault_id,
+                    resource_type="ResearchSubject",
+                    resource_id=subject_id,
+                )
+            discarded_subjects += 1
+            discarded_resources += len(removed_ids)
+        if discarded_subjects == 0:
+            raise HTTPException(status_code=404, detail="pending import draft was not found for thid")
+        return {
+            "thid": thid,
+            "discardedSubjectCount": discarded_subjects,
+            "discardedResourceCount": discarded_resources,
+        }
 
     def prepare_pending(
         self,

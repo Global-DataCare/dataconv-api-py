@@ -293,6 +293,140 @@ def test_candidate_search_cannot_retype_the_imported_resource() -> None:
             raise AssertionError("candidate search must keep the imported FHIR resource type")
 
 
+def test_reclassifies_a_pending_diagnostic_text_before_terminology_search() -> None:
+    manager, vault, _, _ = _manager(terminology_client=RecordingTerminologyClient())
+    subject = {
+        "resourceType": "ResearchSubject",
+        "id": "subject-reclassify",
+        "meta": {"claims": {"ResearchSubject.study": STUDY}},
+        "contained": [
+            {
+                "resourceType": "Composition",
+                "id": "composition-reclassify",
+                "meta": {"claims": {
+                    "Composition.subject": "ResearchSubject/subject-reclassify",
+                    "Composition.section": "http://loinc.org|11450-4",
+                    "Composition.entry": "urn:uuid:diagnostic-reclassify",
+                    "Composition.relatesto-target": "job-reclassify",
+                }},
+            },
+            {
+                "resourceType": "DiagnosticReport",
+                "id": "diagnostic-reclassify",
+                "meta": {
+                    "claims": {"DiagnosticReport.code-text": "fractura de sesamoideo"},
+                    "codingProposals": [{
+                        "id": "proposal-reclassify",
+                        "status": "proposed",
+                        "field": "DiagnosticReport.code",
+                        "inputText": "fractura de sesamoideo",
+                        "language": "es",
+                        "rowContext": {"family": "diagnostico"},
+                        "candidates": [],
+                    }],
+                },
+            },
+        ],
+    }
+    vault.put(VAULT_ID, [subject], "ResearchSubject")
+    vault.put(VAULT_ID, subject["contained"], "Composition")
+    vault.put(VAULT_ID, [subject["contained"][1]], "DiagnosticReport")
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        result = manager.reclassify_pending(
+            tenant_id=TENANT,
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            request=_request(),
+            body={
+                "researchStudy": {"reference": STUDY},
+                "resourceType": "DiagnosticReport",
+                "resourceId": "diagnostic-reclassify",
+                "proposalId": "proposal-reclassify",
+                "targetResourceType": "Condition",
+                "targetField": "Condition.code",
+            },
+        )
+
+    assert result["resourceType"] == "Condition"
+    assert result["field"] == "Condition.code"
+    assert result["resourceId"] != "diagnostic-reclassify"
+    stored = vault.get(VAULT_ID, "subject-reclassify", "ResearchSubject")
+    target = next(item for item in stored["contained"] if item["resourceType"] == "Condition")
+    assert target["meta"]["claims"]["Condition.code-text"] == "fractura de sesamoideo"
+    assert target["meta"]["codingProposals"][0]["field"] == "Condition.code"
+    assert target["meta"]["codingProposals"][0]["candidates"] == []
+    assert all(item["resourceType"] != "DiagnosticReport" for item in stored["contained"])
+    composition = next(item for item in stored["contained"] if item["resourceType"] == "Composition")
+    assert composition["meta"]["claims"]["Composition.entry"] == f"urn:uuid:{result['resourceId']}"
+    assert vault.get(VAULT_ID, "diagnostic-reclassify", "DiagnosticReport") is None
+
+
+def test_discards_only_pending_drafts_from_the_exact_import_thread() -> None:
+    manager, vault, _, _ = _manager()
+    subject = _research_subject("subject-discard", STUDY)
+    pending = subject["contained"][0]
+    subject["contained"] = [
+        {
+            "resourceType": "Composition",
+            "id": "composition-discard",
+            "meta": {"claims": {
+                "Composition.subject": "ResearchSubject/subject-discard",
+                "Composition.section": "http://loinc.org|11369-6",
+                "Composition.entry": "urn:uuid:immunization-subject-discard",
+                "Composition.relatesto-target": "job-to-discard",
+            }},
+        },
+        pending,
+        {
+            "resourceType": "Composition",
+            "id": "composition-keep",
+            "meta": {"claims": {
+                "Composition.subject": "ResearchSubject/subject-discard",
+                "Composition.section": "http://loinc.org|11450-4",
+                "Composition.entry": "urn:uuid:condition-keep",
+                "Composition.relatesto-target": "job-to-keep",
+            }},
+        },
+        {
+            "resourceType": "Condition",
+            "id": "condition-keep",
+            "meta": {"claims": {"Condition.code-text": "otitis"}},
+        },
+    ]
+    vault.put(VAULT_ID, [subject], "ResearchSubject")
+    for resource in subject["contained"]:
+        vault.put(VAULT_ID, [resource], resource["resourceType"])
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        result = manager.discard_pending_import(
+            tenant_id=TENANT,
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            request=_request(),
+            body={
+                "researchStudy": {"reference": STUDY},
+                "thid": "job-to-discard",
+            },
+        )
+
+    assert result == {
+        "thid": "job-to-discard",
+        "discardedSubjectCount": 1,
+        "discardedResourceCount": 2,
+    }
+    stored = vault.get(VAULT_ID, "subject-discard", "ResearchSubject")
+    assert [item["id"] for item in stored["contained"]] == ["composition-keep", "condition-keep"]
+    assert vault.get(VAULT_ID, "composition-discard", "Composition") is None
+    assert vault.get(VAULT_ID, "immunization-subject-discard", "Immunization") is None
+    assert vault.get(VAULT_ID, "composition-keep", "Composition") is not None
+    assert vault.get(VAULT_ID, "condition-keep", "Condition") is not None
+
+
 def test_applies_review_to_durable_subject_and_promotes_it_without_conversion_task() -> None:
     manager, vault, search, feedback = _manager()
     subject = _research_subject("subject-1", STUDY)

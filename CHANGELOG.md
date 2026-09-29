@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## 0.8.17 - 2026-09-29
+
+- Infer generic `concept` diagnosis, procedure and report targets from the
+  complete source hierarchy instead of forcing local diagnosis text into
+  `DiagnosticReport.code`.
+- Add study-authorized reclassification of unresolved coding proposals across
+  governed flat-claim targets, preserving source context and recording the old
+  target in supervised review feedback.
+- Add exact-import discard for wholly unresolved draft graphs while retaining
+  the completed conversion Task as audit history.
+
 ## 0.8.16 - 2026-09-26
 
 - Add tenant-scoped deletion of one exact adapter configuration from the

@@ -123,6 +123,19 @@ and rejected human decisions plus an optional reason through
 human-reviewed evaluation or training corpus. Never train online from a single
 review and never treat model output as its own label.
 
+For animal Immunization proposals, resolve the ATCvet routing context before
+the vaccine search without writing it as reviewed clinical coding. Start from
+the complete local species text using the workbook/API-CONFIG BCP 47 language,
+then English, and shorten only failed searches down to a three-character
+prefix. Filter results to exact NCBI TaxIds from the terminology service's
+closed ATCvet-supported species set. Let the coding model rank ambiguity using
+the row context. If no model is configured, accept only one unique candidate
+found with at least four matching characters as a routing hint; never promote
+that hint as `userSelected`. A three-character-only, ambiguous or unsupported
+result preserves the source text, skips the invalid ATCvet request and remains
+reviewable. Never remove the final source character unconditionally or infer a
+TaxId by arbitrary substring comparison.
+
 Verify the runtime constructor and environment before claiming AI integration.
 The worker uses `NoopCodingAssistant` whenever either the terminology URL or
 coding-model URL is absent. With both configured, require executable tests for

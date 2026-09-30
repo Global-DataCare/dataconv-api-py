@@ -60,6 +60,15 @@ path; DataConv never guesses camelCase paths from hyphenated claim names. A
 temporary lookup failure leaves the local text visible as a zero-candidate
 proposal instead of removing the row from review.
 
+For an animal `Immunization.vaccine-code` proposal, species is a prior closed
+classification step. The sheet BCP 47 language, English fallback and prefixes
+from the complete text down to three characters retrieve only NCBI candidates
+supported by ATCvet QI branches. The model ranks them with row context. Without
+a model, only one unique candidate matched by at least four characters may
+route the lookup, without becoming `userSelected`. Three-character, ambiguous
+or unsupported matches preserve the source text and never call ATCvet with an
+invented TaxId.
+
 An optional tabular review projection keeps three namespaces separate:
 
 ```text

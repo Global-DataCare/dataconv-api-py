@@ -3,10 +3,14 @@
 # 2. Every candidate remains available for human choice; the model only supplies a recommendation score.
 # 3. A draft carries proposals outside authoritative flat claims.
 # 4. Source text stays in canonical code-text and proposal context; confirmation never overwrites it.
+# 5. Animal vaccine lookup resolves a closed exact NCBI candidate using the sheet language, English fallback and bounded prefixes.
+# 6. Model confidence or a unique four-character prefix may route ATCvet; three-character, ambiguous and unsupported species remain unresolved.
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+
+import pytest
 
 from gdc_data_utils import ConditionClaim, ImmunizationClaim, ProcedureClaim
 
@@ -16,6 +20,7 @@ from adapter_ingestion.ai.terminology import (
     TerminologyCandidate,
     TerminologyCodingAssistant,
     TerminologySearchRequest,
+    UnrankedCodingRanker,
 )
 from adapter_ingestion.models import AdapterContext, CanonicalRecord
 from adapter_ingestion.pipeline import run_pipeline
@@ -70,6 +75,63 @@ class RecordingFeedbackSink:
         self.events.append(event)
 
 
+@dataclass
+class SpeciesTerminologyClient:
+    requests: list[TerminologySearchRequest] = field(default_factory=list)
+
+    def search(self, request: TerminologySearchRequest) -> list[TerminologyCandidate]:
+        self.requests.append(request)
+        if request.resource_type != "Organization":
+            return []
+        value = request.text.casefold()
+        language = request.language.casefold().split("-", 1)[0]
+        if value == "cani":
+            return [TerminologyCandidate(
+                system="https://www.ncbi.nlm.nih.gov/taxonomy",
+                code="9615",
+                display="Canis lupus familiaris",
+                source="NCBI_TAXONOMY",
+            )]
+        if value == "feli":
+            return [TerminologyCandidate(
+                system="https://www.ncbi.nlm.nih.gov/taxonomy",
+                code="9685",
+                display="Felis catus",
+                source="NCBI_TAXONOMY",
+            )]
+        if value == "dog" and language == "en":
+            return [TerminologyCandidate(
+                system="https://www.ncbi.nlm.nih.gov/taxonomy",
+                code="9615",
+                display="Canis lupus familiaris",
+                source="NCBI_TAXONOMY",
+            )]
+        if value == "equ":
+            return [TerminologyCandidate(
+                system="https://www.ncbi.nlm.nih.gov/taxonomy",
+                code="9796",
+                display="Equus caballus",
+                source="NCBI_TAXONOMY",
+            )]
+        return []
+
+
+@dataclass
+class SpeciesRanker:
+    requests: list[CodingRankRequest] = field(default_factory=list)
+
+    def rank(self, request: CodingRankRequest) -> list[CodingSuggestion]:
+        self.requests.append(request)
+        if request.resource_type != "Organization" or not request.candidates:
+            return []
+        confidence = 40.0 if request.text == "EQUIDO" else 95.0
+        return [CodingSuggestion.from_candidate(
+            request.candidates[0],
+            recommendation_percent=confidence,
+            evidence="closed species candidate",
+        )]
+
+
 def _record() -> CanonicalRecord:
     return CanonicalRecord(
         source_row_number=17,
@@ -90,6 +152,15 @@ def _record() -> CanonicalRecord:
         species_local="CANINA",
         flat_claims={ConditionClaim.CODE_TEXT: "otitis"},
         coding_inputs={ConditionClaim.CODE: "otitis"},
+    )
+
+
+def _immunization_record(species_local: str) -> CanonicalRecord:
+    return replace(
+        _record(),
+        species_local=species_local,
+        flat_claims={ImmunizationClaim.VACCINE_CODE_TEXT: "rabia"},
+        coding_inputs={ImmunizationClaim.VACCINE_CODE: "rabia"},
     )
 
 
@@ -135,6 +206,80 @@ def test_duplicate_coding_text_reuses_one_terminology_lookup() -> None:
     assistant.suggest_codes(_record())
 
     assert len(terminology.requests) == 1
+
+
+@pytest.mark.parametrize(
+    ("language", "species_local", "expected_taxonomy_id", "matched_prefix"),
+    (
+        ("es-ES", "CANINA", "9615", "CANI"),
+        ("es-ES", "FELINAF", "9685", "FELI"),
+        ("es-ES", "dog", "9615", "dog"),
+    ),
+)
+def test_animal_immunization_resolves_exact_species_before_atcvet_lookup(
+    language: str,
+    species_local: str,
+    expected_taxonomy_id: str,
+    matched_prefix: str,
+) -> None:
+    terminology = SpeciesTerminologyClient()
+    ranker = SpeciesRanker()
+    context = replace(_context(), language=language)
+    assistant = TerminologyCodingAssistant(
+        context=context,
+        terminology=terminology,
+        ranker=ranker,
+    )
+
+    assistant.suggest_codes(_immunization_record(species_local))
+
+    vaccine_request = next(
+        request for request in terminology.requests
+        if request.field == ImmunizationClaim.VACCINE_CODE
+    )
+    assert vaccine_request.ncbi_taxonomy_id == expected_taxonomy_id
+    assert ranker.requests[0].field == "org.schema.Organization.member.additionalType"
+    species_requests = [request for request in terminology.requests if request.resource_type == "Organization"]
+    assert species_requests[-1].text == matched_prefix
+    if species_local == "dog":
+        assert [request.language for request in species_requests] == ["es-ES", "en"]
+
+
+@pytest.mark.parametrize("species_local", ("EQUIDO", "CHINCHILLA"))
+def test_animal_immunization_does_not_invent_taxonomy_for_ambiguous_or_unsupported_species(
+    species_local: str,
+) -> None:
+    terminology = SpeciesTerminologyClient()
+    assistant = TerminologyCodingAssistant(
+        context=_context(),
+        terminology=terminology,
+        ranker=SpeciesRanker(),
+    )
+
+    assistant.suggest_codes(_immunization_record(species_local))
+
+    vaccine_request = next(
+        request for request in terminology.requests
+        if request.field == ImmunizationClaim.VACCINE_CODE
+    )
+    assert vaccine_request.ncbi_taxonomy_id == ""
+
+
+def test_unique_four_character_species_prefix_is_safe_fallback_without_a_configured_model() -> None:
+    terminology = SpeciesTerminologyClient()
+    assistant = TerminologyCodingAssistant(
+        context=_context(),
+        terminology=terminology,
+        ranker=UnrankedCodingRanker(),
+    )
+
+    assistant.suggest_codes(_immunization_record("CANINA"))
+
+    vaccine_request = next(
+        request for request in terminology.requests
+        if request.field == ImmunizationClaim.VACCINE_CODE
+    )
+    assert vaccine_request.ncbi_taxonomy_id == "9615"
 
 
 def test_imported_comma_separated_codes_become_review_candidates_without_an_external_lookup() -> None:

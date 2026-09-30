@@ -108,12 +108,27 @@ def test_terminology_query_uses_the_hyphenated_flat_claim_instead_of_a_fhir_elem
     client.search(TerminologySearchRequest(
         text="rabia", language="es", fhir_version="R4", sector="animal-care",
         jurisdiction="ES", resource_type="Immunization", field="Immunization.vaccine-code",
+        ncbi_taxonomy_id="9615",
     ))
 
     query = parse_qs(urlparse(transport.calls[0]["url"]).query)
     assert query["resourceType"] == ["Immunization"]
     assert query["claim"] == ["Immunization.vaccine-code"]
+    assert query["ncbiTaxonomyId"] == ["9615"]
     assert "field" not in query
+
+
+def test_animal_immunization_lookup_without_exact_taxonomy_preserves_text_without_calling_invalid_api() -> None:
+    transport = RecordingTransport(responses=[])
+    client = HttpTerminologyClient(base_url="https://terminology.example", transport=transport)
+
+    candidates = client.search(TerminologySearchRequest(
+        text="rabia", language="es", fhir_version="R4", sector="animal-care",
+        jurisdiction="ES", resource_type="Immunization", field="Immunization.vaccine-code",
+    ))
+
+    assert candidates == []
+    assert transport.calls == []
 
 
 def test_terminology_query_bounds_long_clinical_text_without_changing_the_source_request() -> None:

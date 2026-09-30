@@ -106,6 +106,9 @@ pendientes; y `$review`, que registra las decisiones humanas explícitas. La
 caducidad del job o de su resultado no obliga a volver a subir el Excel. La
 preparación puede añadir candidatos terminológicos gobernados, pero nunca elige
 ni promueve uno automáticamente.
+La recuperación desde DocumentReference históricos solo crea Immunization para
+administraciones completadas explícitas; los planes, reacciones adversas y
+comentarios generales sobre vacunas permanecen como documentos de origen.
 
 1. GCS guarda el archivo de origen y los artefactos generados por el job.
 2. DataConv genera recursos procesados de forma FHIR-like con flat claims

@@ -98,6 +98,9 @@ for the pending ResearchSubject searchset, and `$review` for explicit human
 decisions. Job/result expiry therefore does not require another workbook
 upload. Preparation may add governed terminology candidates, but it never
 selects or promotes one automatically.
+Historical DocumentReference recovery creates Immunization only for explicit
+completed administrations; plans, adverse reactions and general vaccine
+discussion remain source documents and are not rewritten as clinical events.
 
 1. GCS stores the uploaded source and generated job artifacts.
 2. DataConv produces processed FHIR-like resources with canonical flat claims.

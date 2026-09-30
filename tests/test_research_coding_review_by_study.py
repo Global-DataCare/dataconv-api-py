@@ -433,6 +433,70 @@ def test_prepare_backfills_an_immunization_proposal_from_an_existing_imported_do
     assert immunization["id"] in composition["meta"]["claims"]["Composition.entry"]
 
 
+def test_prepare_does_not_backfill_plans_or_adverse_reaction_mentions_as_completed_immunizations() -> None:
+    manager, vault, _, _ = _manager(terminology_client=RecordingFailingTerminologyClient())
+    descriptions = (
+        "Se desparasita para empezar vacunación",
+        "Reacción a la vacuna",
+        "Siempre que se la vacuna se pone un antihistamínico",
+    )
+    subject = {
+        "resourceType": "ResearchSubject",
+        "id": "subject-vaccine-mentions",
+        "meta": {"claims": {
+            "ResearchSubject.study": STUDY,
+            "Subject.language": "es",
+        }},
+        "contained": [
+            {
+                "resourceType": "Composition",
+                "id": "composition-vaccine-mentions",
+                "meta": {"claims": {
+                    "Composition.subject": "ResearchSubject/subject-vaccine-mentions",
+                    "Composition.entry": ",".join(
+                        f"urn:uuid:document-vaccine-mention-{index}"
+                        for index in range(len(descriptions))
+                    ),
+                }},
+            },
+            *[
+                {
+                    "resourceType": "DocumentReference",
+                    "id": f"document-vaccine-mention-{index}",
+                    "meta": {"claims": {
+                        "DocumentReference.subject": "ResearchSubject/subject-vaccine-mentions",
+                        "DocumentReference.date": "2025-08-20T18:13:26Z",
+                        "DocumentReference.description": description,
+                        "DocumentReference.language": "es",
+                    }},
+                }
+                for index, description in enumerate(descriptions)
+            ],
+        ],
+    }
+    vault.put(VAULT_ID, [subject], "ResearchSubject")
+    vault.put(VAULT_ID, subject["contained"], "Composition")
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        result = manager.prepare_pending(
+            tenant_id=TENANT,
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            request=_request(),
+            body=_search_body(),
+        )
+
+    assert result == {
+        "preparedSubjectCount": 0,
+        "proposalCount": 0,
+        "candidateCount": 0,
+    }
+    stored = vault.get(VAULT_ID, "subject-vaccine-mentions", "ResearchSubject")
+    assert all(item["resourceType"] != "Immunization" for item in stored["contained"])
+
+
 def test_discards_only_pending_drafts_from_the_exact_import_thread() -> None:
     manager, vault, _, _ = _manager()
     subject = _research_subject("subject-discard", STUDY)

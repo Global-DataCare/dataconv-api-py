@@ -297,8 +297,8 @@ class ResearchCodingReviewManager:
         study = _study_from_reference(values.get("study"))
         count = _integer_parameter(values, "_count", 100)
         offset = _integer_parameter(values, "_offset", 0)
-        if count < 1 or count > 100:
-            raise HTTPException(status_code=400, detail="_count must be between 1 and 100")
+        if count < 1 or count > 1000:
+            raise HTTPException(status_code=400, detail="_count must be between 1 and 1000")
         if offset < 0:
             raise HTTPException(status_code=400, detail="_offset must be zero or greater")
         vault_id = self._authorize(

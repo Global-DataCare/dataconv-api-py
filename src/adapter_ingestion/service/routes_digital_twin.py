@@ -61,7 +61,8 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         response_class=JSONResponse,
         description=(
             "Returns ResearchSubject drafts that still contain `meta.codingProposals[]` for the "
-            "authorized ResearchStudy. This durable view does not depend on conversion Task retention."
+            "authorized ResearchStudy in pages of at most 1,000 subjects. This durable view does not "
+            "depend on conversion Task retention."
         ),
     )
     def search_pending_research_coding_reviews(

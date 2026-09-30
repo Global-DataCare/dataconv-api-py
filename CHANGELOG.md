@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.8.22 - 2026-09-30
+
+- Allow an authorized ResearchStudy coding-review search to return up to 1,000
+  pending subjects in one bounded page, avoiding repeated hydration scans for
+  large imports while preserving the exact study-scoped SMART authorization.
+
 ## 0.8.21 - 2026-09-30
 
 - Resolve animal species as a closed NCBI candidate-ranking step before

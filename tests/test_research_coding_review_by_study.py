@@ -146,6 +146,27 @@ def test_lists_pending_proposals_from_durable_research_subjects_without_a_job() 
     assert enforce.call_args.kwargs["expected_research_study"] == STUDY
 
 
+def test_lists_up_to_one_thousand_pending_subjects_in_one_authorized_scan() -> None:
+    manager, vault, _, _ = _manager()
+    vault.put(VAULT_ID, [_research_subject("subject-1", STUDY)], "ResearchSubject")
+    body = _search_body()
+    body["parameter"].append({"name": "_count", "valueInteger": 1000})
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        result = manager.search_pending(
+            tenant_id=TENANT,
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            request=_request(),
+            body=body,
+        )
+
+    assert result["total"] == 1
+    assert len(result["entry"]) == 1
+
+
 def test_prepares_missing_legacy_code_text_for_review_without_reimporting() -> None:
     terminology = RecordingTerminologyClient()
     manager, vault, _, _ = _manager(terminology_client=terminology)

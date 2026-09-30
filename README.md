@@ -178,7 +178,8 @@ study/history deletion. `$prepare-review`
 idempotently converts preserved canonical `*-text` claims that predate proposal
 materialization into resource-owned terminology proposals. It also recovers
 clear vaccination administrations from the date and description of an older
-imported DocumentReference, excluding uncertain and future-intent wording;
+imported DocumentReference, excluding uncertain or future intent, adverse
+reactions and general vaccination discussions;
 `$review-pending`
 lists them and `$review` records bounded human decisions. None of these
 operations uploads the workbook again.

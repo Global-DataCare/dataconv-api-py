@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 import re
 from typing import Any
+import unicodedata
 
 from ...ai.terminology import TerminologyCandidate, TerminologySearchRequest
 from gdc_data_utils import (
@@ -19,7 +20,6 @@ from gdc_data_utils import (
     ProcedureClaim,
 )
 from ...models import stable_uuid
-from ...source_concept_classification import classify_source_concept
 from ..api_support import HTTPException, _enforce_auth_context, _enforce_supported_scope
 from ..coding_review import apply_coding_reviews, has_pending_coding_proposals
 from ..research import build_storage_namespace
@@ -117,6 +117,36 @@ def _pending_proposals(resource: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _is_completed_vaccination_description(value: object) -> bool:
+    """Recognize an administration, not a plan, history discussion or reaction."""
+
+    decomposed = unicodedata.normalize("NFKD", str(value or ""))
+    text = " ".join(
+        "".join(character for character in decomposed if not unicodedata.combining(character))
+        .casefold()
+        .split()
+    )
+    if not text:
+        return False
+    excluded = (
+        r"\b(?:empezar|iniciar|programar|pendiente|recomienda)\b.{0,40}\bvacun",
+        r"\breaccion(?:es)?\b.{0,40}\bvacun",
+        r"\bvacun\w*\b.{0,40}\breaccion(?:es)?\b",
+        r"\bsiempre que\b.{0,50}\bvacun",
+        r"\bdebe a\b.{0,30}\bvacun",
+    )
+    if any(re.search(pattern, text) for pattern in excluded):
+        return False
+    return bool(
+        re.match(r"^vacuna\b", text)
+        or re.search(r"\bvacunad[oa]s?\s+(?:de|con)\b", text)
+        or re.search(
+            r"\b(?:se administra|administramos|aplicamos|inoculamos|vacunamos)\b.{0,30}\bvacun",
+            text,
+        )
+    )
+
+
 def _backfill_immunizations_from_imported_documents(
     subject: dict[str, Any],
     *,
@@ -141,14 +171,7 @@ def _backfill_immunizations_from_imported_documents(
         document_id = str(document.get("id", "") or "").strip()
         claims = _resource_claims(document)
         source_text = str(claims.get(DocumentReferenceClaim.DESCRIPTION, "") or "").strip()
-        classified = classify_source_concept(
-            section="",
-            family="",
-            subfamily="",
-            concept=source_text,
-            subject_kind="animal",
-        )
-        if [candidate.resource_type for candidate in classified] != ["Immunization"]:
+        if not _is_completed_vaccination_description(source_text):
             continue
         resource_id = stable_uuid(
             vault_id,

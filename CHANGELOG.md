@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.8.20 - 2026-09-30
+
+- Restrict historical DocumentReference vaccination backfill to explicit
+  completed administrations. Future vaccination plans, adverse-reaction notes
+  and general discussions no longer become completed Immunization resources.
+
 ## 0.8.19 - 2026-09-30
 
 - Materialize reviewable `Immunization`, `AllergyIntolerance` and

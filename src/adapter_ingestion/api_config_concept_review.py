@@ -9,7 +9,26 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from gdc_data_utils import (
+    AllergyIntoleranceClaim,
+    ConditionClaim,
+    DiagnosticReportClaim,
+    ImmunizationClaim,
+    MedicationStatementClaim,
+    ProcedureClaim,
+)
+
 from .source_concept_classification import classify_source_concept
+
+
+MAPPED_LOCAL_TEXT_RESOURCE_TYPES = {
+    AllergyIntoleranceClaim.CODE_TEXT: "AllergyIntolerance",
+    ConditionClaim.CODE_TEXT: "Condition",
+    DiagnosticReportClaim.CODE_TEXT: "DiagnosticReport",
+    ImmunizationClaim.VACCINE_CODE_TEXT: "Immunization",
+    MedicationStatementClaim.CODE_TEXT: "MedicationStatement",
+    ProcedureClaim.CODE_TEXT: "Procedure",
+}
 
 
 @dataclass(frozen=True)
@@ -54,7 +73,10 @@ def classify_workbook(path: Path | str) -> ConceptReviewResult:
             subject_kind = _marker_value(marker, "subjectKind")
             mappings = [str(cell.value or "").strip() for cell in sheet[2]]
             columns = {mapping: index for index, mapping in enumerate(mappings) if mapping}
-            if not any(field in columns for field in ("concept", "treatment")):
+            if not any(
+                field in columns
+                for field in ("concept", "treatment", *MAPPED_LOCAL_TEXT_RESOURCE_TYPES)
+            ):
                 continue
             for row_number, values in enumerate(
                 sheet.iter_rows(min_row=4, values_only=True),
@@ -69,17 +91,41 @@ def classify_workbook(path: Path | str) -> ConceptReviewResult:
                 subfamily = str(value("subfamily") or "").strip()
                 concept = str(value("concept") or "").strip()
                 treatment = str(value("treatment") or "").strip()
-                if not concept and not treatment:
+                mapped_texts = [
+                    (resource_type, str(value(claim) or "").strip())
+                    for claim, resource_type in MAPPED_LOCAL_TEXT_RESOURCE_TYPES.items()
+                    if str(value(claim) or "").strip()
+                ]
+                if not concept and not treatment and not mapped_texts:
                     continue
-                for candidate in classify_source_concept(
+                emitted: set[tuple[str, str]] = set()
+                for resource_type, source_text in mapped_texts:
+                    key = (resource_type, source_text)
+                    emitted.add(key)
+                    rows.append(ConceptReviewRow(
+                        sheet=sheet.title,
+                        row_number=row_number,
+                        resource_type=resource_type,
+                        source_text=source_text,
+                        confidence="mapped",
+                        basis="explicit canonical local code-text mapping",
+                        section=section,
+                        family=family,
+                        subfamily=subfamily,
+                    ))
+                    counts_by_sheet[sheet.title] += 1
+                inferred_candidates = () if mapped_texts else classify_source_concept(
                     section=section,
                     family=family,
                     subfamily=subfamily,
                     concept=concept,
                     treatment=treatment,
                     subject_kind=subject_kind,
-                ):
+                )
+                for candidate in inferred_candidates:
                     if not candidate.source_text:
+                        continue
+                    if (candidate.resource_type, candidate.source_text) in emitted:
                         continue
                     rows.append(ConceptReviewRow(
                         sheet=sheet.title,

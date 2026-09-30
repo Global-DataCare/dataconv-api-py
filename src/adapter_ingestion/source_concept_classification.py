@@ -83,10 +83,22 @@ def classify_source_concept(
         return tuple(candidates)
 
     source_text = str(concept or "").strip()
+    normalized_concept = _normalized(concept)
     coordinates = " ".join(
         _normalized(value) for value in (section, family, subfamily, concept) if str(value or "").strip()
     )
-    if any(word in coordinates for word in ("vacuna", "vacunacion", "rabia", "inmunizacion")):
+    if any(word in coordinates for word in ("alergia", "alergico", "intolerancia", "hipersensibilidad")):
+        return (_candidate("AllergyIntolerance", source_text, "medium", "allergy or intolerance hierarchy and wording"),)
+    vaccination_is_uncertain_or_future = any(re.search(pattern, normalized_concept) for pattern in (
+        r"\bno\b.{0,40}\bvacunad",
+        r"\bsi\b.{0,30}\b(?:quiere|quieren)\s+vacunar",
+        r"\bpendiente\b.{0,40}\bvacun",
+        r"\brecomienda\b.{0,40}\bvacun",
+    ))
+    if (
+        not vaccination_is_uncertain_or_future
+        and any(word in coordinates for word in ("vacuna", "vacunacion", "rabia", "inmunizacion"))
+    ):
         return (_candidate("Immunization", source_text, "medium", "vaccination hierarchy or administration wording"),)
     if any(word in coordinates for word in ("sedacion", "cirugia", "ecografia", "radiografia", "castracion")):
         return (_candidate("Procedure", source_text, "medium", "procedure hierarchy or wording"),)

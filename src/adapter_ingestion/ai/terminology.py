@@ -103,10 +103,12 @@ class TerminologyCodingAssistant:
                 resource_type=resource_type,
                 field=str(field),
             )
-            resolved = self._candidate_cache.get(request)
-            if resolved is None:
-                resolved = tuple(self._terminology.search(request))
-                self._candidate_cache[request] = resolved
+            resolved = self._imported_candidates(record, str(field))
+            if not resolved:
+                resolved = self._candidate_cache.get(request)
+                if resolved is None:
+                    resolved = tuple(self._terminology.search(request))
+                    self._candidate_cache[request] = resolved
             candidates = []
             for candidate in resolved:
                 enriched = replace(candidate, resource_type=resource_type, field=str(field))
@@ -163,6 +165,35 @@ class TerminologyCodingAssistant:
                     )
                 )
         return suggestions
+
+    def _imported_candidates(
+        self,
+        record: CanonicalRecord,
+        field: str,
+    ) -> tuple[TerminologyCandidate, ...]:
+        """Keep imported code/display pairs reviewable without re-resolving them."""
+
+        code_values = [value.strip() for value in str(record.flat_claims.get(field, "") or "").split(",")]
+        display_values = [
+            value.strip()
+            for value in str(record.flat_claims.get(f"{field}-display", "") or "").split(",")
+        ]
+        if not code_values or len(code_values) != len(display_values):
+            return ()
+        candidates: list[TerminologyCandidate] = []
+        for coding, display in zip(code_values, display_values):
+            if not coding or not display or "|" not in coding:
+                return ()
+            system, code = (value.strip() for value in coding.split("|", 1))
+            if not system or not code:
+                return ()
+            candidates.append(TerminologyCandidate(
+                system=system,
+                code=code,
+                display=display,
+                source=self._context.manufacturer,
+            ))
+        return tuple(candidates)
 
     def _row_context(self, record: CanonicalRecord) -> dict[str, str]:
         allowed = {value.strip() for value in self._context.coding_context_fields if value.strip()}

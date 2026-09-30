@@ -116,7 +116,10 @@ class HttpTerminologyClient(_AuthorizedClient):
                 "sector": request.sector,
                 "jurisdiction": request.jurisdiction,
                 "resourceType": request.resource_type,
-                "field": request.field,
+                # DataConv stores and reviews canonical flat claims. The
+                # terminology capability resolves its FHIR element path; do
+                # not guess camelCase paths from hyphenated claim names here.
+                "claim": request.field,
                 "limit": request.limit,
         }
         if request.sources:

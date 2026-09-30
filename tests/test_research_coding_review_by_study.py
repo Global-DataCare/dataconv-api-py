@@ -45,6 +45,12 @@ class RecordingTerminologyClient:
         )]
 
 
+class RecordingFailingTerminologyClient(RecordingTerminologyClient):
+    def search(self, request):
+        self.requests.append(request)
+        raise RuntimeError("terminology lookup unavailable")
+
+
 def _research_subject(subject_id: str, study: str, *, proposal_status: str = "proposed") -> dict:
     return {
         "resourceType": "ResearchSubject",
@@ -362,6 +368,69 @@ def test_reclassifies_a_pending_diagnostic_text_before_terminology_search() -> N
     composition = next(item for item in stored["contained"] if item["resourceType"] == "Composition")
     assert composition["meta"]["claims"]["Composition.entry"] == f"urn:uuid:{result['resourceId']}"
     assert vault.get(VAULT_ID, "diagnostic-reclassify", "DiagnosticReport") is None
+
+
+def test_prepare_backfills_an_immunization_proposal_from_an_existing_imported_document() -> None:
+    terminology = RecordingFailingTerminologyClient()
+    manager, vault, _, _ = _manager(terminology_client=terminology)
+    subject = {
+        "resourceType": "ResearchSubject",
+        "id": "subject-vaccine-backfill",
+        "meta": {"claims": {
+            "ResearchSubject.study": STUDY,
+            "Subject.language": "es",
+            "Subject.animal-species": "http://hl7.org/fhir/target-species|100000108988",
+        }},
+        "contained": [
+            {
+                "resourceType": "Composition",
+                "id": "composition-vaccine-backfill",
+                "meta": {"claims": {
+                    "Composition.subject": "ResearchSubject/subject-vaccine-backfill",
+                    "Composition.entry": "urn:uuid:document-vaccine-backfill",
+                }},
+            },
+            {
+                "resourceType": "DocumentReference",
+                "id": "document-vaccine-backfill",
+                "meta": {"claims": {
+                    "DocumentReference.subject": "ResearchSubject/subject-vaccine-backfill",
+                    "DocumentReference.date": "2025-08-20T18:13:26Z",
+                    "DocumentReference.description": "vacuna eurican r lote ho4461 cad 6/9/27",
+                    "DocumentReference.language": "es",
+                }},
+            },
+        ],
+    }
+    vault.put(VAULT_ID, [subject], "ResearchSubject")
+    vault.put(VAULT_ID, subject["contained"], "Composition")
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        result = manager.prepare_pending(
+            tenant_id=TENANT,
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            request=_request(),
+            body=_search_body(),
+        )
+
+    assert result["preparedSubjectCount"] == 1
+    assert result["proposalCount"] == 1
+    assert result["candidateCount"] == 0
+    stored = vault.get(VAULT_ID, "subject-vaccine-backfill", "ResearchSubject")
+    immunization = next(item for item in stored["contained"] if item["resourceType"] == "Immunization")
+    assert immunization["meta"]["claims"]["Immunization.date"] == "2025-08-20T18:13:26Z"
+    assert immunization["meta"]["claims"]["Immunization.vaccine-code-text"] == (
+        "vacuna eurican r lote ho4461 cad 6/9/27"
+    )
+    assert immunization["meta"]["codingProposals"][0]["field"] == "Immunization.vaccine-code"
+    assert immunization["meta"]["codingProposals"][0]["candidates"] == []
+    assert terminology.requests[0].resource_type == "Immunization"
+    assert terminology.requests[0].field == "Immunization.vaccine-code"
+    composition = next(item for item in stored["contained"] if item["resourceType"] == "Composition")
+    assert immunization["id"] in composition["meta"]["claims"]["Composition.entry"]
 
 
 def test_discards_only_pending_drafts_from_the_exact_import_thread() -> None:

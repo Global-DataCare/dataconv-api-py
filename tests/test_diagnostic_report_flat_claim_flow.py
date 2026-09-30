@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from gdc_data_utils import ConditionClaim, DiagnosticReportClaim, ProcedureClaim
+from gdc_data_utils import (
+    AllergyIntoleranceClaim,
+    ConditionClaim,
+    DiagnosticReportClaim,
+    ImmunizationClaim,
+    MedicationStatementClaim,
+    ProcedureClaim,
+)
 
 from adapter_ingestion.ai.base import NoopCodingAssistant
 from adapter_ingestion.manufacturers.registry import get_adapter
@@ -128,6 +135,97 @@ def test_generic_concept_derives_a_condition_proposal_from_all_hierarchy_coordin
     assert condition["meta"]["codingProposals"][0]["field"] == ConditionClaim.CODE
     assert condition["meta"]["codingProposals"][0]["candidates"] == []
     assert not any(resource.get("resourceType") == "DiagnosticReport" for resource in aggregate["contained"])
+
+
+def test_generic_vaccine_concept_derives_an_immunization_review_proposal() -> None:
+    csv_text = (
+        "API-CONFIG:language=es:subjectKind=animal:dataUse=secondary\n"
+        "date,subject_id,section,family,subfamily,concept\n"
+        "FECHA,SUJETO,SECCION,FAMILIA,SUBFAMILIA,CONCEPTO\n"
+        "2026-03-19,11111111-1111-4111-8111-111111111111,clinica,tratamiento,vacunas,Vacuna rabia\n"
+    )
+    with NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as tmp:
+        tmp.write(csv_text)
+        path = Path(tmp.name)
+    try:
+        embedded = extract_embedded_api_config(path)
+        assert embedded is not None
+        records = get_adapter("api-config").read_records(path, _context(embedded["schemaConfig"]))
+    finally:
+        path.unlink(missing_ok=True)
+
+    assert records[0].coding_inputs == {ImmunizationClaim.VACCINE_CODE: "Vacuna rabia"}
+    assert records[0].flat_claims[ImmunizationClaim.VACCINE_CODE_TEXT] == "Vacuna rabia"
+    result = run_pipeline(records, _context(embedded["schemaConfig"]), NoopCodingAssistant())
+    aggregate = result.composition_message["body"]["data"][0]["resource"]
+    immunization = next(
+        resource for resource in aggregate["contained"]
+        if resource.get("resourceType") == "Immunization"
+    )
+    assert immunization["meta"]["claims"][ImmunizationClaim.STATUS] == "completed"
+    assert immunization["meta"]["claims"][ImmunizationClaim.DATE] == "2026-03-19T00:00:00Z"
+    assert immunization["meta"]["codingProposals"][0]["field"] == ImmunizationClaim.VACCINE_CODE
+    assert result.summary["immunizationEntries"] == 1
+    assert result.summary["codingProposalEntries"] == 1
+
+
+def test_allergy_text_derives_an_allergy_intolerance_review_proposal() -> None:
+    csv_text = (
+        "API-CONFIG:language=es:subjectKind=animal:dataUse=secondary\n"
+        "date,subject_id,section,family,subfamily,concept\n"
+        "FECHA,SUJETO,SECCION,FAMILIA,SUBFAMILIA,CONCEPTO\n"
+        "2026-03-19,11111111-1111-4111-8111-111111111111,clinica,alergias,medicamentos,Alergia a penicilina\n"
+    )
+    with NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as tmp:
+        tmp.write(csv_text)
+        path = Path(tmp.name)
+    try:
+        embedded = extract_embedded_api_config(path)
+        assert embedded is not None
+        records = get_adapter("api-config").read_records(path, _context(embedded["schemaConfig"]))
+    finally:
+        path.unlink(missing_ok=True)
+
+    assert records[0].coding_inputs == {AllergyIntoleranceClaim.CODE: "Alergia a penicilina"}
+    assert records[0].flat_claims[AllergyIntoleranceClaim.CODE_TEXT] == "Alergia a penicilina"
+    result = run_pipeline(records, _context(embedded["schemaConfig"]), NoopCodingAssistant())
+    aggregate = result.composition_message["body"]["data"][0]["resource"]
+    allergy = next(
+        resource for resource in aggregate["contained"]
+        if resource.get("resourceType") == "AllergyIntolerance"
+    )
+    assert allergy["meta"]["claims"][AllergyIntoleranceClaim.VERIFICATION_STATUS] == "unconfirmed"
+    assert allergy["meta"]["codingProposals"][0]["field"] == AllergyIntoleranceClaim.CODE
+    assert result.summary["allergyIntoleranceEntries"] == 1
+
+
+def test_explicit_medication_statement_text_becomes_a_reviewable_contained_resource() -> None:
+    csv_text = (
+        "API-CONFIG:language=es:subjectKind=animal:dataUse=secondary\n"
+        f"date,subject_id,section,family,{MedicationStatementClaim.CODE_TEXT}\n"
+        "FECHA,SUJETO,SECCION,FAMILIA,TRATAMIENTO\n"
+        "2026-03-19,11111111-1111-4111-8111-111111111111,clinica,medicamentos,Trusopt 1 gota 2 veces al día\n"
+    )
+    with NamedTemporaryFile("w", suffix=".csv", delete=False, encoding="utf-8") as tmp:
+        tmp.write(csv_text)
+        path = Path(tmp.name)
+    try:
+        embedded = extract_embedded_api_config(path)
+        assert embedded is not None
+        records = get_adapter("api-config").read_records(path, _context(embedded["schemaConfig"]))
+    finally:
+        path.unlink(missing_ok=True)
+
+    assert records[0].coding_inputs == {MedicationStatementClaim.CODE: "Trusopt 1 gota 2 veces al día"}
+    result = run_pipeline(records, _context(embedded["schemaConfig"]), NoopCodingAssistant())
+    aggregate = result.composition_message["body"]["data"][0]["resource"]
+    medication = next(
+        resource for resource in aggregate["contained"]
+        if resource.get("resourceType") == "MedicationStatement"
+    )
+    assert medication["meta"]["claims"][MedicationStatementClaim.STATUS] == "unknown"
+    assert medication["meta"]["codingProposals"][0]["field"] == MedicationStatementClaim.CODE
+    assert result.summary["medicationStatementEntries"] == 1
 
 
 def test_orphan_procedure_display_is_normalized_to_local_text_for_review() -> None:

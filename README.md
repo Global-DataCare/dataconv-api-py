@@ -42,9 +42,10 @@ confirmed claims:    Condition.code + Condition.code-display
 FHIR search:         Condition?code=<system>|<code> or Condition?code:text=<English display>
 ```
 
-DataConv imports diagnosis/pathology text as canonical local
-`Condition.code-text`,
-obtains all governed candidates, and materializes a `Condition` draft without
+DataConv imports clinical text as the canonical local `*-text` claim for
+Condition, Procedure, DiagnosticReport, Immunization, AllergyIntolerance or
+MedicationStatement, obtains governed candidates, and materializes the
+corresponding contained draft without
 claiming that source text is an authoritative code. Human review selects one
 candidate; only then are `Condition.code` and its English
 `Condition.code-display` indexed. The original local text remains both in the
@@ -175,7 +176,10 @@ import Tasks are also excluded from generic TTL cleanup, so both the activity
 record and pending work remain discoverable until an explicit governed
 study/history deletion. `$prepare-review`
 idempotently converts preserved canonical `*-text` claims that predate proposal
-materialization into resource-owned terminology proposals; `$review-pending`
+materialization into resource-owned terminology proposals. It also recovers
+clear vaccination administrations from the date and description of an older
+imported DocumentReference, excluding uncertain and future-intent wording;
+`$review-pending`
 lists them and `$review` records bounded human decisions. None of these
 operations uploads the workbook again.
 

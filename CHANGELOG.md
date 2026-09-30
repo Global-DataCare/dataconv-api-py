@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## 0.8.19 - 2026-09-30
+
+- Materialize reviewable `Immunization`, `AllergyIntolerance` and
+  `MedicationStatement` contained resources from canonical API-CONFIG inputs;
+  include their references in the owning Composition and count empty-candidate
+  proposals in conversion summaries.
+- Recover vaccination proposals from imported DocumentReference descriptions
+  in existing ResearchSubject drafts, excluding uncertain or future
+  vaccination wording, so a study does not need another workbook upload.
+- Send canonical flat claim names to terminology as `claim` rather than
+  incorrectly treating hyphenated claims as FHIR element paths. Preserve an
+  empty human-review proposal when terminology is temporarily unavailable.
+- Treat imported comma-separated code/display pairs as unconfirmed review
+  candidates without a redundant terminology lookup, preserving every code
+  and its international display.
+- Extend private API-CONFIG classification evidence to mapped local coding
+  text for allergies, conditions, reports, immunizations, medication
+  statements and procedures.
+
 ## 0.8.18 - 2026-09-29
 
 - Preserve the rejected terminology service status, route and bounded response

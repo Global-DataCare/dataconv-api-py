@@ -15,9 +15,17 @@ diagnostic/export projection.
 
 One source row may yield more than one candidate. Multiline treatment is split
 without losing its original lines. Medication-like instructions remain
-`MedicationStatement` candidates; procedures, encounters, diagnostic reports,
-immunizations and retail `ChargeItem` rows are separated by semantic hierarchy.
-Unknown values remain `Unclassified`. No absent species or sex is inferred.
+`MedicationStatement` candidates; procedures, encounters, conditions,
+diagnostic reports, immunizations, allergies/intolerances and retail
+`ChargeItem` rows are separated by semantic hierarchy. Unknown values remain
+`Unclassified`. No absent species or sex is inferred.
+
+Ingestion materializes reviewable contained resources for Condition,
+Procedure, DiagnosticReport, Immunization, AllergyIntolerance and
+MedicationStatement. Vaccination uncertainty, recommendations and future
+intent are not converted into completed administrations. For older drafts,
+review preparation can recover a clear administration from the already stored
+DocumentReference description and date without uploading the workbook again.
 
 Generate a private row-level CSV and summary from a prepared workbook:
 
@@ -42,10 +50,15 @@ During review, a professional may search again with a different bounded phrase,
 language and one governed terminology source. DataConv performs that lookup at
 `ResearchSubject/$review-candidates`, stores only candidates returned by the
 terminology service on the existing proposal, and never lets the query change
-the proposal's imported resource type or claim. An incorrectly mapped
-`DiagnosticReport.code-text` must therefore be corrected in a copied API
-configuration and reimported as `Condition.code-text`; a review search cannot
-disguise or repair the wrong resource family.
+the proposal's imported resource type or claim. Resource-family correction is
+a separate governed reclassification operation; a terminology search cannot
+silently disguise the wrong resource family.
+
+DataConv sends canonical flat claim names through the terminology `claim`
+parameter. The terminology capability owns the corresponding FHIR element
+path; DataConv never guesses camelCase paths from hyphenated claim names. A
+temporary lookup failure leaves the local text visible as a zero-candidate
+proposal instead of removing the row from review.
 
 An optional tabular review projection keeps three namespaces separate:
 

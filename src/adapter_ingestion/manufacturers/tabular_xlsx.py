@@ -6,7 +6,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from gdc_data_utils import CLAIMS_BY_RESOURCE, ConditionClaim, DiagnosticReportClaim, ProcedureClaim
+from gdc_data_utils import (
+    CLAIMS_BY_RESOURCE,
+    AllergyIntoleranceClaim,
+    ConditionClaim,
+    DiagnosticReportClaim,
+    ImmunizationClaim,
+    MedicationStatementClaim,
+    ProcedureClaim,
+)
 import hashlib
 import re
 import uuid
@@ -843,9 +851,12 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                     subject_kind=context.subject_kind,
                 )
                 concept_target = {
+                    "AllergyIntolerance": AllergyIntoleranceClaim.CODE,
                     "Condition": ConditionClaim.CODE,
                     "Procedure": ProcedureClaim.CODE,
                     "DiagnosticReport": DiagnosticReportClaim.CODE,
+                    "Immunization": ImmunizationClaim.VACCINE_CODE,
+                    "MedicationStatement": MedicationStatementClaim.CODE,
                 }
                 supported_targets = {
                     concept_target[candidate.resource_type]

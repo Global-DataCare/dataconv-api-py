@@ -94,8 +94,26 @@ def test_terminology_jsonapi_response_preserves_every_code_and_system() -> None:
         ("http://snomed.info/sct", "129127001", "Otitis externa"),
         ("http://hl7.org/fhir/sid/icd-10", "H66.9", "Otitis media, unspecified"),
     ]
-    assert "resourceType=Condition" in transport.calls[0]["url"]
+    query = parse_qs(urlparse(transport.calls[0]["url"]).query)
+    assert query["resourceType"] == ["Condition"]
+    assert query["claim"] == ["Condition.code"]
+    assert "field" not in query
     assert transport.calls[0]["headers"]["authorization"] == "Bearer secret"
+
+
+def test_terminology_query_uses_the_hyphenated_flat_claim_instead_of_a_fhir_element_path() -> None:
+    transport = RecordingTransport(responses=[{"jsonapi": {"version": "1.1"}, "data": []}])
+    client = HttpTerminologyClient(base_url="https://terminology.example", transport=transport)
+
+    client.search(TerminologySearchRequest(
+        text="rabia", language="es", fhir_version="R4", sector="animal-care",
+        jurisdiction="ES", resource_type="Immunization", field="Immunization.vaccine-code",
+    ))
+
+    query = parse_qs(urlparse(transport.calls[0]["url"]).query)
+    assert query["resourceType"] == ["Immunization"]
+    assert query["claim"] == ["Immunization.vaccine-code"]
+    assert "field" not in query
 
 
 def test_terminology_query_bounds_long_clinical_text_without_changing_the_source_request() -> None:

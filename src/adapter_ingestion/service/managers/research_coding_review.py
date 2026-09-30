@@ -10,8 +10,16 @@ import re
 from typing import Any
 
 from ...ai.terminology import TerminologyCandidate, TerminologySearchRequest
-from gdc_data_utils import ConditionClaim, DiagnosticReportClaim, FHIR_API_CONTEXT, ProcedureClaim
+from gdc_data_utils import (
+    ConditionClaim,
+    DiagnosticReportClaim,
+    DocumentReferenceClaim,
+    FHIR_API_CONTEXT,
+    ImmunizationClaim,
+    ProcedureClaim,
+)
 from ...models import stable_uuid
+from ...source_concept_classification import classify_source_concept
 from ..api_support import HTTPException, _enforce_auth_context, _enforce_supported_scope
 from ..coding_review import apply_coding_reviews, has_pending_coding_proposals
 from ..research import build_storage_namespace
@@ -107,6 +115,78 @@ def _pending_proposals(resource: dict[str, Any]) -> list[dict[str, Any]]:
         proposal for proposal in proposals or []
         if isinstance(proposal, dict) and str(proposal.get("status", "")).strip() == "proposed"
     ]
+
+
+def _backfill_immunizations_from_imported_documents(
+    subject: dict[str, Any],
+    *,
+    vault_id: str,
+    default_language: str,
+) -> None:
+    """Recover reviewable administrations from older drafts without re-uploading the workbook."""
+
+    contained = subject.get("contained")
+    if not isinstance(contained, list):
+        return
+    subject_id = str(subject.get("id", "") or "").strip()
+    existing_ids = {
+        str(resource.get("id", "") or "").strip()
+        for resource in contained
+        if isinstance(resource, dict)
+    }
+    additions: list[dict[str, Any]] = []
+    for document in contained:
+        if not isinstance(document, dict) or str(document.get("resourceType", "")) != "DocumentReference":
+            continue
+        document_id = str(document.get("id", "") or "").strip()
+        claims = _resource_claims(document)
+        source_text = str(claims.get(DocumentReferenceClaim.DESCRIPTION, "") or "").strip()
+        classified = classify_source_concept(
+            section="",
+            family="",
+            subfamily="",
+            concept=source_text,
+            subject_kind="animal",
+        )
+        if [candidate.resource_type for candidate in classified] != ["Immunization"]:
+            continue
+        resource_id = stable_uuid(
+            vault_id,
+            subject_id,
+            "document-immunization-backfill",
+            document_id,
+            source_text,
+        )
+        if resource_id in existing_ids:
+            continue
+        language = str(claims.get(DocumentReferenceClaim.LANGUAGE, "") or default_language).strip() or "und"
+        immunization_claims = {
+            "@context": FHIR_API_CONTEXT,
+            ImmunizationClaim.IDENTIFIER: resource_id,
+            ImmunizationClaim.SUBJECT: f"ResearchSubject/{subject_id}",
+            ImmunizationClaim.STATUS: "completed",
+            ImmunizationClaim.DATE: str(claims.get(DocumentReferenceClaim.DATE, "") or "").strip(),
+            ImmunizationClaim.VACCINE_CODE_TEXT: source_text,
+            "Immunization.language": language,
+        }
+        additions.append({
+            "resourceType": "Immunization",
+            "id": resource_id,
+            "meta": {"claims": immunization_claims},
+        })
+        existing_ids.add(resource_id)
+        for composition in contained:
+            if not isinstance(composition, dict) or str(composition.get("resourceType", "")) != "Composition":
+                continue
+            composition_claims = _resource_claims(composition)
+            entry_ids = _reference_ids(composition_claims.get("Composition.entry"))
+            if document_id not in entry_ids:
+                continue
+            entry_ids.append(resource_id)
+            composition_claims["Composition.entry"] = ",".join(
+                f"urn:uuid:{entry_id}" for entry_id in dict.fromkeys(entry_ids)
+            )
+    contained.extend(additions)
 
 
 def _hydrate_subject(
@@ -607,6 +687,11 @@ class ResearchCodingReviewManager:
             subject = deepcopy(stored_subject)
             subject_claims = subject.get("meta", {}).get("claims", {})
             language = str(subject_claims.get("Subject.language", "und") or "und").strip()
+            _backfill_immunizations_from_imported_documents(
+                subject,
+                vault_id=vault_id,
+                default_language=language,
+            )
             resources = _resources(subject)
             for resource in resources[1:]:
                 resource_type = str(resource.get("resourceType", "") or "").strip()
@@ -655,9 +740,17 @@ class ResearchCodingReviewManager:
         lookup_items = list(lookups.items())
         candidate_cache: dict[tuple[str, str, str, str], list[TerminologyCandidate]] = {}
         if lookup_items:
+            def safe_search(search_request: TerminologySearchRequest) -> list[TerminologyCandidate]:
+                try:
+                    return terminology.search(search_request)
+                except Exception:
+                    # A terminology outage or an unavailable species filter
+                    # must not hide the imported local text from human review.
+                    return []
+
             with ThreadPoolExecutor(max_workers=min(8, len(lookup_items))) as executor:
                 candidate_lists = executor.map(
-                    terminology.search,
+                    safe_search,
                     (request for _, request in lookup_items),
                 )
                 candidate_cache = {

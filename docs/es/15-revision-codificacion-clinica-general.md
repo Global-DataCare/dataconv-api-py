@@ -8,8 +8,17 @@ proveedor.
 
 Una fila puede producir varios candidatos revisables. Los tratamientos con
 saltos de línea conservan cada línea. Se distinguen candidatos de Procedure,
-MedicationStatement, Encounter, DiagnosticReport, Immunization y ChargeItem;
-lo desconocido queda como `Unclassified`. No se inventan especie ni sexo.
+MedicationStatement, Encounter, Condition, DiagnosticReport, Immunization,
+AllergyIntolerance y ChargeItem; lo desconocido queda como `Unclassified`. No
+se inventan especie ni sexo.
+
+La ingestión materializa recursos contained revisables para Condition,
+Procedure, DiagnosticReport, Immunization, AllergyIntolerance y
+MedicationStatement. Una clasificación de vacuna no se convierte en una
+administración cuando el texto expresa duda, recomendación o intención futura.
+Para borradores importados antes de esta cobertura, la preparación de revisión
+puede recuperar una Immunization desde la descripción y fecha del
+DocumentReference ya persistido, sin exigir otra subida del Excel.
 
 El texto clínico local original nunca se trunca en las flat claims ni en los
 metadatos de revisión. Solo la consulta de candidatos respeta el límite HTTP
@@ -38,6 +47,13 @@ Durante la revisión, el profesional puede repetir la búsqueda con otro texto
 acotado, idioma y una fuente terminológica permitida. DataConv ejecuta esa
 consulta mediante `ResearchSubject/$review-candidates` y guarda únicamente los
 candidatos devueltos por el servicio terminológico.
+
+DataConv envía el nombre canónico de la flat claim mediante el parámetro
+`claim`; el servicio de terminología deriva de su capability el resourceType y
+el path FHIR. Nunca se convierte por heurística
+`Immunization.vaccine-code` en `Immunization.vaccineCode`. Si una consulta no
+está disponible, el texto y la propuesta permanecen visibles con cero
+candidatos para que la cola de revisión no desaparezca.
 
 Si el destino inferido es incorrecto, `ResearchSubject/$review-reclassify`
 mueve la propuesta todavía no resuelta a uno de los destinos clínicos

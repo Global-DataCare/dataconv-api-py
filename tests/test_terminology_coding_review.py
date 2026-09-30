@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from gdc_data_utils import ConditionClaim, ProcedureClaim
+from gdc_data_utils import ConditionClaim, ImmunizationClaim, ProcedureClaim
 
 from adapter_ingestion.ai.base import CodingSuggestion
 from adapter_ingestion.ai.terminology import (
@@ -135,6 +135,34 @@ def test_duplicate_coding_text_reuses_one_terminology_lookup() -> None:
     assistant.suggest_codes(_record())
 
     assert len(terminology.requests) == 1
+
+
+def test_imported_comma_separated_codes_become_review_candidates_without_an_external_lookup() -> None:
+    terminology = FakeTerminologyClient()
+    record = replace(
+        _record(),
+        flat_claims={
+            ImmunizationClaim.VACCINE_CODE: (
+                "http://www.whocc.no/atcvet|QI07AA02,"
+                "http://www.whocc.no/atcvet|QI07AB01"
+            ),
+            ImmunizationClaim.VACCINE_CODE_DISPLAY: "rabies virus,leptospira",
+            ImmunizationClaim.VACCINE_CODE_TEXT: "virus de la rabia,leptospira",
+        },
+        coding_inputs={ImmunizationClaim.VACCINE_CODE: "virus de la rabia,leptospira"},
+    )
+    assistant = TerminologyCodingAssistant(
+        context=_context(), terminology=terminology, ranker=FakeRanker()
+    )
+
+    suggestions = assistant.suggest_codes(record)
+
+    assert [(item.system, item.code, item.display) for item in suggestions] == [
+        ("http://www.whocc.no/atcvet", "QI07AA02", "rabies virus"),
+        ("http://www.whocc.no/atcvet", "QI07AB01", "leptospira"),
+    ]
+    assert all(item.source == "api-config" for item in suggestions)
+    assert terminology.requests == []
 
 
 def test_pipeline_keeps_unconfirmed_candidates_outside_flat_claims() -> None:

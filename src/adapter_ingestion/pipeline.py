@@ -13,11 +13,14 @@ import uuid
 import re
 
 from gdc_data_utils import (
+    AllergyIntoleranceClaim,
     ChargeItemClaim,
     ConditionClaim,
     DiagnosticReportClaim,
     FHIR_API_CONTEXT,
+    ImmunizationClaim,
     InvoiceClaim,
+    MedicationStatementClaim,
     ProcedureClaim,
 )
 
@@ -241,6 +244,33 @@ def _resource_type_counts_from_entries(entries: list[dict[str, Any]]) -> dict[st
         if isinstance(resource, dict):
             _collect_resource_type_counts(resource, counts)
     return dict(sorted(counts.items(), key=lambda item: item[0]))
+
+
+def _coding_proposal_counts_from_entries(entries: list[dict[str, Any]]) -> tuple[int, int]:
+    proposal_count = 0
+    ambiguous_count = 0
+
+    def visit(resource: dict[str, Any]) -> None:
+        nonlocal proposal_count, ambiguous_count
+        meta = resource.get("meta")
+        proposals = meta.get("codingProposals") if isinstance(meta, dict) else None
+        for proposal in proposals if isinstance(proposals, list) else []:
+            if not isinstance(proposal, dict) or str(proposal.get("status", "")).strip() != "proposed":
+                continue
+            proposal_count += 1
+            candidates = proposal.get("candidates")
+            if isinstance(candidates, list) and len(candidates) > 1:
+                ambiguous_count += 1
+        contained = resource.get("contained")
+        for nested in contained if isinstance(contained, list) else []:
+            if isinstance(nested, dict):
+                visit(nested)
+
+    for entry in entries:
+        resource = entry.get("resource") if isinstance(entry, dict) else None
+        if isinstance(resource, dict):
+            visit(resource)
+    return proposal_count, ambiguous_count
 
 
 def _doc_claims(
@@ -515,6 +545,104 @@ def _procedure_resource(
     if proposals:
         meta["codingProposals"] = proposals
     return {"resourceType": "Procedure", "id": procedure_id, "meta": meta}
+
+
+def _coded_clinical_resource(
+    *,
+    context: AdapterContext,
+    record: CanonicalRecord,
+    suggestions: list[CodingSuggestion],
+    resource_type: str,
+    target_field: str,
+    identity_parts: dict[str, str],
+    status_claims: dict[str, str],
+) -> dict[str, Any] | None:
+    proposals = _coding_proposals(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type=resource_type,
+    )
+    if not proposals and target_field not in record.coding_inputs:
+        return None
+    source_text = str(record.coding_inputs.get(target_field, "") or "").strip()
+    resource_id = stable_uuid(
+        context.manufacturer,
+        context.tenant_id,
+        record.subject_id,
+        resource_type,
+        record.source_id,
+        record.timestamp,
+        source_text,
+    )
+    claims = {
+        **_claims_for_resource(record, resource_type),
+        **{key: resource_id if value == "$id" else record.subject_id if value == "$subject" else value
+           for key, value in identity_parts.items()},
+        **status_claims,
+        f"{resource_type}.language": context.language,
+    }
+    meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
+    if proposals:
+        meta["codingProposals"] = proposals
+    return {"resourceType": resource_type, "id": resource_id, "meta": meta}
+
+
+def _allergy_intolerance_resource(
+    *, context: AdapterContext, record: CanonicalRecord, suggestions: list[CodingSuggestion]
+) -> dict[str, Any] | None:
+    return _coded_clinical_resource(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type="AllergyIntolerance",
+        target_field=AllergyIntoleranceClaim.CODE,
+        identity_parts={
+            AllergyIntoleranceClaim.IDENTIFIER: "$id",
+            AllergyIntoleranceClaim.SUBJECT: "$subject",
+        },
+        status_claims={
+            AllergyIntoleranceClaim.CLINICAL_STATUS: "active",
+            AllergyIntoleranceClaim.VERIFICATION_STATUS: "unconfirmed",
+        },
+    )
+
+
+def _immunization_resource(
+    *, context: AdapterContext, record: CanonicalRecord, suggestions: list[CodingSuggestion]
+) -> dict[str, Any] | None:
+    return _coded_clinical_resource(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type="Immunization",
+        target_field=ImmunizationClaim.VACCINE_CODE,
+        identity_parts={
+            ImmunizationClaim.IDENTIFIER: "$id",
+            ImmunizationClaim.SUBJECT: "$subject",
+        },
+        status_claims={
+            ImmunizationClaim.STATUS: "completed",
+            ImmunizationClaim.DATE: record.timestamp,
+        },
+    )
+
+
+def _medication_statement_resource(
+    *, context: AdapterContext, record: CanonicalRecord, suggestions: list[CodingSuggestion]
+) -> dict[str, Any] | None:
+    return _coded_clinical_resource(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type="MedicationStatement",
+        target_field=MedicationStatementClaim.CODE,
+        identity_parts={
+            MedicationStatementClaim.IDENTIFIER: "$id",
+            MedicationStatementClaim.SUBJECT: "$subject",
+        },
+        status_claims={MedicationStatementClaim.STATUS: "unknown"},
+    )
 
 
 def _claims_for_resource(record: CanonicalRecord, resource_type: str) -> dict[str, str]:
@@ -905,7 +1033,10 @@ def run_pipeline(
 ) -> PipelineResult:
     document_entries_count = 0
     diagnostic_report_entries_count = 0
+    allergy_intolerance_entries_count = 0
     condition_entries_count = 0
+    immunization_entries_count = 0
+    medication_statement_entries_count = 0
     procedure_entries_count = 0
     invoice_entries_count = 0
     charge_item_entries_count = 0
@@ -916,7 +1047,10 @@ def run_pipeline(
     composition_entries_count = 0
     grouped_doc_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_diagnostic_report_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_allergy_intolerance_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_condition_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_immunization_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_medication_statement_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_procedure_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_invoice_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_charge_item_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
@@ -931,13 +1065,9 @@ def run_pipeline(
     subjects: set[str] = set()
     all_related_person_ids: set[str] = set()
     latest_record_by_subject: dict[str, CanonicalRecord] = {}
-    coding_proposal_candidate_ids: dict[str, set[str]] = defaultdict(set)
 
     for record in records:
         suggestions = coding_assistant.suggest_codes(record)
-        for suggestion in suggestions:
-            if suggestion.proposal_id and suggestion.candidate_id:
-                coding_proposal_candidate_ids[suggestion.proposal_id].add(suggestion.candidate_id)
         doc_id, doc_claims = _doc_claims(record, context)
         document_entries_count += 1
         key = (record.subject_id, record.composition_section)
@@ -953,6 +1083,16 @@ def run_pipeline(
             grouped_diagnostic_report_resources[key][diagnostic_report_id] = diagnostic_report
             diagnostic_report_entries_count += 1
 
+        allergy_intolerance = _allergy_intolerance_resource(
+            context=context,
+            record=record,
+            suggestions=suggestions,
+        )
+        if allergy_intolerance is not None:
+            allergy_id = str(allergy_intolerance["id"])
+            grouped_allergy_intolerance_resources[key][allergy_id] = allergy_intolerance
+            allergy_intolerance_entries_count += 1
+
         condition = _condition_resource(context=context, record=record, suggestions=suggestions)
         if condition is not None:
             condition_id = str(condition["id"])
@@ -964,6 +1104,22 @@ def run_pipeline(
             procedure_id = str(procedure["id"])
             grouped_procedure_resources[key][procedure_id] = procedure
             procedure_entries_count += 1
+
+        immunization = _immunization_resource(context=context, record=record, suggestions=suggestions)
+        if immunization is not None:
+            immunization_id = str(immunization["id"])
+            grouped_immunization_resources[key][immunization_id] = immunization
+            immunization_entries_count += 1
+
+        medication_statement = _medication_statement_resource(
+            context=context,
+            record=record,
+            suggestions=suggestions,
+        )
+        if medication_statement is not None:
+            medication_id = str(medication_statement["id"])
+            grouped_medication_statement_resources[key][medication_id] = medication_statement
+            medication_statement_entries_count += 1
 
         invoice_identifier = record.flat_claims.get(InvoiceClaim.IDENTIFIER, "").strip()
         if invoice_identifier:
@@ -1030,19 +1186,36 @@ def run_pipeline(
             key = (subject, section)
             doc_resources_map = grouped_doc_resources[key]
             diagnostic_report_resources_map = grouped_diagnostic_report_resources[key]
+            allergy_intolerance_resources_map = grouped_allergy_intolerance_resources[key]
             condition_resources_map = grouped_condition_resources[key]
+            immunization_resources_map = grouped_immunization_resources[key]
+            medication_statement_resources_map = grouped_medication_statement_resources[key]
             procedure_resources_map = grouped_procedure_resources[key]
             invoice_resources_map = grouped_invoice_resources[key]
             charge_item_resources_map = grouped_charge_item_resources[key]
             encounter_resources_map = grouped_encounter_resources[key]
             doc_ids = sorted(doc_resources_map.keys())
             diagnostic_report_ids = sorted(diagnostic_report_resources_map.keys())
+            allergy_intolerance_ids = sorted(allergy_intolerance_resources_map.keys())
             condition_ids = sorted(condition_resources_map.keys())
+            immunization_ids = sorted(immunization_resources_map.keys())
+            medication_statement_ids = sorted(medication_statement_resources_map.keys())
             procedure_ids = sorted(procedure_resources_map.keys())
             invoice_ids = sorted(invoice_resources_map.keys())
             charge_item_ids = sorted(charge_item_resources_map.keys())
             encounter_ids = sorted(encounter_resources_map.keys())
-            entry_ids = encounter_ids + condition_ids + procedure_ids + diagnostic_report_ids + invoice_ids + charge_item_ids + doc_ids
+            entry_ids = (
+                encounter_ids
+                + allergy_intolerance_ids
+                + condition_ids
+                + procedure_ids
+                + diagnostic_report_ids
+                + immunization_ids
+                + medication_statement_ids
+                + invoice_ids
+                + charge_item_ids
+                + doc_ids
+            )
             claims = _composition_claims(
                 context=context,
                 subject=subject,
@@ -1055,12 +1228,18 @@ def run_pipeline(
 
             for resource_id in encounter_ids:
                 contained_resources.append(encounter_resources_map[resource_id])
+            for resource_id in allergy_intolerance_ids:
+                contained_resources.append(allergy_intolerance_resources_map[resource_id])
             for resource_id in condition_ids:
                 contained_resources.append(condition_resources_map[resource_id])
             for resource_id in procedure_ids:
                 contained_resources.append(procedure_resources_map[resource_id])
             for resource_id in diagnostic_report_ids:
                 contained_resources.append(diagnostic_report_resources_map[resource_id])
+            for resource_id in immunization_ids:
+                contained_resources.append(immunization_resources_map[resource_id])
+            for resource_id in medication_statement_ids:
+                contained_resources.append(medication_statement_resources_map[resource_id])
             for resource_id in invoice_ids:
                 contained_resources.append(invoice_resources_map[resource_id])
             for resource_id in charge_item_ids:
@@ -1106,6 +1285,7 @@ def run_pipeline(
         row_issues=[item for item in (row_issues or []) if isinstance(item, dict)],
     )
     bundle_entries = subject_entries + outcome_entries
+    coding_proposal_entries, ambiguous_coding_proposal_entries = _coding_proposal_counts_from_entries(bundle_entries)
 
     composition_message = didcomm_plaintext_message(
         thid=_thid("patient"),
@@ -1123,12 +1303,13 @@ def run_pipeline(
         "subjectsTotal": len(subjects),
         "documentReferenceEntries": document_entries_count,
         "diagnosticReportEntries": diagnostic_report_entries_count,
+        "allergyIntoleranceEntries": allergy_intolerance_entries_count,
         "conditionEntries": condition_entries_count,
+        "immunizationEntries": immunization_entries_count,
+        "medicationStatementEntries": medication_statement_entries_count,
         "procedureEntries": procedure_entries_count,
-        "codingProposalEntries": len(coding_proposal_candidate_ids),
-        "ambiguousCodingProposalEntries": sum(
-            1 for candidate_ids in coding_proposal_candidate_ids.values() if len(candidate_ids) > 1
-        ),
+        "codingProposalEntries": coding_proposal_entries,
+        "ambiguousCodingProposalEntries": ambiguous_coding_proposal_entries,
         "invoiceEntries": invoice_entries_count,
         "chargeItemEntries": charge_item_entries_count,
         "encounterEntries": encounter_entries_count,

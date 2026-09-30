@@ -80,3 +80,35 @@ def test_fracture_concept_is_a_condition_candidate_not_a_diagnostic_report() -> 
 
     assert [item.resource_type for item in candidates] == ["Condition"]
     assert candidates[0].source_text == "Fractura de sesamoideo"
+
+
+def test_vaccination_uncertainty_or_future_intent_is_not_a_completed_immunization_candidate() -> None:
+    uncertain = classify_source_concept(
+        section="CLINICA",
+        family="NORMAL",
+        subfamily="NORMAL",
+        concept="No saben si está vacunado; enviamos muestra al laboratorio",
+        subject_kind="animal",
+    )
+    future = classify_source_concept(
+        section="CLINICA",
+        family="NORMAL",
+        subfamily="NORMAL",
+        concept="Repetiremos la analítica en abril si le quieren vacunar",
+        subject_kind="animal",
+    )
+
+    assert all(item.resource_type != "Immunization" for item in uncertain)
+    assert all(item.resource_type != "Immunization" for item in future)
+
+
+def test_allergy_wording_targets_allergy_intolerance_before_medication() -> None:
+    candidates = classify_source_concept(
+        section="CLINICA",
+        family="ALERGIAS",
+        subfamily="MEDICAMENTOS",
+        concept="Alergia a penicilina",
+        subject_kind="animal",
+    )
+
+    assert [item.resource_type for item in candidates] == ["AllergyIntolerance"]

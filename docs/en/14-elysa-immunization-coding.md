@@ -22,6 +22,17 @@ formulations retain multiple candidates or a broader group and remain marked
 for review. Solvents, recommendations, vaccination-status statements and
 unrelated rows are not converted into Immunization claims.
 
+For animal sheets, local species text is not converted directly into a TaxId.
+DataConv searches the `API-CONFIG` BCP 47 language first and English second,
+trying the complete value and progressively shorter prefixes down to three
+characters only to retrieve candidates from the closed NCBI set supported by
+ATCvet. The model classifies those candidates with row context. Without a
+model, only one unique candidate found with four or more characters may route
+the ATCvet lookup; it is not recorded as reviewed data. A three-character,
+ambiguous or unsupported result preserves the text for review and skips the
+invalid ATCvet request. The implementation never removes every final character
+or compares arbitrary free text by substring.
+
 Run with Python 3.11 and the Excel extra installed:
 
 ```bash

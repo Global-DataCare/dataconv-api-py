@@ -55,6 +55,15 @@ el path FHIR. Nunca se convierte por heurística
 está disponible, el texto y la propuesta permanecen visibles con cero
 candidatos para que la cola de revisión no desaparezca.
 
+Para una propuesta animal `Immunization.vaccine-code`, la especie es un paso
+previo de clasificación cerrada: idioma BCP 47 de la hoja, fallback inglés y
+prefijos desde el texto completo hasta tres caracteres recuperan solamente
+candidatos NCBI soportados por las ramas QI de ATCvet. El modelo los ordena con
+el contexto de fila. Sin modelo, solo un candidato único con al menos cuatro
+caracteres coincidentes puede usarse para enrutar la búsqueda, sin marcarlo
+`userSelected`. Coincidencias de tres caracteres, ambiguas o no soportadas
+conservan el texto y no llaman ATCvet con un TaxId inventado.
+
 Si el destino inferido es incorrecto, `ResearchSubject/$review-reclassify`
 mueve la propuesta todavía no resuelta a uno de los destinos clínicos
 gobernados (`Condition.code`, `Procedure.code` o `DiagnosticReport.code`). La

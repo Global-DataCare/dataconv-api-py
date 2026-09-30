@@ -24,6 +24,17 @@ una formulación ambigua conserva varios candidatos o un grupo más amplio y
 queda pendiente de revisión. No se convierten en Immunization los disolventes,
 las recomendaciones, el simple estado vacunal ni filas ajenas a vacunas.
 
+En hojas animales, el texto local de especie no se convierte directamente en
+un TaxId. DataConv usa primero el idioma BCP 47 de `API-CONFIG` y después inglés,
+buscando el valor completo y acortándolo progresivamente hasta tres caracteres
+solo para recuperar candidatos del conjunto NCBI cerrado soportado por ATCvet.
+El modelo clasifica los candidatos con el contexto de la fila. Sin modelo, solo
+un candidato único encontrado con cuatro o más caracteres puede usarse como
+contexto de enrutado para consultar ATCvet; nunca queda confirmado como dato
+revisado. Una coincidencia de tres caracteres, ambigua o no soportada conserva
+el texto para revisión y no provoca una petición ATCvet inválida. No se elimina
+la última letra de todas las especies ni se compara texto libre por substring.
+
 Ejecución con Python 3.11 y el extra de Excel instalado:
 
 ```bash

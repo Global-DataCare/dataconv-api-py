@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 0.8.21 - 2026-09-30
+
+- Resolve animal species as a closed NCBI candidate-ranking step before
+  ATCvet vaccine search. Search the workbook language then English, use bounded
+  longest-to-shortest prefixes, preserve ambiguous text for review and never
+  call the animal vaccine endpoint without an exact supported TaxId.
+
 ## 0.8.20 - 2026-09-30
 
 - Restrict historical DocumentReference vaccination backfill to explicit

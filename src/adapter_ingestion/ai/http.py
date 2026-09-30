@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import re
 from hashlib import sha256
 from typing import Any, Callable, Protocol
 from urllib.error import HTTPError
@@ -108,6 +109,16 @@ class HttpTerminologyClient(_AuthorizedClient):
         query_text = str(request.text or "").strip()
         if len(query_text) < TERMINOLOGY_QUERY_TEXT_MIN_LENGTH:
             return []
+        ncbi_taxonomy_id = str(request.ncbi_taxonomy_id or "").strip()
+        requires_exact_animal_species = (
+            request.sector.startswith("animal-")
+            and request.field == "Immunization.vaccine-code"
+        )
+        if requires_exact_animal_species and not re.fullmatch(r"[1-9]\d{0,11}", ncbi_taxonomy_id):
+            # ATCvet QI branches are species-specific. Preserve the local
+            # vaccine text for review rather than issue an invalid or guessed
+            # terminology query when the source row has no exact taxonomy.
+            return []
         query_text = query_text[:TERMINOLOGY_QUERY_TEXT_MAX_LENGTH]
         query_values: dict[str, object] = {
                 "text": query_text,
@@ -124,6 +135,8 @@ class HttpTerminologyClient(_AuthorizedClient):
         }
         if request.sources:
             query_values["source"] = request.sources
+        if ncbi_taxonomy_id:
+            query_values["ncbiTaxonomyId"] = ncbi_taxonomy_id
         query = urlencode(query_values, doseq=True)
         document = self._transport.request(
             method="GET",

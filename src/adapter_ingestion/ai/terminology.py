@@ -6,9 +6,18 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from hashlib import sha256
 from typing import Protocol
+import re
 
 from .base import CodingSuggestion
 from ..models import AdapterContext, CanonicalRecord
+
+
+NCBI_TAXONOMY_SYSTEM = "https://www.ncbi.nlm.nih.gov/taxonomy"
+NCBI_TAXONOMY_SOURCE = "NCBI_TAXONOMY"
+ANIMAL_SPECIES_FIELD = "org.schema.Organization.member.additionalType"
+SPECIES_PREFIX_MIN_LENGTH = 3
+SPECIES_AUTOMATIC_UNIQUE_PREFIX_MIN_LENGTH = 4
+SPECIES_MODEL_CONFIDENCE_PERCENT = 80.0
 
 
 @dataclass(frozen=True)
@@ -20,6 +29,7 @@ class TerminologySearchRequest:
     jurisdiction: str
     resource_type: str
     field: str
+    ncbi_taxonomy_id: str = ""
     sources: tuple[str, ...] = ()
     limit: int = 20
 
@@ -85,6 +95,7 @@ class TerminologyCodingAssistant:
         self._terminology = terminology
         self._ranker = ranker
         self._candidate_cache: dict[TerminologySearchRequest, tuple[TerminologyCandidate, ...]] = {}
+        self._species_cache: dict[tuple[str, str], str] = {}
 
     def suggest_codes(self, record: CanonicalRecord) -> list[CodingSuggestion]:
         suggestions: list[CodingSuggestion] = []
@@ -94,17 +105,18 @@ class TerminologyCodingAssistant:
             input_text = str(text or "").strip()
             if not resource_type or not input_text:
                 continue
-            request = TerminologySearchRequest(
-                text=input_text,
-                language=self._context.language,
-                fhir_version="R4",
-                sector=self._context.sector,
-                jurisdiction=self._context.jurisdiction,
-                resource_type=resource_type,
-                field=str(field),
-            )
             resolved = self._imported_candidates(record, str(field))
             if not resolved:
+                request = TerminologySearchRequest(
+                    text=input_text,
+                    language=self._context.language,
+                    fhir_version="R4",
+                    sector=self._context.sector,
+                    jurisdiction=self._context.jurisdiction,
+                    resource_type=resource_type,
+                    field=str(field),
+                    ncbi_taxonomy_id=self._ncbi_taxonomy_id(record, str(field)),
+                )
                 resolved = self._candidate_cache.get(request)
                 if resolved is None:
                     resolved = tuple(self._terminology.search(request))
@@ -165,6 +177,91 @@ class TerminologyCodingAssistant:
                     )
                 )
         return suggestions
+
+    def _ncbi_taxonomy_id(self, record: CanonicalRecord, field: str) -> str:
+        if (
+            field != "Immunization.vaccine-code"
+            or not self._context.sector.casefold().startswith("animal-")
+        ):
+            return ""
+        cache_key = (self._context.language.casefold(), record.species_local.casefold().strip())
+        if cache_key in self._species_cache:
+            return self._species_cache[cache_key]
+        taxonomy_id = self._resolve_species_taxonomy(record)
+        self._species_cache[cache_key] = taxonomy_id
+        return taxonomy_id
+
+    def _resolve_species_taxonomy(self, record: CanonicalRecord) -> str:
+        """Resolve an ATCvet routing TaxId from governed closed candidates.
+
+        Candidate retrieval tries the workbook language and then English while
+        shortening only failed searches. The model ranks ambiguity. A unique
+        four-character-or-longer prefix is the bounded no-model fallback; a
+        three-character-only match is never promoted automatically.
+        """
+
+        source_text = re.sub(r"\s+", " ", str(record.species_local or "").strip())
+        if len(source_text) < SPECIES_PREFIX_MIN_LENGTH:
+            return ""
+        languages = [self._context.language]
+        if self._context.language.casefold().split("-", 1)[0] != "en":
+            languages.append("en")
+        for language in languages:
+            for length in range(len(source_text), SPECIES_PREFIX_MIN_LENGTH - 1, -1):
+                prefix = source_text[:length].rstrip()
+                if len(prefix) < SPECIES_PREFIX_MIN_LENGTH:
+                    continue
+                request = TerminologySearchRequest(
+                    text=prefix,
+                    language=language,
+                    fhir_version="R4",
+                    sector=self._context.sector,
+                    jurisdiction=self._context.jurisdiction,
+                    resource_type="Organization",
+                    field=ANIMAL_SPECIES_FIELD,
+                    sources=(NCBI_TAXONOMY_SOURCE,),
+                )
+                candidates = self._taxonomy_candidates(self._terminology.search(request))
+                if not candidates:
+                    continue
+                ranked = self._ranker.rank(CodingRankRequest(
+                    text=source_text,
+                    language=self._context.language,
+                    sector=self._context.sector,
+                    jurisdiction=self._context.jurisdiction,
+                    subject_kind=self._context.subject_kind,
+                    resource_type="Organization",
+                    field=ANIMAL_SPECIES_FIELD,
+                    row_context=self._row_context(record),
+                    candidates=tuple(candidates),
+                ))
+                allowed = {candidate.candidate_id: candidate for candidate in candidates}
+                if ranked:
+                    selected = allowed.get(ranked[0].candidate_id)
+                    if selected and ranked[0].recommendation_percent >= SPECIES_MODEL_CONFIDENCE_PERCENT:
+                        return selected.code
+                if len(candidates) == 1 and len(prefix) >= SPECIES_AUTOMATIC_UNIQUE_PREFIX_MIN_LENGTH:
+                    return candidates[0].code
+                return ""
+        return ""
+
+    @staticmethod
+    def _taxonomy_candidates(candidates: list[TerminologyCandidate]) -> list[TerminologyCandidate]:
+        """Reject non-NCBI or malformed model inputs before closed-set ranking."""
+
+        resolved: list[TerminologyCandidate] = []
+        seen: set[str] = set()
+        for candidate in candidates:
+            if (
+                candidate.system != NCBI_TAXONOMY_SYSTEM
+                or not re.fullmatch(r"[1-9]\d{0,11}", candidate.code)
+                or candidate.code in seen
+            ):
+                continue
+            seen.add(candidate.code)
+            enriched = replace(candidate, resource_type="Organization", field=ANIMAL_SPECIES_FIELD)
+            resolved.append(replace(enriched, candidate_id=_candidate_id(enriched)))
+        return resolved
 
     def _imported_candidates(
         self,

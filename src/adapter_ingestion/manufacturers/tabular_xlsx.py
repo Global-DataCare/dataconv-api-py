@@ -13,6 +13,7 @@ from gdc_data_utils import (
     DiagnosticReportClaim,
     ImmunizationClaim,
     MedicationStatementClaim,
+    ObservationClaim,
     ProcedureClaim,
 )
 import hashlib
@@ -857,6 +858,7 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                     "DiagnosticReport": DiagnosticReportClaim.CODE,
                     "Immunization": ImmunizationClaim.VACCINE_CODE,
                     "MedicationStatement": MedicationStatementClaim.CODE,
+                    "Observation": ObservationClaim.CODE,
                 }
                 supported_targets = {
                     concept_target[candidate.resource_type]

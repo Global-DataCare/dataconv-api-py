@@ -10,7 +10,7 @@ import pytest
 from openpyxl import Workbook, load_workbook
 from gdc_data_utils import ChargeItemClaim, ConditionClaim, InvoiceClaim
 
-from adapter_ingestion.accuro_workbook import ACCURO_SHEET_CONFIGS, prepare_accuro_workbook
+from adapter_ingestion.research_workbook import RESEARCH_WORKBOOK_SHEET_CONFIGS, prepare_research_workbook
 from adapter_ingestion.ai.base import NoopCodingAssistant
 from adapter_ingestion.manufacturers.registry import get_adapter
 from adapter_ingestion.models import AdapterContext
@@ -32,12 +32,12 @@ def _prepared_sheet_for_rows(tmp_path: Path, sheet_config, rows: list[list[objec
     for row in rows:
         worksheet.append(row)
     workbook.save(source)
-    prepare_accuro_workbook(source, prepared)
+    prepare_research_workbook(source, prepared)
     return load_workbook(prepared, read_only=True, data_only=True)[sheet_config.name]
 
 
 def test_last_appointment_derives_birthyear_and_redacts_animal_name(tmp_path: Path) -> None:
-    sheet_config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == "CV Bestioles")
+    sheet_config = next(item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "CV Bestioles")
     sheet = _prepared_sheet_for_rows(
         tmp_path,
         sheet_config,
@@ -54,7 +54,7 @@ def test_last_appointment_derives_birthyear_and_redacts_animal_name(tmp_path: Pa
 
 
 def test_external_subject_identifier_is_removed_from_prepared_research_workbook(tmp_path: Path) -> None:
-    sheet_config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == "Veterinary Automation 2")
+    sheet_config = next(item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "Veterinary Automation 2")
     source_identifier = "external-chip-991"
     row = [
         "2026-01-31T11:52:00", "Consulta", 1, "2026-01-31T11:52:17",
@@ -71,7 +71,7 @@ def test_external_subject_identifier_is_removed_from_prepared_research_workbook(
 
 
 def test_full_birthdate_is_replaced_with_year_for_anonymization(tmp_path: Path) -> None:
-    sheet_config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == "Canitas 1")
+    sheet_config = next(item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "Canitas 1")
     sheet = _prepared_sheet_for_rows(
         tmp_path,
         sheet_config,
@@ -89,7 +89,7 @@ def test_full_birthdate_is_replaced_with_year_for_anonymization(tmp_path: Path) 
 
 
 def test_origin_is_ignored_and_diagnoses_are_unconfirmed_condition_coding_inputs() -> None:
-    for config in ACCURO_SHEET_CONFIGS:
+    for config in RESEARCH_WORKBOOK_SHEET_CONFIGS:
         assert "origin" not in config.internal_fields
 
     expected_diagnostic_headers = {
@@ -99,7 +99,7 @@ def test_origin_is_ignored_and_diagnoses_are_unconfirmed_condition_coding_inputs
         "Centro creciendo": "PATOLOGÍA",
     }
     for sheet_name, source_header in expected_diagnostic_headers.items():
-        config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == sheet_name)
+        config = next(item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == sheet_name)
         assert config.internal_fields[config.source_headers.index(source_header)] == ConditionClaim.CODE_TEXT
 
 
@@ -108,20 +108,20 @@ def test_treatment_narratives_are_not_misrepresented_as_standard_displays() -> N
         ("Pinol Vepahi", "tratamiento"),
         ("Survet Diagonal", "TRACTAMENT"),
     ):
-        config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == sheet_name)
+        config = next(item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == sheet_name)
         assert config.internal_fields[config.source_headers.index(source_header)] == "treatment"
 
     invoice_lines = next(
-        item for item in ACCURO_SHEET_CONFIGS if item.name == "Veterinary Automation 2"
+        item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "Veterinary Automation 2"
     )
     assert invoice_lines.internal_fields[
         invoice_lines.source_headers.index("DESCRIPCION")
     ] == "procedure_code-text"
 
 
-def test_financial_accuro_fields_use_canonical_claims_only_when_invoice_identity_is_safe() -> None:
+def test_financial_research_workbook_fields_use_canonical_claims_only_when_invoice_identity_is_safe() -> None:
     aggregate_catalog = next(
-        item for item in ACCURO_SHEET_CONFIGS if item.name == "CV A Caeira"
+        item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "CV A Caeira"
     )
     for source_header in ("UNIDADES", "CODIGO BARRAS", "IDARTICULO"):
         assert aggregate_catalog.internal_fields[
@@ -129,7 +129,7 @@ def test_financial_accuro_fields_use_canonical_claims_only_when_invoice_identity
         ] == ""
 
     invoice_lines = next(
-        item for item in ACCURO_SHEET_CONFIGS if item.name == "Veterinary Automation 2"
+        item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "Veterinary Automation 2"
     )
     assert invoice_lines.internal_fields[
         invoice_lines.source_headers.index("FECHA_DOCUMENTO")
@@ -144,7 +144,7 @@ def test_financial_accuro_fields_use_canonical_claims_only_when_invoice_identity
 
 def test_invoice_lines_derive_one_stable_invoice_and_distinct_charge_item_ids(tmp_path: Path) -> None:
     config = next(
-        item for item in ACCURO_SHEET_CONFIGS if item.name == "Veterinary Automation 2"
+        item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "Veterinary Automation 2"
     )
     base = [
         "2026-01-31T11:52:00",
@@ -180,7 +180,7 @@ def test_invoice_lines_derive_one_stable_invoice_and_distinct_charge_item_ids(tm
 
 
 def test_repeated_source_subject_reuses_one_research_subject_uuid(tmp_path: Path) -> None:
-    sheet_config = next(item for item in ACCURO_SHEET_CONFIGS if item.name == "CV Bestioles")
+    sheet_config = next(item for item in RESEARCH_WORKBOOK_SHEET_CONFIGS if item.name == "CV Bestioles")
     source = tmp_path / "repeated-subject.xlsx"
     prepared = tmp_path / "repeated-subject-api-config.xlsx"
     workbook = Workbook()
@@ -194,20 +194,20 @@ def test_repeated_source_subject_reuses_one_research_subject_uuid(tmp_path: Path
     worksheet.append(second_row)
     workbook.save(source)
 
-    prepare_accuro_workbook(source, prepared)
+    prepare_research_workbook(source, prepared)
 
     output = load_workbook(prepared, read_only=True, data_only=True)[sheet_config.name]
     subject_column = [cell.value for cell in output[3]].index("RESEARCH_SUBJECT_ID") + 1
     assert output.cell(4, subject_column).value == output.cell(5, subject_column).value
 
 
-@pytest.mark.parametrize("sheet_config", ACCURO_SHEET_CONFIGS, ids=lambda item: item.slug)
-def test_each_accuro_sheet_gets_api_config_and_imports_without_duplicate_subjects(
+@pytest.mark.parametrize("sheet_config", RESEARCH_WORKBOOK_SHEET_CONFIGS, ids=lambda item: item.slug)
+def test_each_research_workbook_sheet_gets_api_config_and_imports_without_duplicate_subjects(
     tmp_path: Path,
     sheet_config,
 ) -> None:
-    source = tmp_path / "accuro-source.xlsx"
-    prepared = tmp_path / "accuro-api-config.xlsx"
+    source = tmp_path / "research-workbook-source.xlsx"
+    prepared = tmp_path / "research-workbook-api-config.xlsx"
     split_dir = tmp_path / "organizations"
     workbook = Workbook()
     worksheet = workbook.active
@@ -217,7 +217,7 @@ def test_each_accuro_sheet_gets_api_config_and_imports_without_duplicate_subject
     worksheet.append(sheet_config.synthetic_row())
     workbook.save(source)
 
-    report = prepare_accuro_workbook(source, prepared, split_dir=split_dir)
+    report = prepare_research_workbook(source, prepared, split_dir=split_dir)
 
     assert report["sheets"][sheet_config.name]["sourceRows"] == 1
     organization_workbook = split_dir / f"{sheet_config.slug}.xlsx"
@@ -250,7 +250,7 @@ def test_each_accuro_sheet_gets_api_config_and_imports_without_duplicate_subject
     UUID(subject_identifier.removeprefix("urn:uuid:"))
 
     rerun_split_dir = tmp_path / "organizations-rerun"
-    prepare_accuro_workbook(source, prepared, split_dir=rerun_split_dir)
+    prepare_research_workbook(source, prepared, split_dir=rerun_split_dir)
     rerun_records = adapter.read_records(
         rerun_split_dir / f"{sheet_config.slug}.xlsx",
         AdapterContext(
@@ -271,7 +271,7 @@ def test_each_accuro_sheet_gets_api_config_and_imports_without_duplicate_subject
 
     independent_output = tmp_path / "independent-api-config.xlsx"
     independent_split_dir = tmp_path / "independent-organizations"
-    prepare_accuro_workbook(source, independent_output, split_dir=independent_split_dir)
+    prepare_research_workbook(source, independent_output, split_dir=independent_split_dir)
     independent_config = extract_embedded_api_config(
         independent_split_dir / f"{sheet_config.slug}.xlsx"
     )

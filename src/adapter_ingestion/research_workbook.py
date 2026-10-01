@@ -13,11 +13,11 @@ import re
 from gdc_data_utils import ChargeItemClaim, ConditionClaim, InvoiceClaim
 
 
-ACCURO_MAPPING_REVISION_DATE = "2026-03-19"
+RESEARCH_WORKBOOK_MAPPING_REVISION_DATE = "2026-03-19"
 
 
 @dataclass(frozen=True)
-class AccuroSheetConfig:
+class ResearchWorkbookSheetConfig:
     name: str
     slug: str
     subject_kind: str
@@ -35,7 +35,7 @@ class AccuroSheetConfig:
 
     @property
     def software_id(self) -> str:
-        return f"accuro-{self.slug}"
+        return f"research-workbook-{self.slug}"
 
     @property
     def marker(self) -> str:
@@ -66,7 +66,7 @@ class AccuroSheetConfig:
         values: list[Any] = []
         for source_header, internal_field in zip(self.source_headers, self.internal_fields):
             if internal_field == "date" or internal_field.endswith("date"):
-                values.append(ACCURO_MAPPING_REVISION_DATE)
+                values.append(RESEARCH_WORKBOOK_MAPPING_REVISION_DATE)
             elif internal_field == "time":
                 values.append("15:00:00")
             elif internal_field == "subject_animal-species":
@@ -84,12 +84,12 @@ class AccuroSheetConfig:
             elif source_header == self.age_header:
                 values[-1] = 5
             elif source_header == self.birthyear_reference_header:
-                values[-1] = ACCURO_MAPPING_REVISION_DATE
+                values[-1] = RESEARCH_WORKBOOK_MAPPING_REVISION_DATE
         return values
 
 
-ACCURO_SHEET_CONFIGS = (
-    AccuroSheetConfig(
+RESEARCH_WORKBOOK_SHEET_CONFIGS = (
+    ResearchWorkbookSheetConfig(
         "CV Bestioles", "cv-bestioles", "animal",
         ("MASCOTA", "ESPECIE", "RAZA", "SEXO", "ESTERIL", "EDAD", "ULTIMA VISITA"),
         ("", "subject_animal-species", "subject_animal-breeds", "subject_birthsex", "subject_animal-genderstatus", "", "appointment_lastoccurrencedate"),
@@ -99,7 +99,7 @@ ACCURO_SHEET_CONFIGS = (
         birthyear_reference_header="ULTIMA VISITA",
         record_date_source_header="ULTIMA VISITA",
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Canitas 1", "canitas-1", "animal",
         ("EDAD MASCOTA", "MASCOTA", "ESPECIE", "RAZA", "SEXO", "NACIMIENTO"),
         ("", "", "subject_animal-species", "subject_animal-breeds", "subject_birthsex", "subject_birthyear"),
@@ -108,19 +108,19 @@ ACCURO_SHEET_CONFIGS = (
         birth_date_headers=("NACIMIENTO",),
         redacted_headers=("MASCOTA",),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Canitas 2", "canitas-2", "animal",
         ("FECHA", "CONCEPTO", "SECCION", "FAMILIA", "SUBFAMILIA", "DETALLE"),
         ("date", "concept", "section", "family", "subfamily", ""),
         has_source_header=False,
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "CV A Caeira", "cv-a-caeira", "animal",
         ("SECCIÓN", "FAMILIA", "SUBFAMILIA", "BASE IMPONIBLE", "IMPORTE IVA", "IMPORTE DESCUENTO", "TOTAL IMPORTE", "CLÍNICA", "TIPO IVA", "EMPRESA NOMBRE FISCAL", "CONCEPTO", "UNIDADES", "CODIGO BARRAS", "IDARTICULO"),
         ("section", "family", "subfamily", "", "", "", "", "", "", "", "concept", "", "", ""),
         redacted_headers=("CLÍNICA", "EMPRESA NOMBRE FISCAL"),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Crematori de mascotas", "crematori-de-mascotas", "animal",
         ("FECHA", "TIPO DE SERVICIO", "NOMBRE MASCOTA", "ESPECIE", "RAZA", "PESO (KG)", "FECHA NACIMIENTO", "FECHA DEFUNCIÓN", "DETALLE"),
         ("date", "family", "", "subject_animal-species", "subject_animal-breeds", "observation_weight", "subject_birthyear", "subject_deathdate", ""),
@@ -129,14 +129,14 @@ ACCURO_SHEET_CONFIGS = (
         birth_date_headers=("FECHA NACIMIENTO",),
         redacted_headers=("NOMBRE MASCOTA",),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Mascoverso", "mascoverso", "animal",
         ("nombre", "especie", "edad_anios", "entorno", "ficha", "tos", "estornudos", "vomitos", "rascarse", "jadeo", "quejido", "respiracion", "ladrido", "aullido", "gruñido", "comer", "beber", "total_detecciones", "eventos_collar_totales", "registros_imu", "beacons", "primera_deteccion", "ultima_deteccion", "dias_observado"),
         ("", "subject_animal-species", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "account_serviceperiod-start", "date", ""),
         subject_key_headers=("nombre", "especie"),
         redacted_headers=("nombre",),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Pinol Vepahi", "pinol-vepahi", "animal",
         ("FechaVisita", "TipoVisita", "ESPECIE", "RAZA", "Anamnesis", "tratamiento", "FECHANACIMIENTO", "EDAD", "CLINICA", "Diagnostico"),
         ("date", "family", "subject_animal-species", "subject_animal-breeds", "concept", "treatment", "subject_birthyear", "", "", ConditionClaim.CODE_TEXT),
@@ -144,14 +144,14 @@ ACCURO_SHEET_CONFIGS = (
         birth_date_headers=("FECHANACIMIENTO",),
         redacted_headers=("CLINICA",),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Survet Diagonal", "survet-diagonal", "animal",
         ("DATA VISITA", "TIPUS VISITA", "ESPÈCIE", "SEXE", "DATA NAIXEMENT", "EDAT", "ANAMNESI", "RAÇA", "TRACTAMENT", "peso"),
         ("date", "family", "subject_animal-species", "subject_birthsex", "subject_birthyear", "", "concept", "subject_animal-breeds", "treatment", "observation_weight"),
         output_header_overrides=(("DATA NAIXEMENT", "ANY NAIXEMENT"),),
         birth_date_headers=("DATA NAIXEMENT",),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Veterinary Automation 1", "veterinary-automation-1", "animal",
         ("PROVINCIA", "FECHA ALTA", "FECHA DEFUNCION", "SEXO", "ESTERIL", "IGUALA", "ULTIMA VISITA", "ESPECIE", "RAZA", "CARACTER", "EDAD", "MASCOTA"),
         ("location_address-district", "account_serviceperiod-start", "subject_deathdate", "subject_birthsex", "subject_animal-genderstatus", "coverage_status", "appointment_lastoccurrencedate", "subject_animal-species", "subject_animal-breeds", "observation_behavior-assessment", "", ""),
@@ -161,7 +161,7 @@ ACCURO_SHEET_CONFIGS = (
         birthyear_reference_header="ULTIMA VISITA",
         record_date_source_header="ULTIMA VISITA",
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Veterinary Automation 2", "veterinary-automation-2", "animal",
         ("FECHA_LINEA", "CONCEPTO_LINEA", "CANTIDAD_LINEA", "FECHA_DOCUMENTO", "CONCEPTO_DOCUMENTO", "CANTIDAD_DOCUMENTO", "FAMILIA", "SUBFAMILIA", "MASCOTA", "ESPECIE", "FECHA DEFUNCION", "DESCRIPCION", "COMUNICACION_IDANIMAL"),
         (ChargeItemClaim.OCCURRENCE, ChargeItemClaim.CODE_TEXT, ChargeItemClaim.QUANTITY_NUMBER, InvoiceClaim.DATE, "", "", "family", "subfamily", "", "subject_animal-species", "subject_deathdate", "procedure_code-text", ""),
@@ -169,21 +169,21 @@ ACCURO_SHEET_CONFIGS = (
         redacted_headers=("MASCOTA", "COMUNICACION_IDANIMAL"),
         invoice_identity_headers=("COMUNICACION_IDANIMAL", "FECHA_DOCUMENTO"),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Dr Baron dentistas", "dr-baron-dentistas", "person",
         ("Fecha", "Sexo", "Edad", "Tratamiento", "Patologia Dental", "Num Visitas"),
         ("date", "subject_birthsex", "", "family", ConditionClaim.CODE_TEXT, ""),
         age_header="Edad",
         birthyear_reference_header="Fecha",
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Sanios", "sanios", "person",
         ("IDENTIFICADOR", "SEXO", "DIRECCIÓN", "EDAD", "PATOLOGÍA", "DETALLE"),
         ("", "subject_birthsex", "", "", ConditionClaim.CODE_TEXT, ""),
         subject_key_headers=("IDENTIFICADOR",),
         redacted_headers=("IDENTIFICADOR",),
     ),
-    AccuroSheetConfig(
+    ResearchWorkbookSheetConfig(
         "Centro creciendo", "centro-creciendo", "person",
         ("IDENTIFICADOR", "SEXO", "DIRECCIÓN", "EDAD", "PATOLOGÍA", "Visitas por cliente"),
         ("", "subject_birthsex", "", "", ConditionClaim.CODE_TEXT, ""),
@@ -227,7 +227,7 @@ def _derive_birthyear(age_value: Any, reference_value: Any) -> int | None:
 
 def _research_subject_uuid(
     namespace: UUID,
-    config: AccuroSheetConfig,
+    config: ResearchWorkbookSheetConfig,
     source_row_number: int,
     row: list[Any],
 ) -> str:
@@ -247,7 +247,7 @@ def _research_subject_uuid(
 
 def _financial_identifiers(
     namespace: UUID,
-    config: AccuroSheetConfig,
+    config: ResearchWorkbookSheetConfig,
     source_row_number: int,
     values_by_header: dict[str, Any],
 ) -> tuple[str, str]:
@@ -273,7 +273,7 @@ def _load_or_create_namespace(path: Path) -> UUID:
     return namespace
 
 
-def prepare_accuro_workbook(
+def prepare_research_workbook(
     source_path: Path,
     output_path: Path,
     *,
@@ -283,13 +283,13 @@ def prepare_accuro_workbook(
     try:
         from openpyxl import Workbook, load_workbook
     except ImportError as exc:  # pragma: no cover - optional dependency guard
-        raise RuntimeError("Install the Excel extra before preparing Accuro workbooks") from exc
+        raise RuntimeError("Install the Excel extra before preparing research workbooks") from exc
 
     source = load_workbook(Path(source_path), read_only=True, data_only=False)
-    config_by_name = {config.name: config for config in ACCURO_SHEET_CONFIGS}
+    config_by_name = {config.name: config for config in RESEARCH_WORKBOOK_SHEET_CONFIGS}
     unknown_sheets = [name for name in source.sheetnames if name not in config_by_name]
     if unknown_sheets:
-        raise ValueError(f"Unsupported Accuro sheets: {', '.join(unknown_sheets)}")
+        raise ValueError(f"Unsupported research workbook sheets: {', '.join(unknown_sheets)}")
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -363,7 +363,7 @@ def prepare_accuro_workbook(
                 record_date = (
                     values_by_header.get(config.record_date_source_header)
                     if config.record_date_source_header
-                    else ACCURO_MAPPING_REVISION_DATE
+                    else RESEARCH_WORKBOOK_MAPPING_REVISION_DATE
                 )
                 output_row.append(record_date)
             if config.derives_birthyear:

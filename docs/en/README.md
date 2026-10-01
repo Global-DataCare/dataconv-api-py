@@ -20,7 +20,7 @@ Core guides:
 - [11 - Release pipeline: staging to production](11-release-staging-production.md)
 - [12 - Current output examples](12-current-output-examples.md)
 - [13 - GCP bootstrap for One Health](13-gcp-bootstrap-onehealth.md)
-- [Accuro API-CONFIG workbook flow](13-accuro-api-config.md)
+- [Research workbook API-CONFIG flow](13-research-api-config.md)
 - [Elysa Immunization coding workbook](14-elysa-immunization-coding.md)
 - [General clinical concept review](15-general-clinical-coding.md)
 

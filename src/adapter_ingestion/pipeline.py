@@ -21,6 +21,7 @@ from gdc_data_utils import (
     ImmunizationClaim,
     InvoiceClaim,
     MedicationStatementClaim,
+    ObservationClaim,
     ProcedureClaim,
 )
 
@@ -370,6 +371,9 @@ def _diagnostic_report_resource(
         record.timestamp,
         claims.get(DiagnosticReportClaim.CODE_TEXT, ""),
     )
+    claims.setdefault(DiagnosticReportClaim.IDENTIFIER, report_id)
+    claims.setdefault(DiagnosticReportClaim.SUBJECT, record.subject_id)
+    claims.setdefault(DiagnosticReportClaim.DATE, record.timestamp)
     proposals = _coding_proposals(
         context=context,
         record=record,
@@ -384,6 +388,49 @@ def _diagnostic_report_resource(
         "id": report_id,
         "meta": meta,
     }
+
+
+def _observation_resource(
+    *,
+    context: AdapterContext,
+    record: CanonicalRecord,
+    suggestions: list[CodingSuggestion],
+) -> dict[str, Any] | None:
+    proposals = _coding_proposals(
+        context=context,
+        record=record,
+        suggestions=suggestions,
+        resource_type="Observation",
+    )
+    if not proposals and ObservationClaim.CODE not in record.coding_inputs:
+        return None
+    source_text = str(record.coding_inputs.get(ObservationClaim.CODE, "") or "").strip()
+    quantity_match = re.search(r"(\d+(?:[.,]\d+)?)\s*%", source_text)
+    observation_id = stable_uuid(
+        context.manufacturer,
+        context.tenant_id,
+        record.subject_id,
+        "observation",
+        record.source_id,
+        record.timestamp,
+        source_text,
+    )
+    claims = {
+        **_claims_for_resource(record, "Observation"),
+        ObservationClaim.IDENTIFIER: observation_id,
+        ObservationClaim.SUBJECT: record.subject_id,
+        ObservationClaim.STATUS: "final",
+        ObservationClaim.DATE: record.timestamp,
+        ObservationClaim.EFFECTIVE_DATE_TIME: record.timestamp,
+        "Observation.language": context.language,
+    }
+    if quantity_match:
+        claims[ObservationClaim.VALUE_QUANTITY_NUMBER] = quantity_match.group(1).replace(",", ".")
+        claims[ObservationClaim.VALUE_QUANTITY_UNIT] = "%"
+    meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
+    if proposals:
+        meta["codingProposals"] = proposals
+    return {"resourceType": "Observation", "id": observation_id, "meta": meta}
 
 
 def _coding_proposals(
@@ -1033,6 +1080,7 @@ def run_pipeline(
 ) -> PipelineResult:
     document_entries_count = 0
     diagnostic_report_entries_count = 0
+    observation_entries_count = 0
     allergy_intolerance_entries_count = 0
     condition_entries_count = 0
     immunization_entries_count = 0
@@ -1047,6 +1095,7 @@ def run_pipeline(
     composition_entries_count = 0
     grouped_doc_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_diagnostic_report_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
+    grouped_observation_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_allergy_intolerance_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_condition_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
     grouped_immunization_resources: dict[tuple[str, str], dict[str, dict[str, Any]]] = defaultdict(dict)
@@ -1082,6 +1131,16 @@ def run_pipeline(
             diagnostic_report_id = str(diagnostic_report["id"])
             grouped_diagnostic_report_resources[key][diagnostic_report_id] = diagnostic_report
             diagnostic_report_entries_count += 1
+
+        observation = _observation_resource(
+            context=context,
+            record=record,
+            suggestions=suggestions,
+        )
+        if observation is not None:
+            observation_id = str(observation["id"])
+            grouped_observation_resources[key][observation_id] = observation
+            observation_entries_count += 1
 
         allergy_intolerance = _allergy_intolerance_resource(
             context=context,
@@ -1186,6 +1245,7 @@ def run_pipeline(
             key = (subject, section)
             doc_resources_map = grouped_doc_resources[key]
             diagnostic_report_resources_map = grouped_diagnostic_report_resources[key]
+            observation_resources_map = grouped_observation_resources[key]
             allergy_intolerance_resources_map = grouped_allergy_intolerance_resources[key]
             condition_resources_map = grouped_condition_resources[key]
             immunization_resources_map = grouped_immunization_resources[key]
@@ -1196,6 +1256,7 @@ def run_pipeline(
             encounter_resources_map = grouped_encounter_resources[key]
             doc_ids = sorted(doc_resources_map.keys())
             diagnostic_report_ids = sorted(diagnostic_report_resources_map.keys())
+            observation_ids = sorted(observation_resources_map.keys())
             allergy_intolerance_ids = sorted(allergy_intolerance_resources_map.keys())
             condition_ids = sorted(condition_resources_map.keys())
             immunization_ids = sorted(immunization_resources_map.keys())
@@ -1210,6 +1271,7 @@ def run_pipeline(
                 + condition_ids
                 + procedure_ids
                 + diagnostic_report_ids
+                + observation_ids
                 + immunization_ids
                 + medication_statement_ids
                 + invoice_ids
@@ -1236,6 +1298,8 @@ def run_pipeline(
                 contained_resources.append(procedure_resources_map[resource_id])
             for resource_id in diagnostic_report_ids:
                 contained_resources.append(diagnostic_report_resources_map[resource_id])
+            for resource_id in observation_ids:
+                contained_resources.append(observation_resources_map[resource_id])
             for resource_id in immunization_ids:
                 contained_resources.append(immunization_resources_map[resource_id])
             for resource_id in medication_statement_ids:
@@ -1303,6 +1367,7 @@ def run_pipeline(
         "subjectsTotal": len(subjects),
         "documentReferenceEntries": document_entries_count,
         "diagnosticReportEntries": diagnostic_report_entries_count,
+        "observationEntries": observation_entries_count,
         "allergyIntoleranceEntries": allergy_intolerance_entries_count,
         "conditionEntries": condition_entries_count,
         "immunizationEntries": immunization_entries_count,

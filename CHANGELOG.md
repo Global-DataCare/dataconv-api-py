@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.8.24 - 2026-10-01
+
+- Renamed the source-specific workbook module, scripts, tests and documentation
+  to product-neutral Research/API-CONFIG terminology. DataConv remains the
+  reusable conversion service for every integrating organization.
+- Add reproducible veterinary and non-dental human-health Excel fixtures with
+  source-shaped columns ending at `CONCEPTO`, confidential stable subject
+  resolution, two isolated provisional studies, quantitative HbA1c Observation
+  controls and executable simple, range and cross-resource search expectations.
+
 ## 0.8.23 - 2026-09-30
 
 - Publish the canonical Immunization vaccine code, international display and
@@ -337,7 +347,7 @@
   claims. Human `_patch` review materializes only the selected `Condition.code`
   and English `Condition.code-display`, then emits accepted/rejected feedback
   with the optional reviewer reason.
-- Corrected Accuro diagnosis and pathology fields from
+- Corrected source-workbook diagnosis and pathology fields from
   `DiagnosticReport.code-text` to unconfirmed `Condition.code` coding inputs.
 - Added proposal and ambiguity counts for portal prioritization and made FHIR
   `code:text` search use confirmed English `code-display` when available.
@@ -387,10 +397,10 @@
   external-identifier-to-random-twin-UUID store. Firestore deployments require
   an independently managed 32-byte protection key; twin resources remain
   ordinary searchable FHIR-like data.
-- Removed identifying Accuro columns from prepared secondary-use workbooks and
+- Removed identifying source-workbook columns from prepared secondary-use workbooks and
   fail closed when a non-UUID secondary subject has no confidential resolver.
 
-- Accuro Excel preparation now adds one embedded `API-CONFIG` mapping per
+- Source-workbook preparation now adds one embedded `API-CONFIG` mapping per
   organization sheet, repairs missing or duplicate headers, assigns reusable
   private-namespace UUIDs, and emits one uploadable workbook per tenant.
 - Secondary-use conversion now exposes `ResearchSubject` as the public twin
@@ -399,8 +409,8 @@
   `Bundle` of type `searchset`; confirmed `ResearchSubject` resources are
   promoted and indexed idempotently.
 - Added executable per-sheet contracts and full-source preparation/validation
-  commands for the 13 supplied Accuro datasets.
-- Accuro mappings now preserve last appointment as
+  commands for the 13 supplied datasets.
+- Source-workbook mappings now preserve last appointment as
   `appointment_lastoccurrencedate`, derive an estimated `subject_birthyear`
   from appointment year and age when needed, and replace full birth dates with
   the year before writing prepared workbooks.

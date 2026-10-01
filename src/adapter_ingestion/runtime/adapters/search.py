@@ -20,6 +20,8 @@ def _normalize_search_token(value: str) -> str:
 def _search_field_name(resource_type: str, field_name: str) -> str:
     resource = str(resource_type or "").strip()
     field = str(field_name or "").strip()
+    if resource == "Observation" and field == "value-quantity":
+        field = "value-quantity-number"
     if resource and field:
         return storage_key_for_claim(
             canonical_claim_for_search_parameter(resource, field)
@@ -85,13 +87,21 @@ def _matches_criterion(actual: str, field_name: str, expected: str) -> bool:
             target = alternative[2:]
             if not actual:
                 continue
-            if operator == "ge" and actual >= target:
+            comparable_actual: Any = actual
+            comparable_target: Any = target
+            if str(field_name or "").strip() == "value-quantity":
+                try:
+                    comparable_actual = float(actual.replace(",", "."))
+                    comparable_target = float(target.split("|", 1)[0].replace(",", "."))
+                except ValueError:
+                    continue
+            if operator == "ge" and comparable_actual >= comparable_target:
                 return True
-            if operator == "le" and actual <= target:
+            if operator == "le" and comparable_actual <= comparable_target:
                 return True
-            if operator == "gt" and actual > target:
+            if operator == "gt" and comparable_actual > comparable_target:
                 return True
-            if operator == "lt" and actual < target:
+            if operator == "lt" and comparable_actual < comparable_target:
                 return True
             continue
         if str(field_name or "").endswith(":text"):

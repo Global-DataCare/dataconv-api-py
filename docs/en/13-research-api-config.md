@@ -1,4 +1,4 @@
-# Accuro API-CONFIG workbook flow
+# Research workbook API-CONFIG flow
 
 The supplied source workbook contains 13 organization sheets with different
 schemas. DataConv upload routes are tenant-scoped, so the combined prepared
@@ -152,20 +152,20 @@ exposing the source subject identifier.
 Prepare the workbooks:
 
 ```bash
-PYTHONPATH=src .venv/bin/python scripts/prepare-accuro-api-config.py \
-  "/path/to/datos espacios de datos Accuro.xlsx" \
-  "/path/to/datos espacios de datos Accuro - API-CONFIG.xlsx" \
-  --split-dir "/path/to/accuro-organizations" \
-  --report "/path/to/accuro-preparation.json"
+PYTHONPATH=src .venv/bin/python scripts/prepare-research-api-config.py \
+  "/path/to/source-research-data.xlsx" \
+  "/path/to/prepared-research-data.xlsx" \
+  --split-dir "/path/to/research-organizations" \
+  --report "/path/to/research-preparation.json"
 ```
 
 Validate every row and one standard FHIR search per organization:
 
 ```bash
-PYTHONPATH=src .venv/bin/python scripts/validate-accuro-api-config.py \
-  "/path/to/accuro-organizations" \
-  --preparation-report "/path/to/accuro-preparation.json" \
-  --report "/path/to/accuro-validation.json"
+PYTHONPATH=src .venv/bin/python scripts/validate-research-api-config.py \
+  "/path/to/research-organizations" \
+  --preparation-report "/path/to/research-preparation.json" \
+  --report "/path/to/research-validation.json"
 ```
 
 The public secondary-use resource is `ResearchSubject`. Search accepts a FHIR
@@ -187,3 +187,36 @@ This aligns DataConv and GW CORE at the public resource and request/response
 contract. It does not make both services one index, and it does not transfer
 identifier authority: when DataConv data is published into GW CORE, GW must
 still resolve and assign its own registered tenant-private twin alias.
+
+## Reproducible search fixtures
+
+Generate the veterinary and non-dental human-health workbooks for provisional
+Study A and Study B with:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/generate-research-search-workbooks.py \
+  examples/research-search
+```
+
+The source-shaped `DATA` sheets end at `CONCEPTO`. They repeat only a synthetic
+original-patient identifier; the configured confidential subject-link resolver
+replaces it with the same stable ResearchSubject UUID across rows, later
+imports and manual additions. No ResearchSubject UUID or derived FHIR claim is
+carried as an extra source column. The clinical concepts reproduce
+representative patterns from the supplied tables. The
+`SEARCH_CASES` sheet covers vaccine, diagnosis, procedure, allergy, diagnostic
+report, medication, quantitative HbA1c Observation, birth-year and
+clinical-date criteria.
+
+The human Study A fixture contains the positive subject A, value-negative
+subject B and condition/date-negative subject C. Study B contains subject D
+with the same clinical profile as A but a distinct UUID. The same search plan
+must therefore return A only inside Study A and D only inside Study B.
+
+Single-resource plans, including date ranges, execute directly. Plans that
+combine birth year with immunization or combine different clinical resources
+are marked `planner-required`: the assistant must issue the individual
+resource searches and intersect their subject identifiers inside the exact
+authorized ResearchStudy. This is not represented as a made-up FHIR search
+parameter. `tests/test_research_search_workbooks.py` executes both categories
+against the generated clinical resources and verifies the expected subjects.

@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
-from __future__ import annotations
 
 import json
 from pathlib import Path
@@ -11,6 +10,7 @@ from gdc_data_utils import (
     ChargeItemClaim,
     ConditionClaim,
     DiagnosticReportClaim,
+    ImmunizationClaim,
     InvoiceClaim,
     ProcedureClaim,
 )
@@ -98,6 +98,9 @@ def register_system_routes(app, settings) -> None:  # type: ignore[no-untyped-de
             ChargeItemClaim.SUPPORTING_INFORMATION: (
                 "Supporting Invoice reference; never encoded as ChargeItem.part-of"
             ),
+            ImmunizationClaim.VACCINE_CODE: "Código internacional de la vacuna",
+            ImmunizationClaim.VACCINE_CODE_DISPLAY: "Descripción internacional de la vacuna",
+            ImmunizationClaim.VACCINE_CODE_TEXT: "Texto local de la vacuna",
         })
         payload = {
             "language": settings.iclaims_locale,

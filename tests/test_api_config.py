@@ -17,6 +17,7 @@ if str(SRC) not in sys.path:
 from adapter_ingestion.service.api_config import extract_embedded_api_config
 from adapter_ingestion.service.routes_system import register_system_routes
 from adapter_ingestion.manufacturers.registry import get_adapter
+from gdc_data_utils import ImmunizationClaim
 
 
 class ApiConfigTests(unittest.TestCase):
@@ -166,6 +167,18 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(
             payload["supportedFields"]["Procedure.code-text"],
             "Texto local del procedimiento o tratamiento realizado",
+        )
+        self.assertEqual(
+            payload["supportedFields"][ImmunizationClaim.VACCINE_CODE],
+            "Código internacional de la vacuna",
+        )
+        self.assertEqual(
+            payload["supportedFields"][ImmunizationClaim.VACCINE_CODE_DISPLAY],
+            "Descripción internacional de la vacuna",
+        )
+        self.assertEqual(
+            payload["supportedFields"][ImmunizationClaim.VACCINE_CODE_TEXT],
+            "Texto local de la vacuna",
         )
         self.assertEqual(
             payload["supportedFields"]["ChargeItem.supporting-information"],

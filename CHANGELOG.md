@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.8.23 - 2026-09-30
+
+- Publish the canonical Immunization vaccine code, international display and
+  local text claims in the API-CONFIG discovery catalog, so portals can save
+  the same governed mappings that DataConv already imports and reviews.
+
 ## 0.8.22 - 2026-09-30
 
 - Allow an authorized ResearchStudy coding-review search to return up to 1,000

@@ -8,12 +8,12 @@ import argparse
 import json
 from pathlib import Path
 
-from adapter_ingestion.accuro_workbook import prepare_accuro_workbook
+from adapter_ingestion.research_workbook import prepare_research_workbook
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Add API-CONFIG mappings and stable ResearchSubject UUIDs to the Accuro workbook."
+        description="Add API-CONFIG mappings and stable ResearchSubject UUIDs to a research workbook."
     )
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
@@ -21,7 +21,7 @@ def main() -> int:
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
 
-    report = prepare_accuro_workbook(args.source, args.output, split_dir=args.split_dir)
+    report = prepare_research_workbook(args.source, args.output, split_dir=args.split_dir)
     rendered = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)

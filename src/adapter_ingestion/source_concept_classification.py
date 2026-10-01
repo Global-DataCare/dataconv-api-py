@@ -87,6 +87,8 @@ def classify_source_concept(
     coordinates = " ".join(
         _normalized(value) for value in (section, family, subfamily, concept) if str(value or "").strip()
     )
+    if "hba1c" in coordinates or "hemoglobina glicosilada" in coordinates:
+        return (_candidate("Observation", source_text, "high", "quantitative HbA1c laboratory observation"),)
     if any(word in coordinates for word in ("alergia", "alergico", "intolerancia", "hipersensibilidad")):
         return (_candidate("AllergyIntolerance", source_text, "medium", "allergy or intolerance hierarchy and wording"),)
     vaccination_is_uncertain_or_future = any(re.search(pattern, normalized_concept) for pattern in (

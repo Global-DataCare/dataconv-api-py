@@ -30,7 +30,8 @@ Repository documentation:
 - Integrator runbook: [INTEGRATORS_GUIDE.md](INTEGRATORS_GUIDE.md)
 - API walkthrough: [docs/en/API_DEVELOPMENT_GUIDE.md](docs/en/API_DEVELOPMENT_GUIDE.md)
 - Data space artifacts TODO (Gaia-X): [docs/en/TODO_DATA_SPACE_ARTIFACTS.md](docs/en/TODO_DATA_SPACE_ARTIFACTS.md)
-- Accuro API-CONFIG workbook flow: [docs/en/13-accuro-api-config.md](docs/en/13-accuro-api-config.md)
+- Research workbook API-CONFIG flow: [docs/en/13-research-api-config.md](docs/en/13-research-api-config.md)
+- Generated veterinary and human research-search fixtures: [examples/research-search/README.md](examples/research-search/README.md)
 - General concept and treatment review: [docs/en/15-general-clinical-coding.md](docs/en/15-general-clinical-coding.md)
 
 FHIR-like flat claims, physical indexes, and FHIR queries are separate layers:

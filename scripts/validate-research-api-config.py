@@ -12,7 +12,7 @@ from uuid import UUID
 
 from gdc_data_utils import ChargeItemClaim, DiagnosticReportClaim, InvoiceClaim
 
-from adapter_ingestion.accuro_workbook import ACCURO_SHEET_CONFIGS
+from adapter_ingestion.research_workbook import RESEARCH_WORKBOOK_SHEET_CONFIGS
 from adapter_ingestion.ai.base import NoopCodingAssistant
 from adapter_ingestion.manufacturers.registry import get_adapter
 from adapter_ingestion.models import AdapterContext
@@ -24,7 +24,7 @@ from adapter_ingestion.service.managers.conversion_search import ConversionSearc
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate every prepared Accuro organization workbook and one FHIR search per sheet."
+        description="Validate every prepared organization workbook and one FHIR search per sheet."
     )
     parser.add_argument("split_dir", type=Path)
     parser.add_argument("--preparation-report", type=Path, required=True)
@@ -36,7 +36,7 @@ def main() -> int:
     sheets = validation["sheets"]
     assert isinstance(sheets, dict)
 
-    for config in ACCURO_SHEET_CONFIGS:
+    for config in RESEARCH_WORKBOOK_SHEET_CONFIGS:
         workbook_path = args.split_dir / f"{config.slug}.xlsx"
         embedded = extract_embedded_api_config(workbook_path)
         if not embedded:

@@ -13,7 +13,7 @@ from adapter_ingestion.service.managers.conversion_search import ConversionSearc
 
 def test_secondary_use_pipeline_exposes_research_subject_as_the_twin_aggregate() -> None:
     context = AdapterContext(
-        manufacturer="accuro",
+        manufacturer="source-system",
         tenant_id="clinic-a",
         jurisdiction="ES",
         sector="onehealth-research",
@@ -34,7 +34,7 @@ def test_secondary_use_pipeline_exposes_research_subject_as_the_twin_aggregate()
         subfamily="consultation",
         concept="follow-up",
         composition_section="clinical:encounter",
-        document_type_code="urn:accuro:clinical:encounter:consultation",
+        document_type_code="urn:example:clinical:encounter:consultation",
     )
 
     result = run_pipeline([record], context, NoopCodingAssistant())
@@ -50,7 +50,7 @@ def test_secondary_use_pipeline_exposes_research_subject_as_the_twin_aggregate()
 
 def test_research_subject_search_accepts_fhir_parameters_and_returns_searchset_bundle() -> None:
     subject_identifier = "urn:uuid:11111111-1111-4111-8111-111111111111"
-    study_reference = "ResearchStudy/study-accuro-1"
+    study_reference = "ResearchStudy/study-example-1"
     repository = InMemorySearchRepository()
     repository.upsert(
         vault_id="test__es__onehealth-research__clinic-a",

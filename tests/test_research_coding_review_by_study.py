@@ -454,6 +454,80 @@ def test_prepare_backfills_an_immunization_proposal_from_an_existing_imported_do
     assert immunization["id"] in composition["meta"]["claims"]["Composition.entry"]
 
 
+def test_prepare_reuses_an_existing_imported_immunization_instead_of_backfilling_a_duplicate() -> None:
+    terminology = RecordingFailingTerminologyClient()
+    manager, vault, _, _ = _manager(terminology_client=terminology)
+    description = "VACUNA RABIA"
+    administration_date = "2025-08-20T18:13:26Z"
+    subject = {
+        "resourceType": "ResearchSubject",
+        "id": "subject-vaccine-current-import",
+        "meta": {"claims": {
+            "ResearchSubject.study": STUDY,
+            "Subject.language": "es",
+            "Subject.animal-species": "http://hl7.org/fhir/target-species|100000108988",
+        }},
+        "contained": [
+            {
+                "resourceType": "Composition",
+                "id": "composition-vaccine-current-import",
+                "meta": {"claims": {
+                    "Composition.subject": "ResearchSubject/subject-vaccine-current-import",
+                    "Composition.entry": (
+                        "urn:uuid:document-vaccine-current-import,"
+                        "urn:uuid:immunization-vaccine-current-import"
+                    ),
+                }},
+            },
+            {
+                "resourceType": "DocumentReference",
+                "id": "document-vaccine-current-import",
+                "meta": {"claims": {
+                    "DocumentReference.subject": "ResearchSubject/subject-vaccine-current-import",
+                    "DocumentReference.date": administration_date,
+                    "DocumentReference.description": description,
+                    "DocumentReference.language": "es",
+                }},
+            },
+            {
+                "resourceType": "Immunization",
+                "id": "immunization-vaccine-current-import",
+                "meta": {"claims": {
+                    "Immunization.subject": "ResearchSubject/subject-vaccine-current-import",
+                    "Immunization.status": "completed",
+                    "Immunization.date": administration_date,
+                    "Immunization.vaccine-code-text": "vacuna rabia",
+                    "Immunization.language": "es",
+                }},
+            },
+        ],
+    }
+    vault.put(VAULT_ID, [subject], "ResearchSubject")
+    vault.put(VAULT_ID, subject["contained"], "Composition")
+
+    with patch(
+        "adapter_ingestion.service.managers.research_coding_review._enforce_auth_context"
+    ):
+        result = manager.prepare_pending(
+            tenant_id=TENANT,
+            jurisdiction="CA-BC",
+            sector="animal-research",
+            request=_request(),
+            body=_search_body(),
+        )
+
+    assert result["preparedSubjectCount"] == 1
+    assert result["proposalCount"] == 1
+    stored = vault.get(VAULT_ID, "subject-vaccine-current-import", "ResearchSubject")
+    immunizations = [
+        item for item in stored["contained"] if item["resourceType"] == "Immunization"
+    ]
+    assert [item["id"] for item in immunizations] == ["immunization-vaccine-current-import"]
+    assert immunizations[0]["meta"]["codingProposals"][0]["field"] == (
+        "Immunization.vaccine-code"
+    )
+
+
 def test_prepare_does_not_backfill_plans_or_adverse_reaction_mentions_as_completed_immunizations() -> None:
     manager, vault, _, _ = _manager(terminology_client=RecordingFailingTerminologyClient())
     descriptions = (

@@ -117,15 +117,19 @@ def _pending_proposals(resource: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _is_completed_vaccination_description(value: object) -> bool:
-    """Recognize an administration, not a plan, history discussion or reaction."""
-
+def _normalized_comparison_text(value: object) -> str:
     decomposed = unicodedata.normalize("NFKD", str(value or ""))
-    text = " ".join(
+    return " ".join(
         "".join(character for character in decomposed if not unicodedata.combining(character))
         .casefold()
         .split()
     )
+
+
+def _is_completed_vaccination_description(value: object) -> bool:
+    """Recognize an administration, not a plan, history discussion or reaction."""
+
+    text = _normalized_comparison_text(value)
     if not text:
         return False
     excluded = (
@@ -164,6 +168,17 @@ def _backfill_immunizations_from_imported_documents(
         for resource in contained
         if isinstance(resource, dict)
     }
+    existing_administrations = {
+        (
+            _normalized_comparison_text(
+                _resource_claims(resource).get(ImmunizationClaim.VACCINE_CODE_TEXT)
+            ),
+            str(_resource_claims(resource).get(ImmunizationClaim.DATE, "") or "").strip(),
+        )
+        for resource in contained
+        if isinstance(resource, dict)
+        and str(resource.get("resourceType", "")) == "Immunization"
+    }
     additions: list[dict[str, Any]] = []
     for document in contained:
         if not isinstance(document, dict) or str(document.get("resourceType", "")) != "DocumentReference":
@@ -172,6 +187,12 @@ def _backfill_immunizations_from_imported_documents(
         claims = _resource_claims(document)
         source_text = str(claims.get(DocumentReferenceClaim.DESCRIPTION, "") or "").strip()
         if not _is_completed_vaccination_description(source_text):
+            continue
+        administration = (
+            _normalized_comparison_text(source_text),
+            str(claims.get(DocumentReferenceClaim.DATE, "") or "").strip(),
+        )
+        if administration in existing_administrations:
             continue
         resource_id = stable_uuid(
             vault_id,
@@ -198,6 +219,7 @@ def _backfill_immunizations_from_imported_documents(
             "meta": {"claims": immunization_claims},
         })
         existing_ids.add(resource_id)
+        existing_administrations.add(administration)
         for composition in contained:
             if not isinstance(composition, dict) or str(composition.get("resourceType", "")) != "Composition":
                 continue

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## Unreleased
+
+- Preserve canonical flat-claim coordinates when professionally reviewed
+  terminology is stored, including hyphenated Immunization claims, instead of
+  misrepresenting them as FHIR element paths.
+- Reuse an Immunization already produced by a current workbook import when a
+  matching legacy DocumentReference has the same administration text and date,
+  avoiding duplicate terminology proposals while retaining historical backfill.
+
 ## 0.8.24 - 2026-10-01
 
 - Renamed the source-specific workbook module, scripts, tests and documentation

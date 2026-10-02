@@ -241,10 +241,32 @@ def test_professional_review_populates_the_channel_neutral_terminology_store() -
     assert call["headers"]["authorization"] == "Bearer term-secret"
     assert call["body"]["reviewerKind"] == "professional"
     assert call["body"]["reviewState"] == "approved"
+    assert call["body"]["claim"] == "Condition.code"
+    assert "field" not in call["body"]
     assert call["body"]["chosen"] == {"system": "http://snomed.info/sct", "code": "129127001"}
     assert call["body"]["approvalEvidence"] == "dataconv-review:proposal-123456789"
     assert "reviewerSubject" not in call["body"]
     assert call["body"]["terminologyVersion"].startswith("candidate-set-sha256:")
+
+
+def test_reviewed_terminology_sink_preserves_a_hyphenated_immunization_flat_claim() -> None:
+    transport = RecordingTransport(responses=[{"data": {"id": "mapping-vaccine"}}])
+    sink = HttpReviewedTerminologySink(base_url="https://terminology.example", transport=transport)
+
+    sink.submit({
+        "proposalId": "proposal-vaccine-123456",
+        "inputText": "VACUNA RABIA", "language": "es", "fhirVersion": "R4",
+        "sector": "animal-care", "jurisdiction": "CA-BC",
+        "resourceType": "Immunization", "field": "Immunization.vaccine-code",
+        "candidates": [{
+            "id": "rabies", "source": "ATCVET", "system": "http://www.whocc.no/atcvet",
+            "code": "QI07AA02", "display": "Rabies virus",
+        }],
+        "selectedCandidateId": "rabies",
+    })
+
+    assert transport.calls[0]["body"]["claim"] == "Immunization.vaccine-code"
+    assert "field" not in transport.calls[0]["body"]
 
 
 def test_reviewed_terminology_sink_rejects_a_selection_outside_its_candidate_set() -> None:

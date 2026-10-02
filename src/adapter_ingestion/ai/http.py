@@ -209,7 +209,10 @@ class HttpReviewedTerminologySink(_AuthorizedClient):
                 "sector": str(event.get("sector", "")).strip(),
                 "jurisdiction": str(event.get("jurisdiction", "")).strip(),
                 "resourceType": str(event.get("resourceType", "")).strip(),
-                "field": str(event.get("field", "")).strip(),
+                # Coding proposals carry canonical flat-claim coordinates.
+                # The terminology service derives its FHIR element path from
+                # this claim; a hyphenated claim is not itself a FHIR field.
+                "claim": str(event.get("field", "")).strip(),
                 "candidates": candidates,
                 "chosen": {"system": selected["system"], "code": selected["code"]},
                 "reviewerKind": "professional",

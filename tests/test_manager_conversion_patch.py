@@ -335,6 +335,10 @@ class TestConversionPatchManager(unittest.TestCase):
         self.assertEqual(res["body"]["issues"]["issue"][0]["severity"], "information")
         self.assertNotIn("publication", res["body"])
         self.assertGreaterEqual(len(res["body"]["data"]), 1)
+        # The promotion envelope owns response/resource only. Any terminology
+        # proposal remains at body.data[].resource.contained[].meta.
+        self.assertTrue(all("meta" not in entry for entry in res["body"]["data"]))
+        self.assertTrue(all(isinstance(entry.get("resource"), dict) for entry in res["body"]["data"]))
         
         # Verify changes in Vault
         indexed_comp = search_repo.search(

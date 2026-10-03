@@ -75,6 +75,7 @@ def main() -> int:
             raise AssertionError(f"{config.name}: pipeline produced no ResearchSubject")
         first = research_subjects[0]
         identifier = first["meta"]["claims"]["ResearchSubject.identifier"]
+        study_reference = first["meta"]["claims"]["ResearchSubject.study"]
         repository = InMemorySearchRepository()
         vault_id = f"{context.sector}_{context.tenant_id}"
         repository.upsert(vault_id=vault_id, resource_type="ResearchSubject", resource=first)
@@ -90,7 +91,10 @@ def main() -> int:
             request=SimpleNamespace(headers={}, query_params={}),
             body={
                 "resourceType": "Parameters",
-                "parameter": [{"name": "identifier", "valueUri": identifier}],
+                "parameter": [
+                    {"name": "ResearchSubject.identifier", "valueUri": identifier},
+                    {"name": "ResearchSubject.study", "valueReference": {"reference": study_reference}},
+                ],
             },
         )
         if result.get("resourceType") != "Bundle" or result.get("type") != "searchset" or result.get("total") != 1:

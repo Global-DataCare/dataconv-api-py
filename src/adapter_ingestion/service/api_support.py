@@ -1136,18 +1136,9 @@ def _job_poll_response(
     if job.status == "queued" and isinstance(queue_position, int) and queue_position > 0:
         entry_response["queuePosition"] = int(queue_position)
 
-    research_study_reference = str(
-        getattr(getattr(job, "request", None), "research_study_reference", "") or ""
-    ).strip()
     entries = output_entries or [{}]
     for entry in entries:
         entry["response"] = entry_response
-        if research_study_reference:
-            meta = entry.get("meta") if isinstance(entry.get("meta"), dict) else {}
-            entry["meta"] = {
-                **meta,
-                "researchStudy": {"reference": research_study_reference},
-            }
 
     issued_at = int(datetime.now(timezone.utc).timestamp())
     payload: dict[str, Any] = {

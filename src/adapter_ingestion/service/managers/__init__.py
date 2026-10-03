@@ -14,6 +14,7 @@ from .conversion_patch import ConversionPatchManager
 from .conversion_search import ConversionSearchManager
 from .conversion_job_search import ConversionJobSearchManager
 from .research_coding_review import ResearchCodingReviewManager
+from .research_bulk_export import ResearchBulkExportManager
 from .tenant_api_keys import TenantApiKeyManager
 from .token_exchange import TokenExchangeManager
 from .smart_research_token_exchange import SmartResearchTokenExchangeManager
@@ -31,6 +32,7 @@ __all__ = [
     "ConversionSearchManager",
     "ConversionJobSearchManager",
     "ResearchCodingReviewManager",
+    "ResearchBulkExportManager",
     "TenantApiKeyManager",
     "TenantConfigCreateManager",
     "TenantConfigPollManager",

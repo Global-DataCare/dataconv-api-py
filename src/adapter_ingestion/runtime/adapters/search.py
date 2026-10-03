@@ -7,6 +7,7 @@ from typing import Any
 import copy
 import json
 import re
+import unicodedata
 
 from gdc_data_utils import canonical_claim_for_search_parameter, storage_key_for_claim
 
@@ -17,9 +18,18 @@ def _normalize_search_token(value: str) -> str:
     return re.sub(r"[^a-z0-9-]+", "_", str(value or "").strip().lower()).strip("_")
 
 
+def _normalize_search_text(value: str) -> str:
+    decomposed = unicodedata.normalize("NFKD", str(value or "").casefold())
+    return "".join(character for character in decomposed if not unicodedata.combining(character))
+
+
 def _search_field_name(resource_type: str, field_name: str) -> str:
     resource = str(resource_type or "").strip()
     field = str(field_name or "").strip()
+    if resource == "ResearchSubject" and field == "birthyear":
+        return storage_key_for_claim("Subject.birthyear")
+    if resource == "Condition" and field == "onset-date":
+        return storage_key_for_claim("Condition.onset-datetime")
     if resource == "Observation" and field == "value-quantity":
         field = "value-quantity-number"
     if resource and field:
@@ -105,7 +115,7 @@ def _matches_criterion(actual: str, field_name: str, expected: str) -> bool:
                 return True
             continue
         if str(field_name or "").endswith(":text"):
-            if alternative.casefold() in actual.casefold():
+            if _normalize_search_text(alternative) in _normalize_search_text(actual):
                 return True
             continue
         if actual == alternative:

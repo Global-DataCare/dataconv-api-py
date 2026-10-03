@@ -1615,10 +1615,10 @@ class ServiceApiTests(unittest.TestCase):
         self.assertNotIn("Composition", diagnostics)
         self.assertIn("data", payload["body"])
         self.assertEqual(payload["body"]["data"][0]["response"]["status"], "200")
-        self.assertEqual(
-            payload["body"]["data"][0]["meta"]["researchStudy"]["reference"],
-            self._RESEARCH_STUDY_REFERENCE,
-        )
+        # The outer data item has no competing metadata container. Research
+        # review metadata belongs only to
+        # body.data[].resource.contained[].meta.codingProposals[].
+        self.assertNotIn("meta", payload["body"]["data"][0])
         self.assertEqual(payload["body"]["total"], 2)
         self.assertEqual(payload["body"]["data"][0]["resource"]["resourceType"], "ResearchSubject")
         self.assertEqual(

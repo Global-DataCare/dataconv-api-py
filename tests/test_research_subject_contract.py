@@ -84,9 +84,9 @@ def test_research_subject_search_accepts_fhir_parameters_and_returns_searchset_b
         body={
             "resourceType": "Parameters",
             "parameter": [
-                {"name": "identifier", "valueUri": subject_identifier},
-                {"name": "status", "valueCode": "candidate"},
-                {"name": "study", "valueReference": {"reference": study_reference}},
+                {"name": "ResearchSubject.identifier", "valueUri": subject_identifier},
+                {"name": "ResearchSubject.status", "valueCode": "candidate"},
+                {"name": "ResearchSubject.study", "valueReference": {"reference": study_reference}},
                 {"name": "_count", "valueInteger": 10},
             ],
         },

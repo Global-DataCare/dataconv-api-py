@@ -31,8 +31,11 @@ Privacy and semantic corrections applied during preparation:
   pseudonym resolution;
 - `origin` is not mapped until a governed source-role vocabulary is selected;
 - diagnosis/pathology text maps to canonical `Condition.code-text`; DataConv
-  also exposes the same source value as `meta.codingProposals[].inputText`
-  while proposing `Condition.code`, and never overwrites the local text;
+  also exposes the same source value on the contained clinical resource at
+  `data[].resource.contained[].meta.codingProposals[].inputText` (or the
+  equivalent `entry[].resource.contained[]` path) while proposing
+  `Condition.code`, and never overwrites the local text or writes proposal
+  metadata on the surrounding `entry[]`/`data[]` item;
 - Pinol and Survet treatment narratives map to neutral `treatment` input, not
   to `Procedure.code-display`; classification and terminology review decide
   whether each line represents a Procedure, medication use or neither;
@@ -50,13 +53,13 @@ query use related but intentionally different representations:
 Excel API-CONFIG
 Condition.code-text
           ↓
-resource.meta.claims
+ResearchSubject.contained[].meta.claims
 {
   "@context": "org.hl7.fhir.api",
   "Condition.code-text": "diagnóstico en español",
   "Condition.language": "es-ES"
 }
-meta.codingProposals[]
+ResearchSubject.contained[].meta.codingProposals[]
 {
   "field": "Condition.code",
   "inputText": "diagnóstico en español"
@@ -72,24 +75,62 @@ inside `code-text` is preserved. `diagnosticreport_code_text` is not a valid
 physical representation of this claim. The physical key never appears in
 API-CONFIG, `meta.claims`, SDK contracts, or FHIR queries.
 
-A FHIR `Parameters` request uses the same modifier:
+The generic boundary is:
+
+```text
+<ResourceType>.<some-code>:text   Parameters.parameter.name on ResearchSubject/_search
+<ResourceType>.<some-code>-text   canonical containedResource.meta.claims key
+<resourcetype>_<some-code>-text   private physical database index key
+```
+
+For `Condition` specifically:
+
+```text
+Condition.code:text -> Condition.code-text -> condition_code-text
+```
+
+The value stored under the canonical claim must already be governed,
+de-identified concept text. This name transformation does not anonymize an
+arbitrary clinical narrative.
+
+A Research cohort request is sent to `ResearchSubject/_search`. Every
+`Parameters.parameter.name` is resource-qualified so one request can express
+criteria over several indexed resource collections without relying on the URL
+to supply an implicit resource type:
 
 ```json
 {
   "resourceType": "Parameters",
   "parameter": [
     {
-      "name": "code:text",
+      "name": "ResearchSubject.study",
+      "valueReference": {
+        "reference": "ResearchStudy/example-study"
+      }
+    },
+    {
+      "name": "Condition.code:text",
       "valueString": "diagnóstico en español"
     }
   ]
 }
 ```
 
-DataConv returns a `Bundle` with `type: searchset` containing matching
-`Condition` resources after review promotion. The source local text remains in
-both the canonical claim and proposal context before and after code
-confirmation.
+Unqualified names such as `code:text`, `study` or `identifier` are rejected on
+this endpoint. DataConv returns a `Bundle` with `type: searchset` containing
+the matching `ResearchSubject` resources after review promotion. The source
+local text remains in both the canonical claim and proposal context before and
+after code confirmation.
+
+In a Research import response, the outer resource is the ResearchSubject and
+each proposal is owned by its contained clinical resource. The only proposal
+paths are `entry[].resource.contained[].meta.codingProposals[]` and
+`body.data[].resource.contained[].meta.codingProposals[]`. Neither
+`entry[].meta`, `body.data[].meta` nor `ResearchSubject.meta.codingProposals`
+is emitted. `meta.codingProposals` is internal FHIR-like review metadata, not
+native FHIR `Meta`; a future native FHIR projection must use a governed
+extension. `meta.tag[]` cannot represent the proposal because a tag is only a
+`Coding` and has no place for source text, candidates or review state.
 
 ## Invoice and ChargeItem contract
 
@@ -136,12 +177,13 @@ ChargeItem?code=<system>|<product-code>
 ```
 
 A query that combines `ChargeItem` and `DiagnosticReport` criteria is a
-multi-resource twin operation, with all criteria interpreted as AND. DataConv
-can materialize the two resource families, but current GW CORE twin search
-still rejects more than one resource-scoped family per request. Cross-family
-AND and its DataConv-to-GW E2E must not be reported as implemented yet. OR
-between resource families is performed by the high-level SDK as multiple
-searches followed by a deduplicated union.
+multi-resource twin operation, with all criteria interpreted as AND. The
+ResearchSubject endpoint supports this through qualified
+`ResourceType.search-parameter` entries in one FHIR `Parameters` request and
+intersects matching subject identifiers across resource-family collections.
+That ResearchSubject contract is distinct from GW CORE's general twin search.
+OR between resource families remains an explicit set union outside this
+single-request AND contract.
 
 The supplied aggregate service catalogue has no safe invoice identity and its
 financial-looking columns remain intentionally unmapped. The invoice-line
@@ -176,12 +218,72 @@ The public secondary-use resource is `ResearchSubject`. Search accepts a FHIR
   "resourceType": "Parameters",
   "parameter": [
     {
-      "name": "identifier",
-      "valueUri": "urn:uuid:<research-subject-uuid>"
-    }
+      "name": "ResearchSubject.study",
+      "valueReference": { "reference": "ResearchStudy/<study-id>" }
+    },
+    { "name": "Condition.code:text", "valueString": "diabetes" },
+    { "name": "Observation.code:text", "valueString": "hba1c" },
+    { "name": "Observation.value-quantity", "valueString": "gt8" }
   ]
 }
 ```
+
+The resource prefix is part of the wire-level search name; it is never a
+camelCase FHIR JSON element. Parameters belonging to one resource family are
+evaluated together and the resulting subject sets are intersected. The
+year-only privacy extension is `ResearchSubject.birthyear`, backed by the
+stored `Subject.birthyear` claim without exposing month or day.
+
+The supported catalogue is deliberately closed:
+
+- `ResearchSubject.birthyear`
+- `AllergyIntolerance.code:text`, `.code`, `.date`
+- `Condition.code:text`, `.code`, `.onset-date`
+- `DiagnosticReport.code:text`, `.code`, `.date`
+- `Immunization.vaccine-code:text`, `.vaccine-code`, `.date`
+- `MedicationStatement.code:text`, `.code`, `.effective`
+- `Observation.code:text`, `.code`, `.date`, `.value-quantity`
+- `Procedure.code:text`, `.code`, `.date`
+
+The server returns HTTP 400 for names outside this catalogue, including FHIR
+JSON camelCase element names such as `Observation.valueQuantity`.
+
+### Explore, tag and export a result cohort
+
+`ResearchSubject/$summary` materializes one authorized UUID as a document
+Bundle for the shared read-only IPS viewer. Moving to the previous or next
+search result only requests another summary; it does not execute the search
+again.
+
+`ResearchSubject/$tag` stores a researcher-owned working marker separately
+from the clinical twin. Sending the same tag with `selected=false` removes
+that researcher's marker. A UI may therefore use the machine-safe tag
+`export` as a reversible workset selection without changing clinical data.
+
+Bulk download uses the FHIR Bulk Data Group flow, not a Bundle batch request:
+
+1. `POST .../dataset/Group` with an actual `person` or `animal` Group. Each
+   member is a pseudonymous `Patient/{uuid}` reference and the single Group
+   identifier is the authorized `ResearchStudy/{id}`.
+2. `GET` or `POST .../dataset/Group/{id}/$export` with
+   `Prefer: respond-async` and `_outputFormat=application/fhir+ndjson`.
+3. Poll the URL returned in `Content-Location`. While processing it returns
+   `202`; when complete it returns the Bulk Data manifest.
+4. Download each manifest `output[].url`. Every file contains exactly one
+   native FHIR JSON resource per line, grouped by `output[].type`. NDJSON is
+   streamable text and is deliberately not a FHIR Bundle.
+
+The default export includes `Patient`, `ResearchSubject`, `Composition`,
+`DocumentReference`, `Encounter`, `AllergyIntolerance`, `Condition`,
+`DiagnosticReport`, `Immunization`, `MedicationStatement`, `Observation` and
+`Procedure` when present. A document Bundle is therefore exported as
+type-separated resources, as required by Bulk Data; `Composition.section.entry`
+uses typed references to those exported resources.
+
+For Research, each exported R4 `ResearchSubject.individual` references the
+corresponding pseudonymous `Patient/{uuid}`. The internal conversion job and
+completion Communication remain implementation details used to notify GW and
+the portal; they do not replace the standard Bulk Data response.
 
 This aligns DataConv and GW CORE at the public resource and request/response
 contract. It does not make both services one index, and it does not transfer

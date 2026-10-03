@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 
 from openpyxl import load_workbook
 
@@ -14,12 +15,19 @@ from adapter_ingestion.models import AdapterContext
 from adapter_ingestion.pipeline import run_pipeline
 from adapter_ingestion.research_search_workbooks import (
     FIXTURE_SUBJECT_UUID_BY_ORIGINAL_ID,
+    HUMAN_SUBJECTS,
     RESEARCH_STUDY_A,
     RESEARCH_STUDY_B,
+    VETERINARY_SUBJECTS,
     generate_research_search_workbooks,
 )
+from adapter_ingestion.runtime.adapters import InMemoryVaultRepository
+from adapter_ingestion.runtime import PreconversionControlPlane
+from adapter_ingestion.runtime.adapters import InMemoryBlobStore, InMemoryConfigStore, InMemoryJobQueue, InMemoryJobStore
 from adapter_ingestion.runtime.adapters.search import InMemorySearchRepository
 from adapter_ingestion.service.api_config import extract_embedded_api_config
+from adapter_ingestion.service.managers.conversion_search import ConversionSearchManager
+from adapter_ingestion.service.research import build_storage_namespace
 
 
 EXPECTED_FILES = {
@@ -288,6 +296,276 @@ def test_identical_human_profiles_remain_isolated_by_research_study(tmp_path: Pa
     assert matches_a == set(json.loads(str(case_a["EXPECTED_RESEARCH_SUBJECT_IDS_JSON"])))
     assert matches_b == set(json.loads(str(case_b["EXPECTED_RESEARCH_SUBJECT_IDS_JSON"])))
     assert matches_a.isdisjoint(matches_b)
+
+
+def test_research_subject_parameters_intersect_resource_collections_inside_one_study(tmp_path: Path) -> None:
+    generated = generate_research_search_workbooks(tmp_path)
+    repository = InMemorySearchRepository()
+    vault_id = build_storage_namespace(
+        network_kind="test", jurisdiction="ES", sector="onehealth-research", tenant_id="fixture",
+    )
+    for workbook_key in ("human-study-a", "human-study-b"):
+        for subject in _pipeline_subjects(generated[workbook_key]):
+            repository.upsert(vault_id=vault_id, resource_type="ResearchSubject", resource=subject)
+            for resource in subject["contained"]:
+                repository.upsert(
+                    vault_id=vault_id,
+                    resource_type=str(resource["resourceType"]),
+                    resource=resource,
+                )
+
+    manager = ConversionSearchManager(SimpleNamespace(
+        settings=SimpleNamespace(demo_mode=True, network_mode="test"),
+        search_repo=repository,
+    ))
+    result = manager.handle(
+        tenant_id="fixture",
+        jurisdiction="ES",
+        sector="onehealth-research",
+        resource_type="ResearchSubject",
+        response=SimpleNamespace(),
+        request=SimpleNamespace(headers={}, query_params={}),
+        body={
+            "resourceType": "Parameters",
+            "parameter": [
+                {"name": "ResearchSubject.study", "valueReference": {"reference": RESEARCH_STUDY_A}},
+                {"name": "Condition.code:text", "valueString": "diabetes"},
+                {"name": "Observation.code:text", "valueString": "hba1c"},
+                {"name": "Observation.value-quantity", "valueString": "gt8"},
+                {"name": "Observation.date", "valueString": "ge2025-01-01"},
+                {"name": "MedicationStatement.code:text", "valueString": "metformina"},
+            ],
+        },
+    )
+
+    assert result["resourceType"] == "Bundle"
+    assert result["type"] == "searchset"
+    assert {
+        entry["resource"]["meta"]["claims"]["ResearchSubject.identifier"]
+        for entry in result["entry"]
+    } == {HUMAN_SUBJECTS[0]}
+
+
+def test_every_excel_search_case_executes_as_one_research_subject_parameters_request(tmp_path: Path) -> None:
+    generated = generate_research_search_workbooks(tmp_path)
+    repository = InMemorySearchRepository()
+    vault_id = build_storage_namespace(
+        network_kind="test", jurisdiction="ES", sector="onehealth-research", tenant_id="fixture",
+    )
+    subjects_by_workbook: dict[str, list[dict[str, object]]] = {}
+    for workbook_key, path in generated.items():
+        subjects_by_workbook[workbook_key] = _pipeline_subjects(path)
+        for subject in subjects_by_workbook[workbook_key]:
+            repository.upsert(vault_id=vault_id, resource_type="ResearchSubject", resource=subject)
+            for resource in subject["contained"]:
+                repository.upsert(
+                    vault_id=vault_id,
+                    resource_type=str(resource["resourceType"]),
+                    resource=resource,
+                )
+
+    manager = ConversionSearchManager(SimpleNamespace(
+        settings=SimpleNamespace(demo_mode=True, network_mode="test"),
+        search_repo=repository,
+    ))
+    for workbook_key, path in generated.items():
+        for case in _search_cases(path):
+            parameters: list[dict[str, object]] = [{
+                "name": "ResearchSubject.study",
+                "valueReference": {"reference": str(case["RESEARCH_STUDY"])},
+            }]
+            for step in json.loads(str(case["FHIR_SEARCH_PLAN_JSON"])):
+                resource_type = str(step["resourceType"])
+                for parameter, value in step["params"].items():
+                    if resource_type == "ResearchSubject" and parameter == "study":
+                        continue
+                    parameters.append({"name": f"{resource_type}.{parameter}", "valueString": str(value)})
+                for claim, value in step.get("claimFilters", {}).items():
+                    public_parameter = "birthyear" if claim == "Subject.birthyear" else str(claim)
+                    parameters.append({"name": f"ResearchSubject.{public_parameter}", "valueString": str(value)})
+
+            result = manager.handle(
+                tenant_id="fixture",
+                jurisdiction="ES",
+                sector="onehealth-research",
+                resource_type="ResearchSubject",
+                response=SimpleNamespace(),
+                request=SimpleNamespace(headers={}, query_params={}),
+                body={"resourceType": "Parameters", "parameter": parameters},
+            )
+            actual = {
+                entry["resource"]["meta"]["claims"]["ResearchSubject.identifier"]
+                for entry in result["entry"]
+            }
+            assert actual == set(json.loads(str(case["EXPECTED_RESEARCH_SUBJECT_IDS_JSON"]))), (
+                workbook_key, case["CASE_ID"], actual,
+            )
+
+
+def test_exact_spanish_edge_plans_return_expected_veterinary_subjects(tmp_path: Path) -> None:
+    generated = generate_research_search_workbooks(tmp_path)
+    repository = InMemorySearchRepository()
+    vault_id = build_storage_namespace(
+        network_kind="test", jurisdiction="ES", sector="onehealth-research", tenant_id="fixture",
+    )
+    for subject in _pipeline_subjects(generated["veterinary-study-a"]):
+        repository.upsert(vault_id=vault_id, resource_type="ResearchSubject", resource=subject)
+        for resource in subject["contained"]:
+            repository.upsert(
+                vault_id=vault_id,
+                resource_type=str(resource["resourceType"]),
+                resource=resource,
+            )
+    manager = ConversionSearchManager(SimpleNamespace(
+        settings=SimpleNamespace(demo_mode=True, network_mode="test"),
+        search_repo=repository,
+    ))
+
+    cases = (
+        (
+            [
+                {"name": "Immunization.vaccine-code:text", "valueString": "rabia"},
+                {"name": "Immunization.date", "valueString": "ge2025-01-01"},
+            ],
+            {VETERINARY_SUBJECTS[1]},
+        ),
+        (
+            [
+                {"name": "ResearchSubject.birthyear", "valueString": "lt2020"},
+                {"name": "Condition.code:text", "valueString": "otitis"},
+                {"name": "Procedure.code:text", "valueString": "radiografía"},
+                {"name": "Procedure.date", "valueString": "ge2024-01-01"},
+            ],
+            {VETERINARY_SUBJECTS[0]},
+        ),
+    )
+    for edge_parameters, expected in cases:
+        result = manager.handle(
+            tenant_id="fixture",
+            jurisdiction="ES",
+            sector="onehealth-research",
+            resource_type="ResearchSubject",
+            response=SimpleNamespace(),
+            request=SimpleNamespace(headers={}, query_params={}),
+            body={"resourceType": "Parameters", "parameter": [
+                {"name": "ResearchSubject.study", "valueReference": {"reference": RESEARCH_STUDY_A}},
+                *edge_parameters,
+            ]},
+        )
+        actual = {
+            entry["resource"]["meta"]["claims"]["ResearchSubject.identifier"]
+            for entry in result["entry"]
+        }
+        assert actual == expected
+
+
+def test_selected_research_subject_materializes_a_document_bundle_for_the_shared_health_viewer(tmp_path: Path) -> None:
+    generated = generate_research_search_workbooks(tmp_path)
+    repository = InMemorySearchRepository()
+    vault_id = build_storage_namespace(
+        network_kind="test", jurisdiction="ES", sector="onehealth-research", tenant_id="fixture",
+    )
+    subject = _pipeline_subjects(generated["veterinary-study-a"])[0]
+    repository.upsert(vault_id=vault_id, resource_type="ResearchSubject", resource=subject)
+    manager = ConversionSearchManager(SimpleNamespace(
+        settings=SimpleNamespace(demo_mode=True, network_mode="test"),
+        search_repo=repository,
+    ))
+
+    result = manager.handle_summary(
+        tenant_id="fixture",
+        jurisdiction="ES",
+        sector="onehealth-research",
+        request=SimpleNamespace(headers={}),
+        body={"resourceType": "Parameters", "parameter": [
+            {"name": "ResearchSubject.study", "valueReference": {"reference": RESEARCH_STUDY_A}},
+            {"name": "ResearchSubject.identifier", "valueUri": VETERINARY_SUBJECTS[0]},
+        ]},
+    )
+
+    assert result["resourceType"] == "Bundle"
+    assert result["type"] == "document"
+    assert result["entry"][0]["resource"]["resourceType"] == "Composition"
+    section_references = {
+        reference["reference"]
+        for section in result["entry"][0]["resource"]["section"]
+        for reference in section["entry"]
+    }
+    bundled_resources = {
+        f'{entry["resource"]["resourceType"]}/{entry["resource"]["id"]}'
+        for entry in result["entry"][1:]
+    }
+    assert section_references
+    assert section_references <= bundled_resources
+
+
+def test_researcher_saves_a_tagged_working_selection_without_mutating_the_canonical_twin(tmp_path: Path) -> None:
+    generated = generate_research_search_workbooks(tmp_path)
+    search = InMemorySearchRepository()
+    vault = InMemoryVaultRepository()
+    vault_id = build_storage_namespace(
+        network_kind="test", jurisdiction="ES", sector="onehealth-research", tenant_id="fixture",
+    )
+    subject = _pipeline_subjects(generated["veterinary-study-a"])[0]
+    search.upsert(vault_id=vault_id, resource_type="ResearchSubject", resource=subject)
+    manager = ConversionSearchManager(SimpleNamespace(
+        settings=SimpleNamespace(demo_mode=True, network_mode="test"),
+        search_repo=search,
+        vault_repo=vault,
+    ))
+
+    result = manager.handle_tag(
+        tenant_id="fixture", jurisdiction="ES", sector="onehealth-research",
+        request=SimpleNamespace(headers={}),
+        body={"resourceType": "Parameters", "parameter": [
+            {"name": "ResearchSubject.study", "valueReference": {"reference": RESEARCH_STUDY_A}},
+            {"name": "ResearchSubject.identifier", "valueUri": VETERINARY_SUBJECTS[0]},
+            {"name": "tag", "valueCoding": {"system": "urn:multibase:zResearcher", "code": "possible-candidate"}},
+        ]},
+    )
+
+    assert result["resourceType"] == "Composition"
+    claims = result["meta"]["claims"]
+    assert claims["@type"] == "Composition:ResearcherWorkingSelection"
+    assert claims["Composition.subject"] == VETERINARY_SUBJECTS[0]
+    assert claims["Composition.meta-tag"] == "urn:multibase:zResearcher|possible-candidate"
+    assert claims["Composition.userSelected"] == "true"
+    assert search.search(vault_id=vault_id, resource_type="ResearchSubject", search_params={"identifier": VETERINARY_SUBJECTS[0]})[0] == subject
+
+    removed = manager.handle_tag(
+        tenant_id="fixture", jurisdiction="ES", sector="onehealth-research",
+        request=SimpleNamespace(headers={}),
+        body={"resourceType": "Parameters", "parameter": [
+            {"name": "ResearchSubject.study", "valueReference": {"reference": RESEARCH_STUDY_A}},
+            {"name": "ResearchSubject.identifier", "valueUri": VETERINARY_SUBJECTS[0]},
+            {"name": "tag", "valueCoding": {"system": "urn:multibase:zResearcher", "code": "possible-candidate"}},
+            {"name": "selected", "valueBoolean": False},
+        ]},
+    )
+
+    assert removed == {"removed": True, "tag": "possible-candidate"}
+    assert vault.query(vault_id, {
+        "Composition.subject": VETERINARY_SUBJECTS[0],
+        "Composition.meta-tag": "urn:multibase:zResearcher|possible-candidate",
+    }, "Composition") == []
+
+
+def test_source_event_dates_are_searchable_on_every_supported_clinical_family(tmp_path: Path) -> None:
+    generated = generate_research_search_workbooks(tmp_path)
+    subjects = _pipeline_subjects(generated["veterinary-study-a"])
+    positive = subjects[0]
+    resources = {resource["resourceType"]: resource for resource in positive["contained"]}
+
+    expected_date_claims = {
+        "AllergyIntolerance": "AllergyIntolerance.date",
+        "Condition": "Condition.onset-datetime",
+        "DiagnosticReport": "DiagnosticReport.date",
+        "Immunization": "Immunization.date",
+        "MedicationStatement": "MedicationStatement.effective",
+        "Procedure": "Procedure.date",
+    }
+    for resource_type, claim in expected_date_claims.items():
+        assert str(resources[resource_type]["meta"]["claims"].get(claim, "")).startswith(("2024-", "2025-"))
 
 
 def test_committed_excel_fixtures_match_the_generator(tmp_path: Path) -> None:

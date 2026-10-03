@@ -113,8 +113,11 @@ comentarios generales sobre vacunas permanecen como documentos de origen.
 1. GCS guarda el archivo de origen y los artefactos generados por el job.
 2. DataConv genera recursos procesados de forma FHIR-like con flat claims
    canónicas.
-3. Firestore guarda esos recursos con sus `meta.codingProposals[]` dentro del
-   recurso propietario y las relaciones necesarias para revisarlos.
+3. Firestore guarda esos recursos. En una importacion Research, las propuestas
+   solo pertenecen a los recursos clinicos contenidos, en
+   `ResearchSubject.contained[].meta.codingProposals[]`; nunca pertenecen al
+   ResearchSubject ni al envoltorio `entry[]`/`data[]`. Tambien conserva las
+   relaciones necesarias para revisarlos.
 4. Una persona revisa los códigos terminológicos inferidos y confirma o rechaza
    la propuesta. Una selección profesional aceptada registra
    `userSelected=true` en ese coding; no es un estado de workflow.
@@ -131,7 +134,8 @@ búsqueda, a cambio de duplicación. Cualquier rediseño debe definir primero un
 La inferencia de texto a código solo puede producir propuestas. El servicio de
 terminología devuelve todos los candidatos gobernados y el modelo añade un
 porcentaje de recomendación y evidencia sin eliminar alternativas. Esos datos
-viven en `meta.codingProposals[]`, fuera de las flat claims autoritativas. La
+viven en `ResearchSubject.contained[].meta.codingProposals[]`, fuera de las
+flat claims autoritativas. La
 decisión human-reviewed escribe únicamente `<Resource>.code` y el
 `<Resource>.code-display` en inglés. La revisión envía candidatos aceptados y
 rechazados, junto con el motivo opcional, a `/v1/coding/feedback`; esto crea

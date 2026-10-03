@@ -549,6 +549,7 @@ def _condition_resource(
         ConditionClaim.SUBJECT: record.subject_id,
         ConditionClaim.CLINICAL_STATUS: "active",
         ConditionClaim.VERIFICATION_STATUS: "provisional",
+        ConditionClaim.ONSET_DATE_TIME: record.timestamp,
         "Condition.language": context.language,
     }
     meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
@@ -586,6 +587,7 @@ def _procedure_resource(
         ProcedureClaim.IDENTIFIER: procedure_id,
         ProcedureClaim.SUBJECT: record.subject_id,
         ProcedureClaim.STATUS: "unknown",
+        ProcedureClaim.DATE: record.timestamp,
         "Procedure.language": context.language,
     }
     meta: dict[str, Any] = {"claims": {"@context": FHIR_API_CONTEXT, **claims}}
@@ -651,6 +653,7 @@ def _allergy_intolerance_resource(
         status_claims={
             AllergyIntoleranceClaim.CLINICAL_STATUS: "active",
             AllergyIntoleranceClaim.VERIFICATION_STATUS: "unconfirmed",
+            AllergyIntoleranceClaim.RECORDED_DATE: record.timestamp,
         },
     )
 
@@ -688,7 +691,10 @@ def _medication_statement_resource(
             MedicationStatementClaim.IDENTIFIER: "$id",
             MedicationStatementClaim.SUBJECT: "$subject",
         },
-        status_claims={MedicationStatementClaim.STATUS: "unknown"},
+        status_claims={
+            MedicationStatementClaim.STATUS: "unknown",
+            MedicationStatementClaim.EFFECTIVE: record.timestamp,
+        },
     )
 
 

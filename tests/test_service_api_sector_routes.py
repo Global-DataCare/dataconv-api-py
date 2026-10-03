@@ -111,8 +111,8 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
             json={
                 "resourceType": "Parameters",
                 "parameter": [
-                    {"name": "identifier", "valueUri": identifier},
-                    {"name": "study", "valueReference": {"reference": study_reference}},
+                    {"name": "ResearchSubject.identifier", "valueUri": identifier},
+                    {"name": "ResearchSubject.study", "valueReference": {"reference": study_reference}},
                 ],
             },
         )
@@ -122,6 +122,176 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         self.assertEqual(bundle["resourceType"], "Bundle")
         self.assertEqual(bundle["type"], "searchset")
         self.assertEqual(bundle["total"], 1)
+
+    def test_research_subject_parameters_search_rejects_unqualified_names(self) -> None:
+        self.assertIsNotNone(TestClient)
+        response = TestClient(self.app).post(
+            "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/ResearchSubject/_search",
+            json={
+                "resourceType": "Parameters",
+                "parameter": [
+                    {"name": "study", "valueReference": {"reference": "ResearchStudy/study-sector-route-1"}},
+                    {"name": "code:text", "valueString": "otitis"},
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("resource-qualified", str(response.json()))
+
+    def test_research_subject_search_route_intersects_qualified_resource_parameters(self) -> None:
+        self.assertIsNotNone(TestClient)
+        study_reference = "ResearchStudy/study-sector-route-1"
+        vault_id = "test__es__onehealth-research__clinic-a"
+        subject_a = "urn:uuid:11111111-1111-4111-8111-111111111111"
+        subject_b = "urn:uuid:22222222-2222-4222-8222-222222222222"
+        for identifier in (subject_a, subject_b):
+            self.app.state.search_repo.upsert(
+                vault_id=vault_id,
+                resource_type="ResearchSubject",
+                resource={
+                    "resourceType": "ResearchSubject",
+                    "id": identifier.removeprefix("urn:uuid:"),
+                    "meta": {"claims": {
+                        "ResearchSubject.identifier": identifier,
+                        "ResearchSubject.study": study_reference,
+                    }},
+                },
+            )
+        for resource_type, identifier, subject, concept in (
+            ("Condition", "condition-a", subject_a, "OTITIS"),
+            ("Condition", "condition-b", subject_b, "OTITIS"),
+            ("Procedure", "procedure-a", subject_a, "RADIOGRAFIA"),
+        ):
+            self.app.state.search_repo.upsert(
+                vault_id=vault_id,
+                resource_type=resource_type,
+                resource={
+                    "resourceType": resource_type,
+                    "id": identifier,
+                    "meta": {"claims": {
+                        f"{resource_type}.subject": subject,
+                        f"{resource_type}.code-display": concept,
+                    }},
+                },
+            )
+
+        response = TestClient(self.app).post(
+            "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/ResearchSubject/_search",
+            json={
+                "resourceType": "Parameters",
+                # Wire -> claim -> physical index:
+                # Condition.code:text -> Condition.code-text -> condition_code-text.
+                "parameter": [
+                    {"name": "ResearchSubject.study", "valueReference": {"reference": study_reference}},
+                    {"name": "Condition.code:text", "valueString": "otitis"},
+                    {"name": "Procedure.code:text", "valueString": "radiografia"},
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        bundle = response.json()
+        self.assertEqual(bundle["total"], 1)
+        self.assertEqual(
+            bundle["entry"][0]["resource"]["meta"]["claims"]["ResearchSubject.identifier"],
+            subject_a,
+        )
+
+    def test_research_subject_search_route_rejects_parameters_outside_the_supported_catalog(self) -> None:
+        self.assertIsNotNone(TestClient)
+        study_reference = "ResearchStudy/study-sector-route-1"
+
+        response = TestClient(self.app).post(
+            "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/ResearchSubject/_search",
+            json={
+                "resourceType": "Parameters",
+                "parameter": [
+                    {"name": "ResearchSubject.study", "valueReference": {"reference": study_reference}},
+                    {"name": "Observation.valueQuantity", "valueString": "gt8"},
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("supported research search parameter", str(response.json()))
+
+    def test_research_subject_summary_route_returns_a_document_bundle(self) -> None:
+        self.assertIsNotNone(TestClient)
+        study_reference = "ResearchStudy/study-sector-route-1"
+        identifier = "urn:uuid:11111111-1111-4111-8111-111111111111"
+        self.app.state.search_repo.upsert(
+            vault_id="test__es__onehealth-research__clinic-a",
+            resource_type="ResearchSubject",
+            resource={
+                "resourceType": "ResearchSubject",
+                "id": identifier.removeprefix("urn:uuid:"),
+                "meta": {"claims": {
+                    "ResearchSubject.identifier": identifier,
+                    "ResearchSubject.study": study_reference,
+                }},
+                "contained": [{
+                    "resourceType": "Composition",
+                    "id": "composition-1",
+                    "meta": {"claims": {
+                        "Composition.section": "http://loinc.org|11369-6",
+                        "Composition.entry": "urn:uuid:immunization-1",
+                    }},
+                }, {
+                    "resourceType": "Immunization",
+                    "id": "immunization-1",
+                    "meta": {"claims": {"Immunization.code-text": "Rabia"}},
+                }],
+            },
+        )
+
+        response = TestClient(self.app).post(
+            "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/ResearchSubject/$summary",
+            json={"resourceType": "Parameters", "parameter": [
+                {"name": "ResearchSubject.study", "valueReference": {"reference": study_reference}},
+                {"name": "ResearchSubject.identifier", "valueUri": identifier},
+            ]},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["type"], "document")
+        self.assertEqual(response.json()["entry"][0]["resource"]["resourceType"], "Composition")
+
+    def test_research_group_export_returns_standard_async_content_location(self) -> None:
+        study_reference = "ResearchStudy/study-sector-route-1"
+        identifier = "urn:uuid:11111111-1111-4111-8111-111111111111"
+        self.app.state.search_repo.upsert(
+            vault_id="test__es__onehealth-research__clinic-a",
+            resource_type="ResearchSubject",
+            resource={
+                "resourceType": "ResearchSubject", "id": identifier.removeprefix("urn:uuid:"),
+                "meta": {"claims": {
+                    "ResearchSubject.identifier": identifier,
+                    "ResearchSubject.study": study_reference,
+                }},
+            },
+        )
+        client = TestClient(self.app)
+        created = client.post(
+            "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/Group",
+            json={
+                "resourceType": "Group", "type": "animal", "actual": True,
+                "identifier": [{"value": study_reference}],
+                "member": [{"entity": {"reference": f"Patient/{identifier.removeprefix('urn:uuid:')}"}}],
+            },
+        )
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.json()["member"][0]["entity"]["reference"], f"Patient/{identifier.removeprefix('urn:uuid:')}")
+
+        kickoff = client.post(
+            f"/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/Group/{created.json()['id']}/$export",
+            headers={"Prefer": "respond-async"},
+            json={"resourceType": "Parameters", "parameter": [
+                {"name": "_outputFormat", "valueString": "application/fhir+ndjson"},
+            ]},
+        )
+        self.assertEqual(kickoff.status_code, 202)
+        self.assertIn("/dataset/bulk-status/", kickoff.headers["content-location"])
 
     def test_authorized_importers_list_saved_versions_without_receiving_write_scope(self) -> None:
         self.assertIsNotNone(TestClient)

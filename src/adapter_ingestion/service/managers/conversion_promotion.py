@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from ..api_support import (
@@ -292,7 +291,6 @@ def promote_resources(
         researchStudyReference=research_study_reference,
     )
 
-    confirmed_at = datetime.now(timezone.utc).isoformat()
     datasets_updated = [
         {"resourceType": resource_type_name, "updatedCount": count}
         for resource_type_name, count in sorted(promoted_by_type.items())
@@ -316,22 +314,11 @@ def promote_resources(
         f"Datasets actualizados={len(datasets_updated)}."
     )
     data_entries = []
-    for item, dataset in zip(datasets_updated, dcat_datasets):
-        entry_meta = {
-            "confirmedAt": confirmed_at,
-            "tenantId": tenant_id,
-            "jurisdiction": str(jurisdiction or "").upper(),
-            "sector": sector,
-            "resourceType": item["resourceType"],
-            "updatedCount": item["updatedCount"],
-        }
-        if research_study_reference:
-            entry_meta["researchStudy"] = {"reference": research_study_reference}
+    for dataset in dcat_datasets:
         data_entries.append({
             "response": {
                 "status": "200",
             },
-            "meta": entry_meta,
             "resource": dataset,
         })
 

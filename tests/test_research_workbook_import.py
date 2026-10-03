@@ -332,8 +332,8 @@ def test_each_research_workbook_sheet_gets_api_config_and_imports_without_duplic
         body={
             "resourceType": "Parameters",
             "parameter": [
-                {"name": "identifier", "valueUri": subject_identifier},
-                {"name": "study", "valueReference": {"reference": study_reference}},
+                {"name": "ResearchSubject.identifier", "valueUri": subject_identifier},
+                {"name": "ResearchSubject.study", "valueReference": {"reference": study_reference}},
             ],
         },
     )

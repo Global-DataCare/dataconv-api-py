@@ -13,6 +13,7 @@ from ..models import AdapterContext
 from ..manufacturers import get_adapter
 from ..pipeline import run_pipeline
 from ..runtime import BlobStore, ConfigKey, IVaultRepository, PreconversionControlPlane
+from ..runtime.models import now_iso_utc
 from ..subject_links import ProtectedSubjectLinkStore, SubjectLinkScope
 from .api_support import _compose_software_id_token
 from .observability import log_event
@@ -289,6 +290,48 @@ def process_one_job(
     log_event("job_processing_started", workerId=worker_id, **_job_log_fields(job))
 
     try:
+        if job.request.manufacturer == "research-bulk-export":
+            export_payload = blob_store.get_bytes(job.request.input_ref)
+            parsed_export = json.loads(export_payload.decode("utf-8"))
+            resources_by_type = parsed_export.get("resourcesByType")
+            if not isinstance(resources_by_type, dict) or not str(parsed_export.get("request", "")).strip():
+                raise ValueError("research_bulk_export_request_invalid")
+            output: list[dict[str, Any]] = []
+            for resource_type, resources in sorted(resources_by_type.items()):
+                if not isinstance(resources, list) or any(
+                    not isinstance(resource, dict) or resource.get("resourceType") != resource_type
+                    for resource in resources
+                ):
+                    raise ValueError("research_bulk_export_resources_invalid")
+                if not resources:
+                    continue
+                payload = b"\n".join(
+                    json.dumps(resource, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+                    for resource in resources
+                ) + b"\n"
+                file_ref = blob_store.put_bytes(
+                    path=f"jobs/{job.job_id}/bulk/{resource_type}.ndjson",
+                    payload=payload,
+                    content_type="application/fhir+ndjson",
+                )
+                output.append({"type": resource_type, "ref": file_ref, "count": len(resources)})
+            manifest = {
+                "transactionTime": now_iso_utc(), "request": parsed_export["request"],
+                "requiresAccessToken": True, "output": output, "error": [],
+            }
+            result_ref = blob_store.put_bytes(
+                path=f"jobs/{job.job_id}/bulk/manifest.json",
+                payload=json.dumps(manifest, ensure_ascii=False).encode("utf-8"),
+                content_type="application/json",
+            )
+            updated = control_plane.mark_job_succeeded(
+                job.job_id, result_ref=result_ref,
+                completion_notification_pending=notification_config.enabled,
+            )
+            log_event("research_bulk_export_succeeded", workerId=worker_id, resultRef=result_ref, **_job_log_fields(updated))
+            if notification_config.enabled:
+                deliver_notifications()
+            return job.job_id
         if job.request.mode == "demo-ephemeral":
             config_payload = dict(job.request.inline_config or {})
         else:

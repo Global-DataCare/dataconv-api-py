@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## 0.9.0 - 2026-10-03
+
+- Require resource-qualified names such as `Condition.code:text` in
+  `ResearchSubject/_search` FHIR Parameters, preserve the distinct canonical
+  `Condition.code-text` and private `condition_code-text` projections, and
+  reject ambiguous unqualified cohort criteria.
+- Keep terminology proposals exclusively on contained clinical resources at
+  `entry[].resource.contained[].meta.codingProposals[]` or
+  `body.data[].resource.contained[].meta.codingProposals[]`; response entry
+  envelopes and ResearchSubject metadata no longer duplicate them.
+- Include native R4 `Composition`, `DocumentReference` and `Encounter` streams
+  in study-scoped Group Bulk Data exports, alongside the pseudonymous Patient,
+  ResearchSubject and supported clinical resources. Composition entries use
+  typed cross-file references rather than unresolved contained-resource URNs.
+
+- Materialize one authorized search-result UUID as a document Bundle for the
+  shared IPS viewer and store reversible, researcher-owned workset tags as
+  independent claims-first Compositions.
+- Implement FHIR Bulk Data Group export for a bounded study cohort: persist an
+  actual `Group` of pseudonymous `Patient/{uuid}` members, return `202` with
+  `Content-Location`, expose the standard polling manifest, and write one
+  `application/fhir+ndjson` file per exported resource type. The internal job
+  may still emit the existing completion Communication to GW, but neither a
+  Task response nor a collection Bundle is presented as the Bulk Data wire
+  contract.
+- Add one study-pinned `ResearchSubject/_search` FHIR `Parameters` operation
+  that accepts qualified resource-family criteria, evaluates each collection,
+  intersects the matching subject identifiers and returns only the resulting
+  ResearchSubjects. The privacy-preserving `ResearchSubject.birthyear`
+  extension maps internally to the year-only subject claim. Reject unknown,
+  unqualified or camelCase composite parameters outside the service catalogue.
 - Preserve canonical flat-claim coordinates when professionally reviewed
   terminology is stored, including hyphenated Immunization claims, instead of
   misrepresenting them as FHIR element paths.

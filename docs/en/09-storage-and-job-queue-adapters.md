@@ -104,8 +104,11 @@ discussion remain source documents and are not rewritten as clinical events.
 
 1. GCS stores the uploaded source and generated job artifacts.
 2. DataConv produces processed FHIR-like resources with canonical flat claims.
-3. Firestore stores those resources with resource-owned
-   `meta.codingProposals[]` and keeps the links required for review.
+3. Firestore stores those resources. Research import proposals belong only to
+   contained clinical resources at
+   `ResearchSubject.contained[].meta.codingProposals[]`, never to the
+   ResearchSubject or an `entry[]`/`data[]` envelope, and keep the links
+   required for review.
 4. A human reviews inferred terminology codes and confirms or rejects the
    proposal. An accepted professional choice records `userSelected=true` on
    that coding; this value is not workflow state.
@@ -123,7 +126,8 @@ reconciliation rule before removing either copy.
 Text-to-code inference is proposal-only. The terminology boundary returns every
 governed candidate and the coding model adds a recommendation percentage plus
 evidence without removing alternatives. These values live in
-`meta.codingProposals[]`, outside authoritative flat claims. A human-reviewed
+`ResearchSubject.contained[].meta.codingProposals[]`, outside authoritative
+flat claims. A human-reviewed
 choice writes only `<Resource>.code` and the English `<Resource>.code-display`.
 The review sends accepted and rejected candidate identifiers plus the optional
 reason to `/v1/coding/feedback`; feedback is durable evaluation/training input,

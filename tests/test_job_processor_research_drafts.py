@@ -230,6 +230,42 @@ class JobProcessorResearchDraftsTests(unittest.TestCase):
         self.assertNotIn("DocumentReference.userSelected", document["meta"]["claims"])
         self.assertEqual(document["docStatus"], "preliminary")
 
+    def test_process_one_job_writes_type_separated_bulk_ndjson_without_an_adapter(self) -> None:
+        control_plane = PreconversionControlPlane(InMemoryConfigStore(), InMemoryJobStore(), InMemoryJobQueue())
+        blob_store = InMemoryBlobStore()
+        payload = {
+            "request": "/dataset/Group/group-1/$export",
+            "resourcesByType": {"Patient": [{"resourceType": "Patient", "id": "patient-1"}]},
+        }
+        input_ref = blob_store.put_bytes(
+            path="research-exports/requests/export.json",
+            payload=json.dumps(payload).encode("utf-8"), content_type="application/json",
+        )
+        queued = control_plane.submit_job(JobRequest(
+            alternate_name="research-tenant", manufacturer="research-bulk-export",
+            sector="onehealth-research", country="ES", input_ref=input_ref,
+            requested_by="did:web:professional.example:employee:researcher",
+            mode="demo-ephemeral", research_study_reference="ResearchStudy/study-export",
+        ))
+
+        with patch("adapter_ingestion.service.job_processor.get_adapter") as get_adapter:
+            processed = process_one_job(
+                control_plane=control_plane, blob_store=blob_store, vault_repo=InMemoryVaultRepository(),
+                settings=self._settings(), worker_id="worker-export",
+            )
+
+        self.assertEqual(processed, queued.job_id)
+        get_adapter.assert_not_called()
+        completed = control_plane.get_job(queued.job_id)
+        self.assertEqual(completed.status, "succeeded")
+        manifest = json.loads(blob_store.get_bytes(completed.result_ref))
+        self.assertEqual(manifest["request"], payload["request"])
+        self.assertEqual(manifest["output"][0]["type"], "Patient")
+        self.assertEqual(
+            blob_store.get_bytes(manifest["output"][0]["ref"]).decode("utf-8"),
+            '{"resourceType":"Patient","id":"patient-1"}\n',
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

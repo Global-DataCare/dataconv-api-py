@@ -28,6 +28,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     search_manager,
     job_search_manager,
     research_coding_review_manager,
+    research_bulk_export_manager,
 ) -> None:
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$prepare-review",
@@ -35,8 +36,10 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Prepare durable local text for coding review",
         response_class=JSONResponse,
         description=(
-            "Creates missing `meta.codingProposals[]` from durable local `*-text` claims and the "
-            "configured terminology service. It does not require or repeat the original import."
+            "Creates missing `ResearchSubject.contained[].meta.codingProposals[]` from durable "
+            "local `*-text` claims and the configured terminology service. Proposals never live "
+            "on the ResearchSubject or response entry envelope. It does not require or repeat "
+            "the original import."
         ),
     )
     def prepare_pending_research_coding_reviews(
@@ -60,9 +63,10 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         summary="Search durable pending coding reviews by study",
         response_class=JSONResponse,
         description=(
-            "Returns ResearchSubject drafts that still contain `meta.codingProposals[]` for the "
-            "authorized ResearchStudy in pages of at most 1,000 subjects. This durable view does not "
-            "depend on conversion Task retention."
+            "Returns ResearchSubject drafts whose contained clinical resources still contain "
+            "`meta.codingProposals[]` for the authorized ResearchStudy in pages of at most 1,000 "
+            "subjects. Neither the ResearchSubject nor the response entry envelope owns those "
+            "proposals. This durable view does not depend on conversion Task retention."
         ),
     )
     def search_pending_research_coding_reviews(
@@ -449,6 +453,171 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         )
 
     @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$summary",
+        tags=["4.4 Publisher Dataset Search"],
+        summary="Materialize one authorized research subject document",
+        response_class=JSONResponse,
+        description=(
+            "Materializes one ResearchSubject selected from a study-scoped search as a FHIR document Bundle. "
+            "The Bundle is suitable for the same read-only health-data viewer used for an individual summary."
+        ),
+    )
+    def materialize_research_subject_summary(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return search_manager.handle_summary(
+            tenant_id=tenant_id,
+            jurisdiction=jurisdiction,
+            sector=sector,
+            request=request,
+            body=body,
+        )
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$tag",
+        tags=["4.4 Publisher Dataset Search"],
+        summary="Save a researcher-owned ResearchSubject workset marker",
+        response_class=JSONResponse,
+        description=(
+            "Stores an independent researcher-owned working-selection Composition with a ledger-safe tag. "
+            "It never mutates or copies the canonical ResearchSubject twin."
+        ),
+    )
+    def tag_research_subject(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return search_manager.handle_tag(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector, request=request, body=body,
+        )
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/Group",
+        tags=["4.4 Publisher Dataset Search"],
+        summary="Create one study-scoped export Group",
+        response_class=JSONResponse,
+        description=(
+            "Creates an actual FHIR Group whose members are pseudonymous Patient references belonging to one "
+            "authorized ResearchStudy. The stored business representation remains claims-first."
+        ),
+    )
+    def create_research_export_group(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        response: Response,
+        request: Request,
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        group = research_bulk_export_manager.create_group(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector, request=request, body=body,
+        )
+        response.status_code = 201
+        response.headers["Location"] = (
+            f"/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/Group/{group['id']}"
+        )
+        return group
+
+    def _bulk_parameters(body: dict[str, Any]) -> tuple[str, tuple[str, ...]]:
+        output_format = "application/fhir+ndjson"
+        resource_types: list[str] = []
+        for parameter in body.get("parameter", []) if body.get("resourceType") == "Parameters" else []:
+            if not isinstance(parameter, dict):
+                continue
+            if parameter.get("name") == "_outputFormat":
+                output_format = str(parameter.get("valueString", "") or "")
+            elif parameter.get("name") == "_type":
+                value = str(parameter.get("valueString", "") or "")
+                resource_types.extend(item.strip() for item in value.split(",") if item.strip())
+        return output_format, tuple(resource_types)
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/Group/{group_id}/$export",
+        tags=["4.4 Publisher Dataset Search"],
+        summary="Start a FHIR Bulk Data Group export",
+        response_class=JSONResponse,
+    )
+    def kickoff_research_group_export(
+        tenant_id: str, jurisdiction: str, sector: str, group_id: str,
+        request: Request, body: dict[str, Any] = Body(default_factory=dict),
+    ):
+        if "respond-async" not in str(request.headers.get("prefer", "") or "").lower():
+            raise HTTPException(status_code=400, detail="Prefer: respond-async is required")
+        output_format, resource_types = _bulk_parameters(body)
+        result = research_bulk_export_manager.kickoff(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector, group_id=group_id,
+            request=request, output_format=output_format, resource_types=resource_types,
+        )
+        return Response(status_code=202, headers={"Content-Location": result["contentLocation"]})
+
+    @app.get(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/Group/{group_id}/$export",
+        tags=["4.4 Publisher Dataset Search"],
+        summary="Start a FHIR Bulk Data Group export",
+        response_class=JSONResponse,
+    )
+    def kickoff_research_group_export_get(
+        tenant_id: str, jurisdiction: str, sector: str, group_id: str, request: Request,
+    ):
+        if "respond-async" not in str(request.headers.get("prefer", "") or "").lower():
+            raise HTTPException(status_code=400, detail="Prefer: respond-async is required")
+        output_format = str(request.query_params.get("_outputFormat", "application/fhir+ndjson") or "")
+        resource_types = tuple(
+            item.strip() for item in str(request.query_params.get("_type", "") or "").split(",") if item.strip()
+        )
+        result = research_bulk_export_manager.kickoff(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector, group_id=group_id,
+            request=request, output_format=output_format, resource_types=resource_types,
+        )
+        return Response(status_code=202, headers={"Content-Location": result["contentLocation"]})
+
+    @app.get(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/bulk-status/{job_id}",
+        tags=["4.4 Publisher Dataset Search"], summary="Poll a FHIR Bulk Data export",
+    )
+    def poll_research_group_export(
+        tenant_id: str, jurisdiction: str, sector: str, job_id: str, request: Request,
+    ):
+        result = research_bulk_export_manager.status(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector, job_id=job_id, request=request,
+        )
+        if result["body"] is None:
+            return Response(status_code=result["status"], headers=result["headers"])
+        return JSONResponse(status_code=result["status"], headers=result["headers"], content=result["body"])
+
+    @app.delete(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/bulk-status/{job_id}",
+        tags=["4.4 Publisher Dataset Search"], summary="Cancel a FHIR Bulk Data export",
+    )
+    def cancel_research_group_export(
+        tenant_id: str, jurisdiction: str, sector: str, job_id: str, request: Request,
+    ):
+        research_bulk_export_manager.cancel(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector, job_id=job_id, request=request,
+        )
+        return Response(status_code=202)
+
+    @app.get(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/bulk-files/{job_id}/{resource_type}.ndjson",
+        tags=["4.4 Publisher Dataset Search"], summary="Download one FHIR Bulk Data NDJSON file",
+    )
+    def download_research_group_export_file(
+        tenant_id: str, jurisdiction: str, sector: str, job_id: str, resource_type: str, request: Request,
+    ):
+        payload = research_bulk_export_manager.download(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector, job_id=job_id,
+            resource_type=resource_type, request=request,
+        )
+        return Response(content=payload, media_type="application/fhir+ndjson")
+
+    @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/{resource_type}/_search",
         tags=["4.4 Publisher Dataset Search"],
         summary="Tenant-scoped FHIR API search",
@@ -456,7 +625,9 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         description=(
             "Executes tenant-scoped FHIR search over the SQL search projection. The request body accepts a FHIR "
             "`Parameters` resource and the response is a `Bundle` with `type=searchset`.\n\n"
-            "ResearchSubject search requires the standard `study` reference parameter. "
+            "ResearchSubject search requires the standard `study` reference parameter. It also accepts qualified "
+            "`ResourceType.search-parameter` entries and returns the intersection of matching subject identifiers "
+            "across resource families. "
             "This is intentionally published under `org.hl7.fhir.api` and not under `digitaltwin`, because the current "
             "phase does not yet expose final `org.hl7.fhir.r4` / `org.hl7.fhir.r5` conversion outputs.\n\n"
             "Supported comparator syntax today is value-prefix based: `ge`, `gt`, `le`, `lt`."
@@ -470,7 +641,9 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
         description=(
             "Executes tenant-scoped FHIR search over the SQL search projection. The request body accepts a FHIR "
             "`Parameters` resource and the response is a `Bundle` with `type=searchset`.\n\n"
-            "ResearchSubject search requires the standard `study` reference parameter. "
+            "ResearchSubject search requires the standard `study` reference parameter. It also accepts qualified "
+            "`ResourceType.search-parameter` entries and returns the intersection of matching subject identifiers "
+            "across resource families. "
             "This is intentionally published under `org.hl7.fhir.api` and not under `digitaltwin`, because the current "
             "phase does not yet expose final `org.hl7.fhir.r4` / `org.hl7.fhir.r5` conversion outputs.\n\n"
             "Supported comparator syntax today is value-prefix based: `ge`, `gt`, `le`, `lt`."

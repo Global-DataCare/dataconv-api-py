@@ -38,10 +38,18 @@ FHIR-like flat claims, physical indexes, and FHIR queries are separate layers:
 
 ```text
 API-CONFIG:          Condition.code-text
-draft metadata:      meta.codingProposals[]
+canonical claim:     Condition.code-text
+draft metadata:      ResearchSubject.contained[].meta.codingProposals[]
 confirmed claims:    Condition.code + Condition.code-display
-FHIR search:         Condition?code=<system>|<code> or Condition?code:text=<English display>
+Research search:     Parameters.name = Condition.code or Condition.code:text
+physical index:      condition_code or condition_code-text
 ```
+
+Generically, `<ResourceType>.<some-code>:text` on the Research search wire
+maps to canonical `<ResourceType>.<some-code>-text`, then only the private
+database index replaces the resource separator with `_` and lowercases it:
+`<resourcetype>_<some-code>-text`. For example:
+`Condition.code:text -> Condition.code-text -> condition_code-text`.
 
 DataConv imports clinical text as the canonical local `*-text` claim for
 Condition, Procedure, DiagnosticReport, Immunization, AllergyIntolerance or
@@ -53,6 +61,10 @@ candidate; only then are `Condition.code` and its English
 canonical flat claim and in `meta.codingProposals[].inputText` as review
 context; selecting a code never overwrites it. The physical index keys remain
 internal.
+In Research batch/document shapes, proposals occur only at
+`entry[].resource.contained[].meta.codingProposals[]` or
+`body.data[].resource.contained[].meta.codingProposals[]`; DataConv does not
+emit proposal metadata on the outer entry/data item or on ResearchSubject.meta.
 The reusable cross-product contract, builders and governed examples are owned
 by `fhir-data-utils-ts/coding-review-flat-claims`; DataConv implements the same
 cross-language shape, while Vet and UHC consume it. This is not a SOSChain-owned
@@ -188,9 +200,13 @@ operations uploads the workbook again.
 - GCS stores the uploaded workbook and generated job artifacts.
 - The conversion pipeline produces FHIR-like resources with canonical flat
   claims in `resource.meta.claims`.
-- Firestore stores those processed resources and their resource-owned
-  `meta.codingProposals[]`, including the relationships needed to review a
-  complete `ResearchSubject`, its `Composition`, and linked resources.
+- Firestore stores those processed resources. Research import proposals belong
+  only to contained clinical resources at
+  `ResearchSubject.contained[].meta.codingProposals[]` (and therefore at
+  `entry[].resource.contained[].meta.codingProposals[]` or
+  `body.data[].resource.contained[].meta.codingProposals[]` on the wire),
+  including the relationships needed to review a complete `ResearchSubject`,
+  its `Composition`, and linked resources.
 - A professional decision sets that proposal to `accepted` and records
   `userSelected=true` for the selected coding. Each ResearchSubject is copied
   to PostgreSQL as soon as all of its own mandatory proposals are resolved;
@@ -198,6 +214,13 @@ operations uploads the workbook again.
 - PostgreSQL stores the promoted resource, its exact `claims`, and derived
   `search_fields`. Searches filter `search_fields` and return the stored
   resource in a `Bundle` with `type=searchset`.
+
+Study-scoped Bulk Data exports return the promoted pseudonymous Patient and
+ResearchSubject plus native R4 `Composition`, `DocumentReference`, `Encounter`,
+`AllergyIntolerance`, `Condition`, `DiagnosticReport`, `Immunization`,
+`MedicationStatement`, `Observation` and `Procedure` streams when present.
+Document Bundles are represented as type-separated NDJSON resources with typed
+Composition entry references; the Bulk Data result itself is not a Bundle.
 
 Firestore and PostgreSQL do not contain raw versus processed variants: during
 promotion PostgreSQL receives a searchable copy of the same processed resource
@@ -217,7 +240,8 @@ the closed candidate set and allowlisted row context to `/v1/coding/rank`;
 otherwise candidates remain explicitly unranked. Explicit professional choices
 are independent from the terminology service's 2..160-character search-text
 limit: DataConv bounds only the candidate query, while canonical `*-text` and
-`meta.codingProposals[].inputText` retain the complete imported source.
+`ResearchSubject.contained[].meta.codingProposals[].inputText` retain the
+complete imported source.
 They are posted to the terminology service's `/v1/terminology/reviews` endpoint,
 which keeps only the bounded de-identified term, governed search context,
 closed candidate set and chosen code. It does not receive reviewer identity,

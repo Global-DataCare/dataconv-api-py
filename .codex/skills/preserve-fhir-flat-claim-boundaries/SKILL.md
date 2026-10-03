@@ -20,10 +20,26 @@ Keep these representations distinct for terminology-assisted research import:
 
 ```text
 API-CONFIG source mapping: Condition.code-text
-Canonical source claim:    resource.meta.claims[Condition.code-text]
-Draft-only metadata:       resource.meta.codingProposals[] -> Condition.code
+Canonical source claim:    containedResource.meta.claims[Condition.code-text]
+Draft-only metadata:       containedResource.meta.codingProposals[] -> Condition.code
 Confirmed additions:       Condition.code + Condition.code-display
-FHIR query parameters:     code and code:text
+Research Parameters name:  Condition.code and Condition.code:text
+Physical database key:     condition_code and condition_code-text
+```
+
+Apply the same generic transformation to every supported code-bearing
+resource and field:
+
+```text
+<ResourceType>.<some-code>:text   search Parameters.parameter.name
+<ResourceType>.<some-code>-text   canonical resource.meta.claims key
+<resourcetype>_<some-code>-text   private physical database index key
+```
+
+For example:
+
+```text
+Condition.code:text -> Condition.code-text -> condition_code-text
 ```
 
 - Replace the claim's resource separator `.` with `_` only in the physical
@@ -41,7 +57,11 @@ FHIR query parameters:     code and code:text
 - Never serialize `coding-input:*`. That name is neither a flat claim nor an
   API-CONFIG mapping.
 - Put `meta.codingProposals[]` beside `meta.claims` on the contained clinical
-  resource. Never aggregate proposals on `ResearchSubject.meta`.
+  resource. The complete Research import paths are
+  `entry[].resource.contained[].meta.codingProposals[]` and
+  `body.data[].resource.contained[].meta.codingProposals[]`. Never aggregate
+  proposals on `ResearchSubject.meta`, and never create `entry[].meta` or
+  `body.data[].meta`.
 - Preserve one primary response Bundle: each converted ResearchSubject belongs
   directly in `body.data[].resource`, and its review metadata belongs at
   `body.data[].resource.contained[].meta.codingProposals[]`. Never introduce a
@@ -75,8 +95,10 @@ FHIR query parameters:     code and code:text
    rejects a nested `resource.data`, and retains contained coding proposals.
 5. Prove the physical index contains the hyphen-preserving key and excludes
    the all-underscore variant.
-6. Submit a FHIR `Parameters` search using `code:text` and require a
-   `Bundle` of type `searchset` with the expected resource.
+6. Submit a FHIR `Parameters` cohort search using the resource-qualified name
+   `<ResourceType>.<some-code>:text` and require a `Bundle` of type `searchset`
+   with the expected ResearchSubject. Reject unqualified `code:text`, `study`
+   and `identifier` names on `ResearchSubject/_search`.
 7. Run catalog parity, focused DataConv tests, and the full affected suites.
 
 ## Research review and storage lifecycle

@@ -35,6 +35,7 @@ from .managers import (
     ConversionSearchManager,
     ConversionJobSearchManager,
     ResearchCodingReviewManager,
+    ResearchBulkExportManager,
     ConversionUploadManager,
     ConversionUploadPollManager,
     ConnectIcaOrganizationProofVerifierClient,
@@ -107,6 +108,7 @@ def create_app():
     search_manager = ConversionSearchManager(deps)
     job_search_manager = ConversionJobSearchManager(deps)
     research_coding_review_manager = ResearchCodingReviewManager(deps)
+    research_bulk_export_manager = ResearchBulkExportManager(deps)
     tenant_api_key_manager = TenantApiKeyManager(deps)
     exchange_manager = TokenExchangeManager(settings, tenant_api_key_manager=tenant_api_key_manager)
     def _research_tenant_is_active(tenant_id: str, jurisdiction: str, sector: str) -> bool:
@@ -334,6 +336,7 @@ def create_app():
         search_manager=search_manager,
         job_search_manager=job_search_manager,
         research_coding_review_manager=research_coding_review_manager,
+        research_bulk_export_manager=research_bulk_export_manager,
     )
     app.include_router(pkce_router)
     register_exchange_routes(

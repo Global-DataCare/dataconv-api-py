@@ -31,7 +31,7 @@ from ..api_support import (
     _extract_software_token_from_entry,
     _validate_public_iss,
 )
-from ..api_config import is_reserved_api_config_software_id
+from ..api_config import is_reserved_api_config_software_id, with_authoritative_sector
 from ..defaults import default_tenant_config_payload
 from ..defaults import load_software_id_preset
 from ..research import build_config_create_response_path
@@ -261,6 +261,7 @@ class TenantConfigCreateManager:
                         entry_payload = base_payload
                     else:
                         entry_payload = self._deep_merge_defaults(base_payload, entry_payload)
+                    entry_payload = with_authoritative_sector(entry_payload, sector)
 
                     stored = self._deps.control_plane.upsert_config(
                         key=ConfigKey(

@@ -1,3 +1,4 @@
+# Flow contract: API-CONFIG inherits authoritative route context; workbook metadata cannot select a tenant sector.
 import unittest
 from pathlib import Path
 from adapter_ingestion.service.api_config import extract_embedded_api_config
@@ -74,6 +75,7 @@ class TestApiConfigUploadAutoCreate(unittest.TestCase):
             for k, v in deps.control_plane.configs.items():
                 if v.content.get("runtimeDefaults", {}).get("softwareId") == "veterinary-tabla_patologias":
                     found = True
+                    self.assertEqual(v.content["runtimeDefaults"]["sector"], sector)
                     # Si sector no tiene speciesFhir, debe estar presente pero vacío (codes: {})
                     if sector != "animal-care":
                         sf = v.content.get("speciesFhir", {})

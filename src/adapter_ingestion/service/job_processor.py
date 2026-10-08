@@ -159,7 +159,9 @@ def _build_context(
 
     language = str(runtime_defaults.get("language", "")).strip() or _language_from_country(request_country)
     log_composition = bool(runtime_defaults.get("logComposition", False))
-    resolved_sector = str(config_payload.get("targetSector") or settings_target_sector or DEFAULT_SECTOR).strip() or DEFAULT_SECTOR
+    # The request route/session selects the authorized sector. API-CONFIG may
+    # describe it for inspection, but editable content must never override it.
+    resolved_sector = str(settings_target_sector or DEFAULT_SECTOR).strip().lower() or DEFAULT_SECTOR
     subject_kind = str(runtime_defaults.get("subjectKind", "")).strip().lower()
     if not subject_kind:
         normalized_sector = str(resolved_sector or "").strip().lower()

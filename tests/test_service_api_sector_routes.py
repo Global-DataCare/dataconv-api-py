@@ -257,6 +257,34 @@ class ServiceApiSectorRouteTests(unittest.TestCase):
         self.assertEqual(response.json()["type"], "document")
         self.assertEqual(response.json()["entry"][0]["resource"]["resourceType"], "Composition")
 
+    def test_research_subject_add_data_accepts_a_direct_document_bundle(self) -> None:
+        subject_id = "19740b0b-9413-47fa-a99c-f607ac784ad8"
+        response = TestClient(self.app).post(
+            "/publisher/cds-ES/v1/onehealth-research/clinic-a/dataset/ResearchSubject/$add-data",
+            params={"study": "ResearchStudy/study-sector-route-1"},
+            json={
+                "resourceType": "Bundle", "type": "document", "entry": [
+                    {"resource": {
+                        "resourceType": "Composition", "status": "final",
+                        "subject": {"reference": f"ResearchSubject/{subject_id}"},
+                        "section": [{
+                            "code": {"coding": [{"system": "http://loinc.org", "code": "11450-4"}]},
+                            "entry": [{"reference": "Condition/condition-route-1"}],
+                        }],
+                    }},
+                    {"resource": {"resourceType": "ResearchSubject", "id": subject_id}},
+                    {"resource": {
+                        "resourceType": "Condition", "id": "condition-route-1",
+                        "meta": {"claims": {"Condition.code-text": "Fracture"}},
+                    }},
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["created"])
+        self.assertEqual(response.json()["researchSubject"]["id"], subject_id)
+
     def test_research_group_export_returns_standard_async_content_location(self) -> None:
         study_reference = "ResearchStudy/study-sector-route-1"
         identifier = "urn:uuid:11111111-1111-4111-8111-111111111111"

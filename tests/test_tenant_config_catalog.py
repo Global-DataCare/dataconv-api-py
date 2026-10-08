@@ -109,6 +109,7 @@ class TenantConfigCatalogTests(unittest.TestCase):
             result["data"][1]["content"]["mappingConfig"]["fieldMap"],
             {"Condition.code-text": "Diagnostico"},
         )
+        self.assertEqual(result["data"][1]["content"]["runtimeDefaults"]["sector"], "animal-research")
         self.assertNotIn("schemaConfig", result["data"][1]["content"])
         enforce.assert_called_once_with(
             {},

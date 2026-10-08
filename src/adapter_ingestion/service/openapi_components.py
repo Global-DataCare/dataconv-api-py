@@ -256,6 +256,12 @@ def _config_schemas() -> dict[str, Any]:
         "RuntimeDefaultsConfig": {
             "type": "object",
             "properties": {
+                "sector": {
+                    "type": "string",
+                    "readOnly": True,
+                    "description": "Authoritative tenant sector derived from the authenticated request route.",
+                    "example": "animal-care",
+                },
                 "language": {"type": "string", "example": "es-ES"},
                 "dataUse": {"type": "string", "enum": ["secondary", "individual"], "example": "secondary"},
                 "logComposition": {"type": "boolean", "example": False},
@@ -265,6 +271,7 @@ def _config_schemas() -> dict[str, Any]:
             },
             "additionalProperties": False,
             "example": {
+                "sector": "animal-care",
                 "language": "es-ES",
                 "dataUse": "secondary",
                 "logComposition": False,
@@ -305,6 +312,7 @@ def _config_schemas() -> dict[str, Any]:
                 },
                 "speciesLocalToFhirCode": {"CANINA": "100000108988", "FELINA": "100000109056"},
                 "runtimeDefaults": {
+                    "sector": "animal-care",
                     "language": "es-ES",
                     "dataUse": "secondary",
                     "logComposition": False,

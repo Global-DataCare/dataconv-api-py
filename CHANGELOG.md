@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Persist the route-authorized sector as read-only API-CONFIG runtime metadata,
+  project it into historical catalog entries, and prevent editable configuration
+  content from overriding the sector used for terminology and resource policy.
+- Add the study-scoped `ResearchSubject/$add-data` operation for direct reviewed
+  document Bundles. It creates a missing UUID (or generates one), extends an
+  existing twin without duplicating resource ids, rejects cross-study reuse,
+  rebinds server-owned subject and provenance, and compensates partial writes.
+
 ## 0.9.0 - 2026-10-03
 
 - Require resource-qualified names such as `Condition.code:text` in

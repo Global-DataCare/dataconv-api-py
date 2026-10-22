@@ -34,6 +34,7 @@ from ..api_config import (
     deep_merge_dicts,
     extract_embedded_api_config,
     is_reserved_api_config_software_id,
+    with_authoritative_sector,
 )
 from ..defaults import default_tenant_config_payload
 from ..defaults import load_software_id_preset
@@ -259,7 +260,10 @@ class ConversionUploadManager:
                             if isinstance(preset_payload, dict)
                             else base_payload
                         )
-                    merged_config = deep_merge_dicts(base_config, extracted_config)
+                    merged_config = with_authoritative_sector(
+                        deep_merge_dicts(base_config, extracted_config),
+                        sector,
+                    )
                     self._deps.control_plane.upsert_config(
                         key=target_selector,
                         content=merged_config,

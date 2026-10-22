@@ -1941,26 +1941,29 @@ class ServiceApiTests(unittest.TestCase):
                         "softwareId": "qvet-v1.2",
                         "config": {
                             "mappingConfig": {"headerRowIndex": 4},
+                            "runtimeDefaults": {"sector": "health-care"},
                         },
                     }
                 ],
             },
+            sector="animal-care",
         )
         self.assertIs(result, create_response)
         self.assertIn("Location", create_response.headers)
         self.assertEqual(create_response.headers.get("Retry-After"), "1")
 
-        config = self._resolve_config(
-            alternate_name="tenant-a",
-            manufacturer="qvet",
-            manufacturer_version="v1.2",
-            country="ES",
-            facility_id="",
+        config = next(
+            item for item in self._control_plane().list_configs()
+            if item.key.alternate_name == "tenant-a"
+            and item.key.manufacturer == "qvet"
+            and item.key.manufacturer_version == "v1.2"
+            and item.key.sector == "animal-care"
         )
         self.assertIsNotNone(config)
         self.assertEqual(config.audit.get("updatedBy"), issuer)
         self.assertEqual(config.content["schemaConfig"]["headerRowIndex"], 4)
         self.assertIn("runtimeDefaults", config.content)
+        self.assertEqual(config.content["runtimeDefaults"]["sector"], "animal-care")
         self.assertIn("speciesFhir", config.content)
 
     def test_create_response_returns_accepted_payload_by_thid(self) -> None:

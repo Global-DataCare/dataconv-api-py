@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from adapter_ingestion.service.api_config import extract_embedded_api_config
+from adapter_ingestion.service.job_processor import _build_context
 from adapter_ingestion.service.routes_system import register_system_routes
 from adapter_ingestion.manufacturers.registry import get_adapter
 from gdc_data_utils import ImmunizationClaim
@@ -101,6 +102,27 @@ class ApiConfigTests(unittest.TestCase):
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["species"], "specie")
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["breed"], "breed")
         self.assertEqual(extracted["schemaConfig"]["fieldMap"]["genderStatus"], "issterilized")
+
+    def test_processing_sector_comes_from_the_authorized_route_not_editable_config(self) -> None:
+        context = _build_context(
+            settings=type("Settings", (), {
+                "default_issuer_did": "did:web:issuer.example",
+                "default_audience_did": "did:web:audience.example",
+                "default_subject_did_prefix": "did:web:subject.example",
+                "default_species_fhir_file": "",
+            })(),
+            request_alternate_name="clinic-a",
+            request_country="CA-BC",
+            request_manufacturer="configured-source",
+            config_payload={
+                "targetSector": "health-care",
+                "runtimeDefaults": {"sector": "health-insurance"},
+            },
+            settings_target_sector="animal-insurance",
+        )
+
+        self.assertEqual(context.sector, "animal-insurance")
+        self.assertEqual(context.subject_kind, "animal")
 
     def test_api_config_adapter_keeps_qvet_loinc_defaults(self) -> None:
         adapter = get_adapter("api-config")

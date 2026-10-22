@@ -63,6 +63,26 @@ def deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str
     return merged
 
 
+def with_authoritative_sector(config: dict[str, Any], sector: str) -> dict[str, Any]:
+    """Project the route-authorized sector into API-CONFIG runtime metadata.
+
+    Sector is routing and authorization context, not editable workbook or
+    mapping content. Historical ``targetSector`` values are removed so they
+    cannot change terminology or resource policy during processing.
+    """
+    normalized_sector = str(sector or "").strip().lower()
+    projected = deep_merge_dicts({}, config)
+    projected.pop("targetSector", None)
+    runtime_defaults = projected.get("runtimeDefaults")
+    runtime_defaults = dict(runtime_defaults) if isinstance(runtime_defaults, dict) else {}
+    if normalized_sector:
+        runtime_defaults["sector"] = normalized_sector
+    else:
+        runtime_defaults.pop("sector", None)
+    projected["runtimeDefaults"] = runtime_defaults
+    return projected
+
+
 def _canonical_field_name(value: str) -> str:
     raw = str(value or "").strip()
     if not raw:

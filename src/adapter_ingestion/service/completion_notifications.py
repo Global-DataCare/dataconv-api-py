@@ -133,51 +133,51 @@ def deliver_pending_completion_notifications(
     )
     if not candidates:
         return None
-    job = candidates[0]
-    attempts = int(job.completion_notification_attempts) + 1
-    try:
-        bearer_token = _resolve_bearer_token(config)
-        communication = build_terminal_job_communication(job, config)
-        payload = didcomm_plaintext_message(
-            thid=str(job.thid or "").strip(),
-            issuer_did=_required(config.issuer_did, "completion_notification_issuer_required"),
-            audience_did=_required(config.audience_did, "completion_notification_audience_did_required"),
-            entries=[{
-                "request": {"method": "POST", "url": FHIR_COMMUNICATION_RESOURCE},
-                "resource": communication,
-            }],
-        )
-        response = send(
-            config.gateway_base_url,
-            _gateway_route(job),
-            bearer_token,
-            payload,
-            max(1, int(config.timeout_seconds)),
-        )
-        status = int(getattr(response, "status", 0) or 0)
-        if status < 200 or status >= 300:
-            raise RuntimeError(f"completion_notification_gateway_status_{status}")
-        updated = replace(
-            job,
-            completion_notification_status=CompletionNotificationStatus.DELIVERED,
-            completion_notification_attempts=attempts,
-            completion_notification_error="",
-            completion_notification_delivered_at=now_iso_utc(),
-        )
-    except Exception as exc:
-        terminal_failure = attempts >= max(1, int(config.max_attempts))
-        updated = replace(
-            job,
-            completion_notification_status=(
-                CompletionNotificationStatus.FAILED
-                if terminal_failure
-                else CompletionNotificationStatus.RETRYABLE
-            ),
-            completion_notification_attempts=attempts,
-            completion_notification_error=str(exc),
-        )
-    control_plane.job_store.put(updated)
-    return job.job_id
+    for job in candidates:
+        attempts = int(job.completion_notification_attempts) + 1
+        try:
+            bearer_token = _resolve_bearer_token(config)
+            communication = build_terminal_job_communication(job, config)
+            payload = didcomm_plaintext_message(
+                thid=str(job.thid or "").strip(),
+                issuer_did=_required(config.issuer_did, "completion_notification_issuer_required"),
+                audience_did=_required(config.audience_did, "completion_notification_audience_did_required"),
+                entries=[{
+                    "request": {"method": "POST", "url": FHIR_COMMUNICATION_RESOURCE},
+                    "resource": communication,
+                }],
+            )
+            response = send(
+                config.gateway_base_url,
+                _gateway_route(job),
+                bearer_token,
+                payload,
+                max(1, int(config.timeout_seconds)),
+            )
+            status = int(getattr(response, "status", 0) or 0)
+            if status < 200 or status >= 300:
+                raise RuntimeError(f"completion_notification_gateway_status_{status}")
+            updated = replace(
+                job,
+                completion_notification_status=CompletionNotificationStatus.DELIVERED,
+                completion_notification_attempts=attempts,
+                completion_notification_error="",
+                completion_notification_delivered_at=now_iso_utc(),
+            )
+        except Exception as exc:
+            terminal_failure = attempts >= max(1, int(config.max_attempts))
+            updated = replace(
+                job,
+                completion_notification_status=(
+                    CompletionNotificationStatus.FAILED
+                    if terminal_failure
+                    else CompletionNotificationStatus.RETRYABLE
+                ),
+                completion_notification_attempts=attempts,
+                completion_notification_error=str(exc),
+            )
+        control_plane.job_store.put(updated)
+    return candidates[0].job_id
 
 
 def _gateway_route(job: JobRecord) -> str:

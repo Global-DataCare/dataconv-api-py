@@ -11,11 +11,12 @@ from ..api_support import (
     _enforce_auth_context,
     _enforce_supported_scope,
 )
+from ..api_config import with_authoritative_sector
 from .dependencies import ApiManagerDependencies
 
 
-def _public_content(payload: dict[str, Any]) -> dict[str, Any]:
-    content = dict(payload or {})
+def _public_content(payload: dict[str, Any], *, sector: str) -> dict[str, Any]:
+    content = with_authoritative_sector(payload, sector)
     schema_config = content.pop("schemaConfig", None)
     if isinstance(schema_config, dict) and not isinstance(content.get("mappingConfig"), dict):
         content["mappingConfig"] = dict(schema_config)
@@ -107,7 +108,7 @@ class TenantConfigSearchManager:
                     "createdAt": config.created_at,
                     "updatedAt": config.updated_at,
                     "audit": dict(config.audit or {}),
-                    "content": _public_content(config.content),
+                    "content": _public_content(config.content, sector=config.key.sector),
                 }
                 for config in page
             ],

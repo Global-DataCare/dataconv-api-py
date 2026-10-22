@@ -29,6 +29,7 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
     job_search_manager,
     research_coding_review_manager,
     research_bulk_export_manager,
+    research_subject_bundle_manager,
 ) -> None:
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$prepare-review",
@@ -450,6 +451,30 @@ def register_digital_twin_routes(  # type: ignore[no-untyped-def]
             response=response,
             request=request,
             body=body,
+        )
+
+    @app.post(
+        "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/dataset/ResearchSubject/$add-data",
+        tags=["4.4 Publisher Dataset Search"],
+        summary="Create or extend one study-bound ResearchSubject from a document Bundle",
+        response_class=JSONResponse,
+        description=(
+            "Accepts a direct FHIR Bundle with type=document. If its ResearchSubject UUID is absent in the "
+            "authorized study, the subject and data are created together; otherwise the clinical entries extend "
+            "that twin. This operation is not the conversion-thread `_patch` action and is not Communication-wrapped."
+        ),
+    )
+    def add_research_subject_data(
+        tenant_id: str,
+        jurisdiction: str,
+        sector: str,
+        request: Request,
+        study: str = "",
+        body: dict[str, Any] = Body(default_factory=dict),
+    ) -> dict[str, Any]:
+        return research_subject_bundle_manager.handle_add_data(
+            tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector,
+            study=study, request=request, body=body,
         )
 
     @app.post(

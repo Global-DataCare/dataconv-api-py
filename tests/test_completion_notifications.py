@@ -141,3 +141,39 @@ def test_failed_delivery_is_retryable_without_changing_the_terminal_job_result()
     assert persisted.completion_notification_status == "retryable"
     assert persisted.completion_notification_attempts == 1
     assert persisted.completion_notification_error == "gateway unavailable"
+
+
+def test_one_retryable_notification_does_not_block_a_later_terminal_job() -> None:
+    control = _control_plane()
+    first = control.submit_job(_terminal_job().request)
+    second_request = replace(
+        _terminal_job().request,
+        thid="research-conversion-2",
+    )
+    second = control.submit_job(second_request)
+    control.job_store.put(replace(
+        first,
+        status=JobStatus.SUCCEEDED,
+        finished_at="2026-09-23T17:59:00Z",
+        completion_notification_status="pending",
+    ))
+    control.job_store.put(replace(
+        second,
+        status=JobStatus.SUCCEEDED,
+        finished_at=EXAMPLE["finished"],
+        completion_notification_status="pending",
+    ))
+    attempted: list[str] = []
+
+    def send(_base_url: str, _route_path: str, _token: str, payload: dict, _timeout: int):
+        thread = str(payload["thid"])
+        attempted.append(thread)
+        if thread == first.thid:
+            raise RuntimeError("first callback unavailable")
+        return CompletionNotificationDelivery(status=202, location="/response")
+
+    deliver_pending_completion_notifications(control, _config(), send=send)
+
+    assert attempted == [first.thid, second.thid]
+    assert control.get_job(first.job_id).completion_notification_status == "retryable"
+    assert control.get_job(second.job_id).completion_notification_status == "delivered"

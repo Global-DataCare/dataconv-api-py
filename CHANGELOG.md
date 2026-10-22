@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Drain every eligible completion callback in the current delivery pass, so an
+  older retryable notification cannot starve a later terminal research job.
 - Persist the route-authorized sector as read-only API-CONFIG runtime metadata,
   project it into historical catalog entries, and prevent editable configuration
   content from overriding the sector used for terminology and resource policy.

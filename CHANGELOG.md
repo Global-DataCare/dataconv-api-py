@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a repository-owned agent contract, linked rules index and executable
+  link gate that keeps index-provider identity separate from clinical and
+  hosted-organization authority.
 - Resolve the canonical claim-catalog dependency from its existing immutable
   GitHub release wheel and verified SHA-256 instead of querying an unpublished
   PyPI project for the same `0.1.1` version.

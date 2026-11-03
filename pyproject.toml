@@ -8,7 +8,9 @@ version = "0.9.0"
 description = "External multi-vendor ingestion adapters for gwtemplate"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["gdc-data-utils-py==0.1.1"]
+dependencies = [
+  "gdc-data-utils-py @ https://github.com/Global-DataCare/gdc-data-utils-py/releases/download/v0.1.1/gdc_data_utils_py-0.1.1-py3-none-any.whl#sha256=d1e51f2b30e5f0edfa4c19eeeae769a3bb6cd67ff45b6499a7b193effc39c66e",
+]
 
 [project.optional-dependencies]
 excel = ["openpyxl>=3.1"]

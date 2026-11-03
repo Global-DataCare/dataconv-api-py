@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Resolve the canonical claim-catalog dependency from its existing immutable
+  GitHub release wheel and verified SHA-256 instead of querying an unpublished
+  PyPI project for the same `0.1.1` version.
 - Drain every eligible completion callback in the current delivery pass, so an
   older retryable notification cannot starve a later terminal research job.
 - Persist the route-authorized sector as read-only API-CONFIG runtime metadata,

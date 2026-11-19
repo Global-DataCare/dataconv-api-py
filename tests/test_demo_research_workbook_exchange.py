@@ -169,8 +169,12 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     report_summary = json.loads(app.state.blob_store.get_bytes(report_job.result_ref))
     assert report_summary["standaloneReportEntries"] == 2
     assert report_summary["researchDraftsPersisted"] == report_summary["researchSubjectEntries"] == report_summary["patientEntries"] == 0
-    report_preview = json.loads(app.state.blob_store.get_bytes(report_job.result_ref.replace("summary.json", "composition-message.json")))
-    reports = [entry["resource"] for entry in report_preview["body"]["data"] if entry["resource"]["resourceType"] == "Composition"]
+    poll_route = f"{upload_route}-response"
+    poll = {key: report_upload[key] for key in ("iss", "thid", "type", "iat", "exp", "researchStudy")}
+    report_preview = client.post(poll_route, headers=headers, json=poll)
+    assert report_preview.status_code == 200
+    reports = [entry["resource"] for entry in report_preview.json()["body"]["data"]
+               if entry["resource"]["resourceType"] == "Composition"]
     assert len({item["id"] for item in reports}) == 2
     assert {resource["resourceType"] for report in reports for resource in report["contained"]} == {"Condition"}
     assert all("Condition.subject" not in item["meta"]["claims"] for report in reports for item in report["contained"])

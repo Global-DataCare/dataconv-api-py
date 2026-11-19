@@ -58,7 +58,7 @@ class DemoResearchWorkbookExchangeManager:
             raise ValueError("Demo research assertion does not match the tenant route")
         subject = str(claims["sub"])
         study = str(claims.get("study", ""))
-        if (not re.fullmatch(rf"urn:uuid:{_UUID}", subject) or not re.fullmatch(rf"ResearchStudy/{_UUID}", study)
+        if (not re.fullmatch(r"did:web:[A-Za-z0-9.%:_-]+:employee:[A-Za-z0-9._-]+", subject) or not re.fullmatch(rf"ResearchStudy/{_UUID}", study)
                 or claims.get("purpose") != SMART_RESEARCH_PURPOSE):
             raise ValueError("Demo research assertion actor, study or purpose is invalid")
         issued_at, not_before, expires = (claims[name] for name in ("iat", "nbf", "exp"))

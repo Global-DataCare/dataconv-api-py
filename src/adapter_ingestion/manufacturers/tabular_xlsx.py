@@ -34,7 +34,7 @@ from .xlsx_common import (
     strip_list_artifacts,
     slug,
 )
-from ..models import AdapterContext, CanonicalRecord, stable_id
+from ..models import AdapterContext, CanonicalRecord, STANDALONE_REPORT_DATA_USE, stable_id, stable_uuid
 from ..source_concept_classification import classify_source_concept
 
 
@@ -737,6 +737,10 @@ class TabularXlsxAdapter(ManufacturerAdapter):
         missing_loinc_by_section_family: dict[str, int] = {}
         row_issues: list[dict[str, Any]] = []
 
+        standalone_report = context.data_use == STANDALONE_REPORT_DATA_USE
+        if standalone_report and not context.report_batch_id:
+            raise ValueError("Standalone reports require a conversion batch identifier")
+
         for parsed_row in rows:
             row_number = parsed_row.row_number
             row = parsed_row.values
@@ -761,7 +765,8 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                 dropped_by_section_family_filter += 1
                 continue
             concept = self._field_value(row, field_map, field_defaults, "concept")
-            subject_token = self._resolve_subject_token(
+            report_id = stable_uuid(STANDALONE_REPORT_DATA_USE, context.report_batch_id, str(row_number)) if standalone_report else ""
+            subject_token = "" if standalone_report else self._resolve_subject_token(
                 context=context,
                 row=row,
                 field_map=field_map,
@@ -794,16 +799,16 @@ class TabularXlsxAdapter(ManufacturerAdapter):
                 unmapped_species_counts[species_raw] = unmapped_species_counts.get(species_raw, 0) + 1
 
             timestamp = parse_fhir_datetime(date_raw=date_raw, time_raw=time_raw)
-            source_id = self._field_value(row, field_map, field_defaults, "sourceId")
+            source_id = report_id if standalone_report else self._field_value(row, field_map, field_defaults, "sourceId")
             if not source_id:
                 source_id = stable_id("src", self.name, str(row_number), concept, family, subfamily)
 
-            subject_id = self._subject_id(context, subject_token=subject_token, species_code=species_code)
+            subject_id = report_id if standalone_report else self._subject_id(context, subject_token=subject_token, species_code=species_code)
             if not subject_id:
                 dropped_without_subject_id += 1
                 continue
 
-            owner_public_hash, owner_public_name = self._resolve_public_owner(
+            owner_public_hash, owner_public_name = ("", "") if standalone_report else self._resolve_public_owner(
                 owner_text=owner_text,
                 owner_id_text=owner_id_text,
                 owner_rules=owner_public_rules,

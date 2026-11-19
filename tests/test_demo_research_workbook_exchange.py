@@ -1,5 +1,7 @@
 # Flow contract: a trusted Demo BFF assertion opens only workbook rights for one active Demo tenant route, actor and study.
 from datetime import datetime, timezone
+from io import BytesIO
+import json
 from secrets import token_urlsafe
 from types import SimpleNamespace
 
@@ -8,6 +10,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from openpyxl import Workbook
 
 from adapter_ingestion.service.auth_exchange import validate_session_access_token
 from adapter_ingestion.service.managers.demo_research_workbook_exchange import DemoResearchWorkbookExchangeManager
@@ -20,7 +23,7 @@ TENANT = "CA-BC-7654321"
 JURISDICTION = "CA-BC"
 SECTOR = "animal-research"
 STUDY = "ResearchStudy/3dac02a4-22fa-458d-bc6e-0c767a9e4f03"
-ACTOR = "urn:uuid:36f8f299-65a8-43e6-9e7c-081db9f6140f"
+ACTOR = "did:web:clinic.example:employee:researcher"
 
 
 @pytest.fixture
@@ -126,10 +129,55 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     exchange = client.post(endpoint, json={"assertion": assertion})
     assert exchange.status_code == 200
     headers = {"Authorization": "Bearer " + exchange.json()["access_token"]}
+    from adapter_ingestion.service.job_processor import process_one_job
+
+    workbook = Workbook()
+    workbook.active.append(["Subject", "Diagnosis"])
+    workbook.active.append(["3dac02a4-22fa-458d-bc6e-0c767a9e4f03", "Otitis"])
+    workbook.active.append(["3dac02a4-22fa-458d-bc6e-0c767a9e4f03", "Fracture"])
+    content = BytesIO()
+    workbook.save(content)
+    upload_route = f"{route}/dataset/manual-v1/Bundle/_upload"
+    upload = {"iss": ACTOR, "thid": "demo-workbook-smoke", "type": "https://didcomm.org/plaintext/2.0/message",
+              "iat": claims["iat"], "exp": claims["exp"], "sourceFormat": "xlsx", "send": False,
+              "researchStudy": {"reference": STUDY}, "inlineConfig": {
+                  "runtimeDefaults": {"dataUse": "secondary", "adapterId": "api-config"},
+                  "schemaConfig": {"headerRowIndex": 0, "fieldMap": {"subject-id": "Subject", "Condition.code-text": "Diagnosis"}},
+              }}
+
+    def submit(mode):
+        return client.post(upload_route, headers=headers, data={"payload": json.dumps({**upload, "mode": mode})},
+                           files={"file": ("research.xlsx", content.getvalue())})
+
+    assert submit("persistent").status_code == 403
+    submitted = submit("demo-ephemeral")
+    assert submitted.status_code == 202
+    assert process_one_job(control_plane=app.state.control_plane, blob_store=app.state.blob_store,
+                           vault_repo=app.state.vault_repo, settings=app.state.settings, worker_id="fixture")
+    job = app.state.control_plane.get_job_by_thid(upload["thid"], STUDY)
+    assert job.status == "succeeded", job.error
+    assert json.loads(app.state.blob_store.get_bytes(job.result_ref))["researchSubjectEntries"] == 1
+    report_upload = {**upload, "thid": "demo-report-workbook-smoke", "mode": "demo-ephemeral", "inlineConfig": {
+        **upload["inlineConfig"], "runtimeDefaults": {"dataUse": "standalone-report"},
+    }}
+    assert client.post(upload_route, headers=headers, data={"payload": json.dumps(report_upload)},
+                       files={"file": ("reports.xlsx", content.getvalue())}).status_code == 202
+    assert process_one_job(control_plane=app.state.control_plane, blob_store=app.state.blob_store,
+                           vault_repo=app.state.vault_repo, settings=app.state.settings, worker_id="fixture")
+    report_job = app.state.control_plane.get_job_by_thid(report_upload["thid"], STUDY)
+    assert report_job.status == "succeeded", report_job.error
+    report_summary = json.loads(app.state.blob_store.get_bytes(report_job.result_ref))
+    assert report_summary["standaloneReportEntries"] == 2
+    assert report_summary["researchDraftsPersisted"] == report_summary["researchSubjectEntries"] == report_summary["patientEntries"] == 0
+    report_preview = json.loads(app.state.blob_store.get_bytes(report_job.result_ref.replace("summary.json", "composition-message.json")))
+    reports = [entry["resource"] for entry in report_preview["body"]["data"] if entry["resource"]["resourceType"] == "Composition"]
+    assert len({item["id"] for item in reports}) == 2
+    assert {resource["resourceType"] for report in reports for resource in report["contained"]} == {"Condition"}
+    assert all("Condition.subject" not in item["meta"]["claims"] for report in reports for item in report["contained"])
     request = {"resourceType": "Parameters", "parameter": [{"name": "study", "valueReference": {"reference": STUDY}}]}
     review = client.post(f"{route}/dataset/ResearchSubject/$review-pending", headers=headers, json=request)
     assert review.status_code == 200
-    assert review.json()["total"] == 0
+    assert review.json()["resourceType"] == "Bundle"
     assert client.post(f"{route}/dataset/Composition/_search", headers=headers, json={}).status_code == 403
     scoped_search = {"resourceType": "Parameters", "parameter": [{"name": "ResearchSubject.study", "valueReference": {"reference": STUDY}}]}
     assert client.post(f"{route}/dataset/ResearchSubject/_search", headers=headers, json=scoped_search).status_code == 200

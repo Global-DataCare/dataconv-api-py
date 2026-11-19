@@ -3,13 +3,14 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 import json
 import unicodedata
 
-from ..models import AdapterContext
+from ..models import AdapterContext, STANDALONE_REPORT_DATA_USE
 from ..manufacturers import get_adapter
 from ..pipeline import run_pipeline
 from ..runtime import BlobStore, ConfigKey, IVaultRepository, PreconversionControlPlane
@@ -362,6 +363,11 @@ def process_one_job(
             settings_target_sector=job.request.sector,
         )
         runtime_defaults = config_payload.get("runtimeDefaults")
+        standalone_report = context.data_use == STANDALONE_REPORT_DATA_USE
+        if standalone_report:
+            if settings.network_mode != "demo" or job.request.mode != "demo-ephemeral" or job.request.send:
+                raise ValueError("Standalone reports require an isolated Demo workbook job")
+            context = replace(context, report_batch_id=job.job_id, personal_id_resolver=None)
         configured_adapter_id = (
             str(runtime_defaults.get("adapterId") or "").strip()
             if isinstance(runtime_defaults, dict)
@@ -383,7 +389,7 @@ def process_one_job(
         if isinstance(adapter_report, dict) and adapter_report:
             result.summary["adapterReport"] = adapter_report
         annotated_message = annotate_composition_message_for_research(result.composition_message)
-        draft_count = persist_research_drafts(
+        draft_count = 0 if standalone_report else persist_research_drafts(
             vault_repo=vault_repo,
             job=job,
             network_kind=settings.network_mode,

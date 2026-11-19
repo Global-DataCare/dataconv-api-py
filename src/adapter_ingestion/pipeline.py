@@ -375,6 +375,8 @@ def _diagnostic_report_resource(
     claims.setdefault(DiagnosticReportClaim.IDENTIFIER, report_id)
     claims.setdefault(DiagnosticReportClaim.SUBJECT, record.subject_id)
     claims.setdefault(DiagnosticReportClaim.DATE, record.timestamp)
+    if context.data_use == STANDALONE_REPORT_DATA_USE:
+        claims.setdefault(DiagnosticReportClaim.STATUS, "unknown")
     proposals = _coding_proposals(
         context=context,
         record=record,
@@ -533,7 +535,9 @@ def _condition_resource(
         suggestions=suggestions,
         resource_type="Condition",
     )
-    if not proposals and ConditionClaim.CODE not in record.coding_inputs:
+    if not proposals and ConditionClaim.CODE not in record.coding_inputs and not (
+        context.data_use == STANDALONE_REPORT_DATA_USE and record.flat_claims.get(ConditionClaim.CODE)
+    ):
         return None
     condition_id = stable_uuid(
         context.manufacturer,
@@ -571,7 +575,9 @@ def _procedure_resource(
         suggestions=suggestions,
         resource_type="Procedure",
     )
-    if not proposals and ProcedureClaim.CODE not in record.coding_inputs:
+    if not proposals and ProcedureClaim.CODE not in record.coding_inputs and not (
+        context.data_use == STANDALONE_REPORT_DATA_USE and record.flat_claims.get(ProcedureClaim.CODE)
+    ):
         return None
     source_text = str(record.coding_inputs.get(ProcedureClaim.CODE, "") or "").strip()
     procedure_id = stable_uuid(

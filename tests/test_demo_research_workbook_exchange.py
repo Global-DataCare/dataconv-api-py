@@ -130,12 +130,19 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     assert exchange.status_code == 200
     headers = {"Authorization": "Bearer " + exchange.json()["access_token"]}
     from adapter_ingestion.service import job_processor
+    from adapter_ingestion.ai.base import CodingSuggestion
 
     coding_contexts = []
     build_coding_assistant = job_processor.build_coding_assistant
 
     def capture_coding_context(settings, context):
         coding_contexts.append((context.language, context.data_use))
+        if context.data_use == "standalone-report":
+            return SimpleNamespace(suggest_codes=lambda record: [CodingSuggestion(
+                system="http://snomed.info/sct", code="65363002", display="Otitis media", confidence=1,
+                evidence="fixture", resource_type="Condition", field="Condition.code", candidate_id="otitis",
+                proposal_id=f"condition-{record.source_id}",
+            )])
         return build_coding_assistant(settings, context)
 
     monkeypatch.setattr(job_processor, "build_coding_assistant", capture_coding_context)
@@ -190,6 +197,27 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     assert {resource["resourceType"] for report in reports for resource in report["contained"]} == {"Condition"}
     assert all("Condition.subject" not in item["meta"]["claims"] for report in reports for item in report["contained"])
     assert coding_contexts == [("es-MX", "secondary"), ("es-MX", "standalone-report")]
+    resource = reports[0]["contained"][0]
+    proposal = resource["meta"]["codingProposals"][0]
+    decision = {"resourceType": "Condition", "resourceId": resource["id"], "proposalId": proposal["id"],
+                "selectedCandidateId": "otitis"}
+
+    def review_row(report_id, decisions, *, thread=report_upload["thid"]):
+        return client.post(poll_route, headers=headers, json={**poll, "thid": thread,
+                           "reportReview": {"reportId": report_id, "codingReviews": decisions}})
+
+    assert review_row(reports[0]["id"], []).status_code == 409
+    assert review_row(reports[1]["id"], [decision]).status_code == 400
+    assert review_row(reports[0]["id"], [{**decision, "selectedCandidateId": "invented"}]).status_code == 400
+    assert review_row(reports[0]["id"], [decision], thread=upload["thid"]).status_code == 404
+    accepted = review_row(reports[0]["id"], [decision])
+    assert accepted.status_code == 200
+    reviewed, = accepted.json()["body"]["data"]
+    assert reviewed["resource"]["id"] == reports[0]["id"]
+    reviewed_meta = reviewed["resource"]["contained"][0]["meta"]
+    assert reviewed_meta["claims"]["Condition.code"] == "http://snomed.info/sct|65363002"
+    assert reviewed_meta["codingProposals"][0]["status"] == "accepted"
+    assert client.post(poll_route, headers=headers, json=poll).json()["body"]["data"][0]["resource"]["contained"][0]["meta"]["codingProposals"][0]["status"] == "proposed"
     request = {"resourceType": "Parameters", "parameter": [{"name": "study", "valueReference": {"reference": STUDY}}]}
     review = client.post(f"{route}/dataset/ResearchSubject/$review-pending", headers=headers, json=request)
     assert review.status_code == 200

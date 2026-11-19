@@ -9,6 +9,9 @@
 - Use the reviewed mapping for each Demo workbook and preserve its declared
   source language for terminology lookup. Standalone report jobs return one
   independent FHIR Composition per converted row, without persisting twin drafts.
+- Let authorized Demo reviewers apply existing terminology candidates to one
+  standalone report row in the retained workbook preview. A review leaves the
+  original conversion artifact unchanged and returns only the reviewed row.
 - Add a repository-owned agent contract, linked rules index and executable
   link gate that keeps index-provider identity separate from clinical and
   hosted-organization authority.

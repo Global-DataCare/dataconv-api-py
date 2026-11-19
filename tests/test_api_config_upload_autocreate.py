@@ -1,7 +1,6 @@
 # Flow contract: API-CONFIG inherits authoritative route context; workbook metadata cannot select a tenant sector.
 import unittest
 from pathlib import Path
-from adapter_ingestion.service.api_config import extract_embedded_api_config
 from adapter_ingestion.service.managers.conversion_upload import ConversionUploadManager
 from types import SimpleNamespace
 
@@ -42,8 +41,7 @@ class DummyDeps:
 
 class TestApiConfigUploadAutoCreate(unittest.TestCase):
     def test_upload_creates_config_from_embedded(self):
-        # Cargar bytes del Excel real
-        xlsx_path = Path("/Users/fernando/GITS/gdc-workspace/examples/veterinary-api-config_datos_patologias.xlsx")
+        xlsx_path = Path(__file__).resolve().parents[1] / "examples/research-search/research-search-veterinary-study-a.xlsx"
         file_bytes = xlsx_path.read_bytes()
         # Probar tanto con sector conocido como desconocido
         for sector in ("animal-care", "human"):  # "human" simula sector sin speciesFhir
@@ -73,7 +71,7 @@ class TestApiConfigUploadAutoCreate(unittest.TestCase):
             # Verificar que se creó la config para el softwareId embebido
             found = False
             for k, v in deps.control_plane.configs.items():
-                if v.content.get("runtimeDefaults", {}).get("softwareId") == "veterinary-tabla_patologias":
+                if v.content.get("runtimeDefaults", {}).get("softwareId") == "research-search-fixture-veterinary-study-a":
                     found = True
                     self.assertEqual(v.content["runtimeDefaults"]["sector"], sector)
                     # Si sector no tiene speciesFhir, debe estar presente pero vacío (codes: {})

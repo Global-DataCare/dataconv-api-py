@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a signed research assertion exchange for the isolated, authenticated
+  Demo deployment. It checks the pre-provisioned DataConv tenant route and
+  issues a short-lived reviewer token bound to one actor and study.
 - Add a repository-owned agent contract, linked rules index and executable
   link gate that keeps index-provider identity separate from clinical and
   hosted-organization authority.

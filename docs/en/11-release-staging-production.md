@@ -65,3 +65,15 @@ kubectl -n <namespace-prod> get deploy preconversion-worker -o jsonpath='{.spec.
 ```
 
 Both deployments must point to the same immutable digest.
+
+## Isolated Demo research exchange
+
+Run the Demo research instance with `NETWORK_MODE=demo` and `DEMO_MODE=false`
+so the service enforces signed access on study routes. Provision an active
+DataConv tenant in a study-scoped sector. Use a dedicated session-token secret
+and Demo storage configuration. Configure
+`DEMO_RESEARCH_ASSERTION_ISSUER`, `DEMO_RESEARCH_ASSERTION_AUDIENCE`, and
+`DEMO_RESEARCH_ASSERTION_PUBLIC_JWK` with the Professional BFF's dedicated
+P-256 verification key and exact issuer and audience. Keep the private key in
+the Professional BFF secret binding. The normal SMART exchange stays available
+for gateway-backed deployments, where the Demo assertion endpoint is absent.

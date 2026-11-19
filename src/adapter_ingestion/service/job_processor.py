@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 import json
+import re
 import unicodedata
 
 from ..models import AdapterContext, STANDALONE_REPORT_DATA_USE
@@ -16,6 +17,7 @@ from ..pipeline import run_pipeline
 from ..runtime import BlobStore, ConfigKey, IVaultRepository, PreconversionControlPlane
 from ..runtime.models import now_iso_utc
 from ..subject_links import ProtectedSubjectLinkStore, SubjectLinkScope
+from .api_config import extract_embedded_api_config
 from .api_support import _compose_software_id_token
 from .observability import log_event
 from .research import DEFAULT_SECTOR, build_storage_namespace
@@ -350,6 +352,18 @@ def process_one_job(
         with NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             tmp.write(input_bytes)
             tmp_path = Path(tmp.name)
+
+        # Keep the selected mapping and authorized purpose. Only the source
+        # language from the workbook informs terminology lookup in Demo.
+        runtime_defaults = config_payload.get("runtimeDefaults")
+        if (settings.network_mode == "demo" and not settings.demo_mode and isinstance(runtime_defaults, dict)
+                and job.request.mode == "demo-ephemeral" and suffix.lower() == ".xlsx"):
+            embedded = extract_embedded_api_config(tmp_path) or {}
+            language = embedded.get("runtimeDefaults", {}).get("language", "")
+            if re.fullmatch(r"[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2}", language):
+                config_payload["runtimeDefaults"] = {
+                    **runtime_defaults, "language": language.replace("_", "-"),
+                }
 
         context = _build_context(
             settings=settings,

@@ -129,9 +129,20 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     exchange = client.post(endpoint, json={"assertion": assertion})
     assert exchange.status_code == 200
     headers = {"Authorization": "Bearer " + exchange.json()["access_token"]}
-    from adapter_ingestion.service.job_processor import process_one_job
+    from adapter_ingestion.service import job_processor
+
+    coding_contexts = []
+    build_coding_assistant = job_processor.build_coding_assistant
+
+    def capture_coding_context(settings, context):
+        coding_contexts.append((context.language, context.data_use))
+        return build_coding_assistant(settings, context)
+
+    monkeypatch.setattr(job_processor, "build_coding_assistant", capture_coding_context)
 
     workbook = Workbook()
+    workbook.active.append(["API-CONFIG:language=es-MX:dataUse=individual"])
+    workbook.active.append(["subject-id", "Procedure.code-text"])
     workbook.active.append(["Subject", "Diagnosis"])
     workbook.active.append(["3dac02a4-22fa-458d-bc6e-0c767a9e4f03", "Otitis"])
     workbook.active.append(["3dac02a4-22fa-458d-bc6e-0c767a9e4f03", "Fracture"])
@@ -142,7 +153,7 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
               "iat": claims["iat"], "exp": claims["exp"], "sourceFormat": "xlsx", "send": False,
               "researchStudy": {"reference": STUDY}, "inlineConfig": {
                   "runtimeDefaults": {"dataUse": "secondary", "adapterId": "api-config"},
-                  "schemaConfig": {"headerRowIndex": 0, "fieldMap": {"subject-id": "Subject", "Condition.code-text": "Diagnosis"}},
+                  "schemaConfig": {"headerRowIndex": 3, "fieldMap": {"subject-id": "Subject", "Condition.code-text": "Diagnosis"}},
               }}
 
     def submit(mode):
@@ -152,7 +163,7 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     assert submit("persistent").status_code == 403
     submitted = submit("demo-ephemeral")
     assert submitted.status_code == 202
-    assert process_one_job(control_plane=app.state.control_plane, blob_store=app.state.blob_store,
+    assert job_processor.process_one_job(control_plane=app.state.control_plane, blob_store=app.state.blob_store,
                            vault_repo=app.state.vault_repo, settings=app.state.settings, worker_id="fixture")
     job = app.state.control_plane.get_job_by_thid(upload["thid"], STUDY)
     assert job.status == "succeeded", job.error
@@ -162,7 +173,7 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     }}
     assert client.post(upload_route, headers=headers, data={"payload": json.dumps(report_upload)},
                        files={"file": ("reports.xlsx", content.getvalue())}).status_code == 202
-    assert process_one_job(control_plane=app.state.control_plane, blob_store=app.state.blob_store,
+    assert job_processor.process_one_job(control_plane=app.state.control_plane, blob_store=app.state.blob_store,
                            vault_repo=app.state.vault_repo, settings=app.state.settings, worker_id="fixture")
     report_job = app.state.control_plane.get_job_by_thid(report_upload["thid"], STUDY)
     assert report_job.status == "succeeded", report_job.error
@@ -178,6 +189,7 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     assert len({item["id"] for item in reports}) == 2
     assert {resource["resourceType"] for report in reports for resource in report["contained"]} == {"Condition"}
     assert all("Condition.subject" not in item["meta"]["claims"] for report in reports for item in report["contained"])
+    assert coding_contexts == [("es-MX", "secondary"), ("es-MX", "standalone-report")]
     request = {"resourceType": "Parameters", "parameter": [{"name": "study", "valueReference": {"reference": STUDY}}]}
     review = client.post(f"{route}/dataset/ResearchSubject/$review-pending", headers=headers, json=request)
     assert review.status_code == 200

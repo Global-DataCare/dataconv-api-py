@@ -71,7 +71,8 @@ Both deployments must point to the same immutable digest.
 Run the Demo research instance with `NETWORK_MODE=demo` and `DEMO_MODE=false`
 so the service enforces signed access on study routes. Provision an active
 DataConv tenant in a study-scoped sector. Use a dedicated session-token secret
-and Demo storage configuration. Configure
+of at least 32 characters and a separate Demo storage configuration. Demo
+reviewer tokens require signed, study-scoped operations. Configure
 `DEMO_RESEARCH_ASSERTION_ISSUER`, `DEMO_RESEARCH_ASSERTION_AUDIENCE`, and
 `DEMO_RESEARCH_ASSERTION_PUBLIC_JWK` with the Professional BFF's dedicated
 P-256 verification key and exact issuer and audience. Keep the private key in

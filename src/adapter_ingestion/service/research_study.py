@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 RESEARCH_SUBJECT_STUDY_CLAIM = "ResearchSubject.study"
 RESEARCH_STUDY_SCOPED_SECTORS = frozenset({"onehealth-research", "animal-research"})
+DEMO_RESEARCH_TOKEN_PROFILE = "demo_research_reviewer"
 _FHIR_ID = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
 
 

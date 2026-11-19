@@ -1,5 +1,6 @@
 # Flow contract: a trusted Demo BFF assertion opens only workbook rights for one active Demo tenant route, actor and study.
 from datetime import datetime, timezone
+from secrets import token_urlsafe
 from types import SimpleNamespace
 
 import jwt
@@ -29,7 +30,7 @@ def exchange_fixture():
         network_mode="demo", demo_mode=False,
         demo_research_assertion_issuer=ISSUER, demo_research_assertion_audience=AUDIENCE,
         demo_research_assertion_public_jwk=jwt.algorithms.ECAlgorithm.to_jwk(key.public_key()),
-        exchange_session_token_secret="test-session-secret", exchange_session_token_ttl_seconds=900,
+        exchange_session_token_secret=token_urlsafe(32), exchange_session_token_ttl_seconds=900,
         default_issuer_did=AUDIENCE, default_audience_did=AUDIENCE,
     )
     now = int(datetime.now(timezone.utc).timestamp())
@@ -49,6 +50,7 @@ def test_exchanges_a_pinned_demo_grant_for_short_lived_workbook_access(exchange_
     assert result["study"] == STUDY
     assert "dataconv.review" in grant.granted_scopes
     assert "dataconv.config.write" not in grant.granted_scopes
+    assert "dataconv.config.read" not in grant.granted_scopes
     assert grant.expires_in <= 60
 
 
@@ -128,6 +130,11 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     review = client.post(f"{route}/dataset/ResearchSubject/$review-pending", headers=headers, json=request)
     assert review.status_code == 200
     assert review.json()["total"] == 0
+    assert client.post(f"{route}/dataset/Composition/_search", headers=headers, json={}).status_code == 403
+    scoped_search = {"resourceType": "Parameters", "parameter": [{"name": "ResearchSubject.study", "valueReference": {"reference": STUDY}}]}
+    assert client.post(f"{route}/dataset/ResearchSubject/_search", headers=headers, json=scoped_search).status_code == 200
+    unsigned = jwt.encode({**claims, "token_use": "dataconv_access"}, key="", algorithm="none")
+    assert client.post(f"{route}/dataset/ResearchSubject/$review-pending", headers={"Authorization": f"Bearer {unsigned}"}, json=request).status_code == 401
     request["parameter"][0]["valueReference"]["reference"] = "ResearchStudy/other-study"
     assert client.post(f"{route}/dataset/ResearchSubject/$review-pending", headers=headers, json=request).status_code == 403
 

@@ -8,10 +8,9 @@ from time import time
 from typing import Any, Callable
 
 from ..auth_exchange import issue_session_access_token
-from ..research_study import sector_requires_research_study
+from ..research_study import DEMO_RESEARCH_TOKEN_PROFILE, sector_requires_research_study
 from .smart_research_token_exchange import (
     DATACONV_REVIEWER_SCOPES,
-    PROFESSIONAL_RESEARCH_TOKEN_PROFILE,
     SMART_RESEARCH_PURPOSE,
     SmartResearchTokenExchangeResult,
     jwt,
@@ -41,6 +40,8 @@ class DemoResearchWorkbookExchangeManager:
         jwk_value = getattr(settings, "demo_research_assertion_public_jwk", "")
         if not issuer or not audience or not jwk_value or jwt is None:
             raise PermissionError("Demo research assertion trust is not configured")
+        if len(str(getattr(settings, "exchange_session_token_secret", "") or "").strip()) < 32:
+            raise PermissionError("Demo research session secret is not configured")
         if not isinstance(assertion, str) or not 0 < len(assertion) <= 6000:
             raise ValueError("Demo research assertion is invalid")
         try:
@@ -66,11 +67,11 @@ class DemoResearchWorkbookExchangeManager:
             raise ValueError("Demo research assertion lifetime is invalid")
         if not self._tenant_is_active(tenant_id, jurisdiction, sector):
             raise PermissionError("DataConv Demo tenant is not active for this sector and jurisdiction")
-        scopes = list(DATACONV_REVIEWER_SCOPES)
+        scopes = [scope for scope in DATACONV_REVIEWER_SCOPES if not scope.startswith("dataconv.config.")]
         token, ttl, _ = issue_session_access_token(
             subject=subject, organization=tenant_id, scopes=scopes, settings=settings,
             additional_claims={"actor": subject, "study": study, "purpose": SMART_RESEARCH_PURPOSE,
-                               "token_profile": PROFESSIONAL_RESEARCH_TOKEN_PROFILE},
+                               "token_profile": DEMO_RESEARCH_TOKEN_PROFILE},
             ttl_seconds_override=max(1, expires - int(time())),
         )
         return SmartResearchTokenExchangeResult(token, "Bearer", ttl, " ".join(scopes), scopes, subject, tenant_id, study)

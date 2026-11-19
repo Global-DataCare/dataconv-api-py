@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from ...ai.terminology import TerminologyClient
 from ...models import STANDALONE_REPORT_DATA_USE
 from ..api_support import (
     HTTPException,
@@ -22,21 +23,43 @@ from ..api_support import (
     _resolve_manufacturer_and_version,
     _validate_public_iss,
 )
+from ..coding_candidates import CodingCandidateQuery, search_coding_candidates
 from ..coding_review import NoopCodingFeedbackSink, apply_coding_reviews, has_pending_coding_proposals
 from ..observability import log_event
 from .dependencies import ApiManagerDependencies
 from ..research_study import research_study_reference, sector_requires_professional_research_auth
 
 
-def _review_report_row(result: dict[str, Any], review: Any) -> dict[str, Any]:
-    if not isinstance(review, dict):
+def _report_row(result: dict[str, Any], operation: Any) -> dict[str, Any]:
+    if not isinstance(operation, dict):
         raise HTTPException(status_code=400, detail="Invalid standalone report review")
-    report_id = review.get("reportId")
+    report_id = operation.get("reportId")
     try:
         if not isinstance(report_id, str) or str(UUID(report_id)) != report_id:
             raise ValueError("noncanonical report UUID")
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid standalone report id") from exc
+    entry = next((item for item in result["body"]["data"] if isinstance(item.get("resource"), dict)
+                  and item["resource"].get("resourceType") == "Composition"
+                  and item["resource"].get("id") == report_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Report was not found in the workbook")
+    return entry
+
+
+def _report_proposal(resources: list[dict[str, Any]], target: dict[str, Any]) -> dict[str, Any]:
+    for resource in resources:
+        if resource.get("resourceType") != target.get("resourceType") or resource.get("id") != target.get("resourceId"):
+            continue
+        for proposal in resource.get("meta", {}).get("codingProposals", []):
+            if proposal.get("id") == target.get("proposalId") and proposal.get("status") == "proposed":
+                return proposal
+    raise HTTPException(status_code=400, detail="Coding proposal was not found in this report row")
+
+
+def _review_report_row(result: dict[str, Any], review: Any, terminology: TerminologyClient | None, *,
+                       sector: str, jurisdiction: str) -> dict[str, Any]:
+    entry = _report_row(result, review)
     decisions = review.get("codingReviews")
     keys = ("resourceType", "resourceId", "proposalId", "selectedCandidateId")
     if not isinstance(decisions, list) or len(decisions) > 100 or any(
@@ -47,13 +70,15 @@ def _review_report_row(result: dict[str, Any], review: Any) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail="Invalid standalone report coding decisions")
     if len({tuple(item[key] for key in keys[:3]) for item in decisions}) != len(decisions):
         raise HTTPException(status_code=400, detail="Duplicate standalone report coding decision")
-    body = result["body"]
-    entry = next((item for item in body["data"] if isinstance(item.get("resource"), dict)
-                  and item["resource"].get("resourceType") == "Composition"
-                  and item["resource"].get("id") == report_id), None)
-    if entry is None:
-        raise HTTPException(status_code=404, detail="Report was not found in the workbook")
     resources = entry["resource"].get("contained", [])
+    for decision in decisions:
+        proposal = _report_proposal(resources, decision)
+        if any(item.get("id") == decision["selectedCandidateId"] for item in proposal.get("candidates", [])):
+            continue
+        query = decision.get("terminologyQuery")
+        if isinstance(query, dict):
+            proposal["candidates"] = search_coding_candidates(terminology, query=CodingCandidateQuery.parse(query),
+                sector=sector, jurisdiction=jurisdiction, resource_type=decision["resourceType"], proposal=proposal)
     try:
         # This projects a reviewed row without changing the conversion artifact.
         # The consuming Research workspace commits publication and its audit record.
@@ -64,7 +89,18 @@ def _review_report_row(result: dict[str, Any], review: Any) -> dict[str, Any]:
     if any(has_pending_coding_proposals(resource) for resource in resources):
         raise HTTPException(status_code=409, detail="Resolve the report row's coding proposals before publication")
     result.pop("attachments", None)
-    result["body"] = {**body, "data": [entry], "total": 1}
+    result["body"] = {**result["body"], "data": [entry], "total": 1}
+    return result
+
+
+def _search_report_candidates(result: dict[str, Any], search: Any, terminology: TerminologyClient | None, *,
+                              sector: str, jurisdiction: str) -> dict[str, Any]:
+    entry = _report_row(result, search)
+    proposal = _report_proposal(entry["resource"].get("contained", []), search)
+    candidates = search_coding_candidates(terminology, query=CodingCandidateQuery.parse(search), sector=sector,
+        jurisdiction=jurisdiction, resource_type=search["resourceType"], proposal=proposal)
+    result.pop("attachments", None)
+    result["body"] = {"reportId": search["reportId"], "proposalId": search["proposalId"], "candidates": candidates}
     return result
 
 
@@ -86,6 +122,10 @@ class ConversionUploadPollManager:
     ) -> dict[str, Any]:
         payload = body if isinstance(body, dict) else {}
         review_report = "reportReview" in payload
+        search_report = "reportCandidateSearch" in payload
+        if review_report and search_report:
+            raise HTTPException(status_code=400, detail="Use one report operation per request")
+        report_operation = review_report or search_report
         _enforce_supported_scope(jurisdiction, sector, self._deps.settings)
         issuer = _extract_iss(payload)
         if not issuer:
@@ -111,10 +151,10 @@ class ConversionUploadPollManager:
             payload,
             self._deps.settings,
             authorization_header=auth_header,
-            required_scopes={"dataconv.read", "dataconv.review"} if review_report else {"dataconv.read"},
+            required_scopes={"dataconv.read", "dataconv.review"} if report_operation else {"dataconv.read"},
             expected_organization=tenant_id,
             expected_research_study=requested_study,
-            require_study_research=review_report or sector_requires_professional_research_auth(sector, self._deps.settings),
+            require_study_research=report_operation or sector_requires_professional_research_auth(sector, self._deps.settings),
         )
         payload_thid = str(payload.get("thid", "")).strip()
         query_thid = _extract_query_value(request, "thid")
@@ -146,7 +186,7 @@ class ConversionUploadPollManager:
         country_code = _normalize_country_code(jurisdiction)
         if country_code and str(job.request.country).strip().upper() != country_code:
             raise HTTPException(status_code=404, detail="job not found")
-        if review_report:
+        if report_operation:
             runtime = (job.request.inline_config or {}).get("runtimeDefaults")
             if (self._deps.settings.network_mode != "demo" or self._deps.settings.demo_mode
                     or not stored_study or job.request.mode != "demo-ephemeral" or not isinstance(runtime, dict)
@@ -165,7 +205,7 @@ class ConversionUploadPollManager:
             )
             raise HTTPException(status_code=404, detail="job expired")
 
-        if not review_report and job.status in {"succeeded", "failed"}:
+        if not report_operation and job.status in {"succeeded", "failed"}:
             first_delivery = not bool(str(job.delivered_at or "").strip())
             if first_delivery:
                 job = self._deps.control_plane.mark_job_delivered(job.job_id)
@@ -188,4 +228,10 @@ class ConversionUploadPollManager:
             service_iss=self._deps.settings.default_issuer_did,
             audience_did=str(job.request.requested_by or "").strip(),
         )
-        return _review_report_row(result, payload["reportReview"]) if review_report else result
+        if review_report:
+            return _review_report_row(result, payload["reportReview"], self._deps.terminology_client,
+                                      sector=sector, jurisdiction=jurisdiction)
+        if search_report:
+            return _search_report_candidates(result, payload["reportCandidateSearch"], self._deps.terminology_client,
+                                             sector=sector, jurisdiction=jurisdiction)
+        return result

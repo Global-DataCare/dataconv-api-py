@@ -103,6 +103,19 @@ def test_route_accepts_only_the_assertion_field_and_disables_caching(exchange_fi
 
 
 def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(exchange_fixture, monkeypatch, tmp_path):
+    from adapter_ingestion.ai.terminology import TerminologyCandidate
+    from adapter_ingestion.service import api, factory
+
+    lookups = []
+
+    def search_fixture(query):
+        lookups.append(query)
+        if query.text != "Fracture":
+            return []
+        return [TerminologyCandidate("http://snomed.info/sct", "125605004", "Fracture", "SNOMED")]
+
+    monkeypatch.setattr(api, "HttpTerminologyClient", lambda **kwargs: SimpleNamespace(search=search_fixture))
+    monkeypatch.setattr(factory, "HttpTerminologyClient", lambda **kwargs: SimpleNamespace(search=search_fixture))
     _, key, settings, claims, _ = exchange_fixture
     monkeypatch.chdir(tmp_path)
     for name, value in {
@@ -112,6 +125,7 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
         "EXCHANGE_SESSION_TOKEN_SECRET": settings.exchange_session_token_secret,
         "DEMO_RESEARCH_ASSERTION_ISSUER": ISSUER, "DEMO_RESEARCH_ASSERTION_AUDIENCE": AUDIENCE,
         "DEMO_RESEARCH_ASSERTION_PUBLIC_JWK": settings.demo_research_assertion_public_jwk,
+        "TERMINOLOGY_BASE_URL": "https://terminology.example",
     }.items():
         monkeypatch.setenv(name, value)
     from adapter_ingestion.service.api import ConfigKey, create_app
@@ -142,7 +156,7 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
                 system="http://snomed.info/sct", code="65363002", display="Otitis media", confidence=1,
                 evidence="fixture", resource_type="Condition", field="Condition.code", candidate_id="otitis",
                 proposal_id=f"condition-{record.source_id}",
-            )])
+            )] if record.coding_inputs.get("Condition.code") == "Otitis" else [])
         return build_coding_assistant(settings, context)
 
     monkeypatch.setattr(job_processor, "build_coding_assistant", capture_coding_context)
@@ -218,6 +232,31 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
     assert reviewed_meta["claims"]["Condition.code"] == "http://snomed.info/sct|65363002"
     assert reviewed_meta["codingProposals"][0]["status"] == "accepted"
     assert client.post(poll_route, headers=headers, json=poll).json()["body"]["data"][0]["resource"]["contained"][0]["meta"]["codingProposals"][0]["status"] == "proposed"
+    fracture = reports[1]["contained"][0]
+    fracture_proposal = fracture["meta"]["codingProposals"][0]
+    assert fracture_proposal["candidates"] == []
+    target = {"resourceType": "Condition", "resourceId": fracture["id"], "proposalId": fracture_proposal["id"]}
+    query = {"text": "Fracture", "language": "en-CA", "sources": ["SNOMED"]}
+    lookup = client.post(poll_route, headers=headers, json={**poll, "reportCandidateSearch": {
+        "reportId": reports[1]["id"], **target, **query,
+    }})
+    assert lookup.status_code == 200
+    candidate, = lookup.json()["body"]["candidates"]
+    assert lookups[-1].field == "Condition.code" and lookups[-1].sector == SECTOR
+    lookups_before_denials = len(lookups)
+    assert client.post(poll_route, headers=headers, json={**poll, "reportCandidateSearch": {
+        "reportId": reports[0]["id"], **target, **query,
+    }}).status_code == 400
+    assert client.post(poll_route, headers=headers, json={**poll, "researchStudy": {"reference": "ResearchStudy/other-study"},
+        "reportCandidateSearch": {"reportId": reports[1]["id"], **target, **query},
+    }).status_code == 403
+    assert len(lookups) == lookups_before_denials
+    choice = {**target, "selectedCandidateId": candidate["id"]}
+    assert review_row(reports[1]["id"], [choice]).status_code == 400
+    assert review_row(reports[1]["id"], [{**choice, "terminologyQuery": {**query, "text": "Otitis"}}]).status_code == 400
+    second = review_row(reports[1]["id"], [{**choice, "terminologyQuery": query}])
+    assert second.status_code == 200
+    assert second.json()["body"]["data"][0]["resource"]["contained"][0]["meta"]["claims"]["Condition.code"] == "http://snomed.info/sct|125605004"
     request = {"resourceType": "Parameters", "parameter": [{"name": "study", "valueReference": {"reference": STUDY}}]}
     review = client.post(f"{route}/dataset/ResearchSubject/$review-pending", headers=headers, json=request)
     assert review.status_code == 200

@@ -42,14 +42,16 @@ from ..defaults import load_software_id_preset
 from ..defaults import resolve_software_id_default_template
 from ..observability import log_event
 from ..research import build_upload_response_path
+from ..research_study import STUDY_REPORT_WORKBOOK_MODE
 from ..research_study import research_study_reference as optional_research_study_reference
 from ..research_study import require_research_study_reference
 from ..research_study import sector_requires_research_study
 from ..research_study import sector_requires_professional_research_auth
+from ..research_study import standalone_report_workbook_mode_allowed
 from .dependencies import ApiManagerDependencies
 
 
-def _demo_workbook_mapping(payload: dict[str, Any]) -> dict[str, Any]:
+def _explicit_workbook_mapping(payload: dict[str, Any]) -> dict[str, Any]:
     inline = _extract_payload_value(payload, "inlineConfig")
     schema = inline.get("schemaConfig") if isinstance(inline, dict) else None
     runtime = inline.get("runtimeDefaults") if isinstance(inline, dict) else None
@@ -62,7 +64,7 @@ def _demo_workbook_mapping(payload: dict[str, Any]) -> dict[str, Any]:
                 or not isinstance(value, str) or not 0 < len(value.strip()) <= 256
                 for key, value in fields.items()
             )):
-        raise HTTPException(status_code=400, detail="An explicit Demo workbook header and field mapping is required")
+        raise HTTPException(status_code=400, detail="An explicit workbook header and field mapping is required")
     return {"schemaConfig": {"headerRowIndex": header, "fieldMap": fields},
             "runtimeDefaults": {"dataUse": data_use, "adapterId": "api-config"}}
 
@@ -161,12 +163,23 @@ class ConversionUploadManager:
             raise HTTPException(status_code=400, detail="thid is required in DIDComm payload")
         input_ref = str(_extract_payload_value(payload, "inputRef") or "").strip()
         inline_config = _extract_payload_value(payload, "inlineConfig")
-        if (getattr(self._deps.settings, "network_mode", "") == "demo"
+        inline_runtime = inline_config.get("runtimeDefaults") if isinstance(inline_config, dict) else None
+        report_mapping = isinstance(inline_runtime, dict) and inline_runtime.get("dataUse") == STANDALONE_REPORT_DATA_USE
+        if mode == STUDY_REPORT_WORKBOOK_MODE or report_mapping:
+            if (not report_mapping or not standalone_report_workbook_mode_allowed(self._deps.settings, sector, mode)
+                    or send or input_ref or file is None or normalized_source_format != "excel"
+                    or Path(str(file.filename or "")).suffix.lower() != ".xlsx"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Standalone study reports require an uploaded Excel workbook and a per-upload mapping",
+                )
+            inline_config = _explicit_workbook_mapping(payload)
+        elif (getattr(self._deps.settings, "network_mode", "") == "demo"
                 and not getattr(self._deps.settings, "demo_mode", False)):
             if (mode != "demo-ephemeral" or send or input_ref or file is None or normalized_source_format != "excel"
                     or not sector_requires_research_study(sector)):
                 raise HTTPException(status_code=403, detail="Demo study uploads require a local workbook and a per-upload mapping")
-            inline_config = _demo_workbook_mapping(payload)
+            inline_config = _explicit_workbook_mapping(payload)
         attachment_payload = None if file is not None else _extract_didcomm_attachment_payload(
             payload,
             default_suffix=default_suffix,

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Accept standalone Excel reports under the existing study-scoped SMART grant
+  in network deployments. Keep the upload mapping per job and require review
+  scope for row-level terminology lookup and coding decisions.
 - Add a signed research assertion exchange for the isolated, authenticated
   Demo deployment. It checks the pre-provisioned DataConv tenant route and
   issues a short-lived reviewer token bound to one actor and study. Reject

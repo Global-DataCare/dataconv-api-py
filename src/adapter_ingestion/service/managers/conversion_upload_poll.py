@@ -27,7 +27,11 @@ from ..coding_candidates import CodingCandidateQuery, search_coding_candidates
 from ..coding_review import NoopCodingFeedbackSink, apply_coding_reviews, has_pending_coding_proposals
 from ..observability import log_event
 from .dependencies import ApiManagerDependencies
-from ..research_study import research_study_reference, sector_requires_professional_research_auth
+from ..research_study import (
+    research_study_reference,
+    sector_requires_professional_research_auth,
+    standalone_report_workbook_mode_allowed,
+)
 
 
 def _report_row(result: dict[str, Any], operation: Any) -> dict[str, Any]:
@@ -188,8 +192,8 @@ class ConversionUploadPollManager:
             raise HTTPException(status_code=404, detail="job not found")
         if report_operation:
             runtime = (job.request.inline_config or {}).get("runtimeDefaults")
-            if (self._deps.settings.network_mode != "demo" or self._deps.settings.demo_mode
-                    or not stored_study or job.request.mode != "demo-ephemeral" or not isinstance(runtime, dict)
+            if (not standalone_report_workbook_mode_allowed(self._deps.settings, sector, job.request.mode)
+                    or not stored_study or job.request.send or not isinstance(runtime, dict)
                     or runtime.get("dataUse") != STANDALONE_REPORT_DATA_USE):
                 raise HTTPException(status_code=404, detail="Standalone report job not found")
             if job.status != "succeeded":

@@ -22,6 +22,7 @@ from .api_support import _compose_software_id_token
 from .observability import log_event
 from .research import DEFAULT_SECTOR, build_storage_namespace
 from .research_drafts import annotate_composition_message_for_research, persist_research_drafts
+from .research_study import STUDY_REPORT_WORKBOOK_MODE, standalone_report_workbook_mode_allowed
 from .settings import ServiceSettings
 from .factory import build_coding_assistant
 from .completion_notifications import (
@@ -337,7 +338,7 @@ def process_one_job(
             if notification_config.enabled:
                 deliver_notifications()
             return job.job_id
-        if job.request.mode == "demo-ephemeral":
+        if job.request.mode in {"demo-ephemeral", STUDY_REPORT_WORKBOOK_MODE}:
             config_payload = dict(job.request.inline_config or {})
         else:
             if not job.config_key_used:
@@ -354,10 +355,10 @@ def process_one_job(
             tmp_path = Path(tmp.name)
 
         # Keep the selected mapping and authorized purpose. Only the source
-        # language from the workbook informs terminology lookup in Demo.
+        # language from the workbook informs terminology lookup.
         runtime_defaults = config_payload.get("runtimeDefaults")
-        if (settings.network_mode == "demo" and not settings.demo_mode and isinstance(runtime_defaults, dict)
-                and job.request.mode == "demo-ephemeral" and suffix.lower() == ".xlsx"):
+        report_workbook_mode = standalone_report_workbook_mode_allowed(settings, job.request.sector, job.request.mode)
+        if report_workbook_mode and isinstance(runtime_defaults, dict) and suffix.lower() == ".xlsx":
             embedded = extract_embedded_api_config(tmp_path) or {}
             language = embedded.get("runtimeDefaults", {}).get("language", "")
             if re.fullmatch(r"[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2}", language):
@@ -379,8 +380,9 @@ def process_one_job(
         runtime_defaults = config_payload.get("runtimeDefaults")
         standalone_report = context.data_use == STANDALONE_REPORT_DATA_USE
         if standalone_report:
-            if settings.network_mode != "demo" or job.request.mode != "demo-ephemeral" or job.request.send:
-                raise ValueError("Standalone reports require an isolated Demo workbook job")
+            if (not report_workbook_mode or not job.request.research_study_reference
+                    or job.request.send or suffix.lower() != ".xlsx"):
+                raise ValueError("Standalone reports require a study-scoped Excel workbook job")
             context = replace(context, report_batch_id=job.job_id, personal_id_resolver=None)
         configured_adapter_id = (
             str(runtime_defaults.get("adapterId") or "").strip()

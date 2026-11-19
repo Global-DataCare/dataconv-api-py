@@ -6,11 +6,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from io import BytesIO
+import json
 from types import SimpleNamespace
 
 import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
+from fastapi.testclient import TestClient
+from openpyxl import Workbook
 
 from adapter_ingestion.service.api_support import (
     HTTPException,
@@ -94,6 +98,98 @@ def _manager(private_key: ec.EllipticCurvePrivateKey) -> SmartResearchTokenExcha
         _settings(),
         did_document_loader=lambda url, timeout: did_document,
     )
+
+
+def test_smart_workbook_report_keeps_rows_independent_and_review_study_scoped(monkeypatch, tmp_path) -> None:
+    from adapter_ingestion.ai.base import CodingSuggestion
+    from adapter_ingestion.service import job_processor
+    from adapter_ingestion.service.api import create_app
+
+    monkeypatch.setattr(job_processor, "build_coding_assistant", lambda settings, context: SimpleNamespace(
+        suggest_codes=lambda record: [CodingSuggestion(
+            system="http://snomed.info/sct", code="65363002", display="Otitis media", confidence=1,
+            evidence="fixture", resource_type="Condition", field="Condition.code", candidate_id="otitis",
+            proposal_id=f"condition-{record.source_id}",
+        )] if record.coding_inputs.get("Condition.code") == "Otitis" else [],
+    ))
+
+    settings = _settings()
+    monkeypatch.chdir(tmp_path)
+    for name, value in {
+        "NODE_ENV": "test", "NETWORK_MODE": settings.network_mode, "DEMO_MODE": "false",
+        "DB_PROVIDER": "mem", "SEARCH_PROVIDER": "mem", "QUEUE_PROVIDER": "mem", "STORAGE_PROVIDER": "mem",
+        "PRECONV_LOCAL_DATA_DIR": str(tmp_path), "SUPPORTED_JURISDICTIONS": "CA-BC", "SUPPORTED_SECTORS": "animal-research",
+        "PRECONV_DEFAULT_ISSUER_DID": settings.default_issuer_did,
+        "PRECONV_DEFAULT_AUDIENCE_DID": settings.default_audience_did,
+        "EXCHANGE_SESSION_TOKEN_SECRET": settings.exchange_session_token_secret,
+    }.items():
+        monkeypatch.setenv(name, value)
+
+    key = ec.generate_private_key(ec.SECP384R1())
+    manager = _manager(key)
+
+    def headers(scope=SMART_SCOPE):
+        exchange = manager.exchange({"subject_token": _smart_token(key, scope=scope),
+                                     "subject_token_type": SMART_ACCESS_TOKEN_TYPE},
+                                    tenant_id=TENANT, jurisdiction="CA-BC", sector="animal-research")
+        return {"Authorization": f"Bearer {exchange.access_token}"}
+
+    app = create_app()
+    client = TestClient(app)
+    route = f"/publisher/cds-CA-BC/v1/animal-research/{TENANT}/dataset/manual-v1/Bundle/_upload"
+    now = int(datetime.now(tz=timezone.utc).timestamp())
+    envelope = {"iss": ACTOR, "thid": "study-report-workbook", "type": "https://didcomm.org/plaintext/2.0/message",
+                "iat": now, "exp": now + 60, "researchStudy": {"reference": STUDY}}
+    workbook = Workbook()
+    workbook.active.append(["Subject", "Diagnosis"])
+    workbook.active.append(["same-subject", "Otitis"])
+    workbook.active.append(["same-subject", "Fracture"])
+    content = BytesIO()
+    workbook.save(content)
+    upload = {**envelope, "mode": "study-report", "sourceFormat": "xlsx", "inlineConfig": {
+        "schemaConfig": {"headerRowIndex": 1, "fieldMap": {"subject-id": "Subject", "Condition.code-text": "Diagnosis"}},
+        "runtimeDefaults": {"dataUse": "standalone-report"},
+    }}
+
+    def submit(auth, **overrides):
+        return client.post(route, headers=auth, data={"payload": json.dumps({**upload, **overrides})},
+                           files={"file": ("reports.xlsx", content.getvalue())})
+
+    auth = headers()
+    assert submit({}).status_code == 401
+    assert submit(headers(RESEARCHER_SCOPE)).status_code == 403
+    assert submit(auth, researchStudy={"reference": "ResearchStudy/other"}).status_code == 403
+    assert submit(auth, inputRef="gs://fixture/report.xlsx").status_code == 403
+    assert submit(auth, send=True).status_code == 403
+    assert submit(auth, mode="persistent").status_code == 403
+    assert submit(auth, mode="demo-ephemeral").status_code == 403
+    assert submit(auth).status_code == 202
+    state = app.state
+    assert job_processor.process_one_job(control_plane=state.control_plane, blob_store=state.blob_store,
+                                         vault_repo=state.vault_repo, settings=state.settings, worker_id="fixture")
+    job = state.control_plane.get_job_by_thid(envelope["thid"], STUDY)
+    assert job.status == "succeeded", job.error
+    summary = json.loads(state.blob_store.get_bytes(job.result_ref))
+    assert summary["standaloneReportEntries"] == 2
+    assert summary["researchDraftsPersisted"] == summary["researchSubjectEntries"] == summary["patientEntries"] == 0
+
+    poll = f"{route}-response"
+    preview = client.post(poll, headers=auth, json=envelope)
+    assert preview.status_code == 200
+    reports = [entry["resource"] for entry in preview.json()["body"]["data"]]
+    assert len({item["id"] for item in reports if item["resourceType"] == "Composition"}) == 2
+    otitis = next(report for report in reports if report["contained"][0]["meta"]["codingProposals"][0]["candidates"])
+    condition = otitis["contained"][0]
+    proposal = condition["meta"]["codingProposals"][0]
+    decision = {"resourceType": "Condition", "resourceId": condition["id"], "proposalId": proposal["id"],
+                "selectedCandidateId": "otitis"}
+    report = {**envelope, "reportReview": {"reportId": otitis["id"], "codingReviews": [decision]}}
+    assert client.post(poll, headers=headers(RESEARCHER_SCOPE), json=report).status_code == 403
+    assert client.post(poll, headers=auth, json={**report, "researchStudy": {"reference": "ResearchStudy/other"}}).status_code == 403
+    reviewed = client.post(poll, headers=auth, json=report)
+    assert reviewed.status_code == 200
+    entry, = reviewed.json()["body"]["data"]
+    assert entry["resource"]["contained"][0]["meta"]["claims"]["Condition.code"] == "http://snomed.info/sct|65363002"
 
 
 def test_resolves_standard_did_web_paths_and_restricts_local_http_to_test_modes() -> None:

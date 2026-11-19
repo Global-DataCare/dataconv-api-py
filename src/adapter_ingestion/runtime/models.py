@@ -93,7 +93,7 @@ class JobRequest:
     input_ref: str = ""
     send: bool = False
     requested_by: str = ""
-    mode: str = "persistent"  # persistent | demo-ephemeral
+    mode: str = "persistent"  # persistent | demo-ephemeral | study-report
     inline_config: dict[str, Any] = field(default_factory=dict)
     thid: str = ""
     research_study_reference: str = ""

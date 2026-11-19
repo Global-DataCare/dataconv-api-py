@@ -8,6 +8,7 @@ from hmac import compare_digest, new as hmac_new
 from typing import Any
 import base64
 import json
+import re
 from threading import Lock
 from time import time
 from urllib.request import urlopen
@@ -324,7 +325,7 @@ class ValidatedClientAssertion:
     payload: dict[str, Any]
 
 
-def validate_id_token(id_token: str, settings: Any) -> ValidatedIdToken:
+def validate_id_token(id_token: str, settings: Any, *, allow_firebase_phone: bool = False) -> ValidatedIdToken:
     demo_mode = bool(getattr(settings, "demo_mode", False))
     allow_insecure = bool(getattr(settings, "exchange_allow_insecure_assertions", True))
     _verify_signature_placeholder(id_token, allow_insecure=allow_insecure, demo_mode=demo_mode)
@@ -348,6 +349,21 @@ def validate_id_token(id_token: str, settings: Any) -> ValidatedIdToken:
         else:
             payload = _verify_oidc_jwt(id_token, settings)
 
+    issuer = str(payload.get("iss") or "").strip()
+    if allow_firebase_phone:
+        firebase = payload.get("firebase")
+        phone = payload.get("phone_number")
+        subject = payload.get("sub")
+        project = re.fullmatch(r"https://securetoken\.google\.com/([a-z][a-z0-9-]+)", issuer)
+        trusted_issuers = getattr(settings, "exchange_oidc_allowed_issuers", ()) or (
+            getattr(settings, "exchange_oidc_issuer", ""),
+        )
+        if (project and issuer in trusted_issuers and payload.get("aud") == project.group(1)
+                and isinstance(firebase, dict) and firebase.get("sign_in_provider") == "phone"
+                and isinstance(phone, str) and re.fullmatch(r"\+[1-9][0-9]{1,14}", phone)
+                and isinstance(subject, str) and subject.strip()):
+            return ValidatedIdToken(issuer=issuer, subject=subject, email="", email_hash="", payload=payload)
+
     email = normalize_email(
         str(payload.get("email") or payload.get("preferred_username") or payload.get("upn") or "")
     )
@@ -356,7 +372,7 @@ def validate_id_token(id_token: str, settings: Any) -> ValidatedIdToken:
 
     subject = str(payload.get("sub") or email).strip()
     return ValidatedIdToken(
-        issuer=str(payload.get("iss") or "").strip(),
+        issuer=issuer,
         subject=subject,
         email=email,
         email_hash=hash_email_same_as(email),

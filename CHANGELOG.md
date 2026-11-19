@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Accept controller phone authentication for organization tenant activation
+  and upload exchange when the token issuer and audience identify the
+  explicitly trusted Firebase project.
+
 - Add a repository-owned agent contract, linked rules index and executable
   link gate that keeps index-provider identity separate from clinical and
   hosted-organization authority.

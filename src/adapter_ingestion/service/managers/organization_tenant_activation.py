@@ -73,7 +73,7 @@ class OrganizationTenantActivationManager:
         self._settings = settings
         self._control_plane = control_plane
         self._verifier = verifier
-        self._identity_validator = identity_validator or (lambda token: validate_id_token(token, settings))
+        self._identity_validator = identity_validator or (lambda token: validate_id_token(token, settings, allow_firebase_phone=True))
 
     def _authorize(
         self,

@@ -51,6 +51,20 @@ class DeployGkeContractTests(unittest.TestCase):
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
         self.assertIn("--from-literal=RESEARCH_WORKBOOK_MAX_BYTES=", deploy_script)
 
+    def test_signed_demo_assertion_trust_is_validated_and_passed_to_the_runtime(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        for setting in (
+            "DEMO_RESEARCH_ASSERTION_ISSUER",
+            "DEMO_RESEARCH_ASSERTION_AUDIENCE",
+            "DEMO_RESEARCH_ASSERTION_PUBLIC_JWK",
+        ):
+            self.assertIn(f'--from-literal={setting}="${{{setting}:-}}"', deploy_script)
+        self.assertNotIn("DEMO_RESEARCH_ASSERTION_PRIVATE_JWK", deploy_script)
+        self.assertLess(
+            deploy_script.index("Demo research assertion trust requires NETWORK_MODE=demo and DEMO_MODE=false"),
+            deploy_script.index("gcloud config set project"),
+        )
+
     def test_optional_terminology_and_coding_model_settings_are_injected_into_runtime(self) -> None:
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
         for setting in (

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Pass Demo research assertion trust through the GKE runtime ConfigMap. Reject
+  incomplete settings, private JWKs and incompatible modes before deployment.
 - Resolve saved researcher tags by exact study, signed researcher identity
   and coded tag in the research search index.
 - Accept standalone Excel reports under the existing study-scoped SMART grant

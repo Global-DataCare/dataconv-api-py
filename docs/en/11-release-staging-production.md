@@ -76,5 +76,8 @@ reviewer tokens require signed, study-scoped operations. Configure
 `DEMO_RESEARCH_ASSERTION_ISSUER`, `DEMO_RESEARCH_ASSERTION_AUDIENCE`, and
 `DEMO_RESEARCH_ASSERTION_PUBLIC_JWK` with the Professional BFF's dedicated
 P-256 verification key and exact issuer and audience. Keep the private key in
-the Professional BFF secret binding. The normal SMART exchange stays available
-for gateway-backed deployments, where the Demo assertion endpoint is absent.
+the Professional BFF secret binding. The GKE deploy script reads those three
+settings from the selected deployment profile into the runtime ConfigMap.
+Run the script with Python 3 available to validate the public JWK before it
+contacts GKE. The normal SMART exchange stays available for gateway-backed
+deployments, where the Demo assertion endpoint is absent.

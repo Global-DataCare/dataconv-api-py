@@ -59,6 +59,36 @@ if [[ "${missing}" -ne 0 ]]; then
   exit 1
 fi
 
+if [[ -n "${DEMO_RESEARCH_ASSERTION_ISSUER:-}${DEMO_RESEARCH_ASSERTION_AUDIENCE:-}${DEMO_RESEARCH_ASSERTION_PUBLIC_JWK:-}" ]]; then
+  if [[ "${NETWORK_MODE:-network}" != "demo" || "${DEMO_MODE:-false}" != "false" ]]; then
+    echo 'ERROR: Demo research assertion trust requires NETWORK_MODE=demo and DEMO_MODE=false.' >&2
+    exit 1
+  fi
+  if [[ -z "${DEMO_RESEARCH_ASSERTION_ISSUER:-}" || -z "${DEMO_RESEARCH_ASSERTION_AUDIENCE:-}" || -z "${DEMO_RESEARCH_ASSERTION_PUBLIC_JWK:-}" ]]; then
+    echo 'ERROR: Configure all three DEMO_RESEARCH_ASSERTION settings together.' >&2
+    exit 1
+  fi
+  if ! python3 -c '
+import json
+import re
+import sys
+
+try:
+    key = json.load(sys.stdin)
+    public_key = (
+        isinstance(key, dict) and key.get("kty") == "EC" and key.get("crv") == "P-256"
+        and "d" not in key
+        and all(isinstance(key.get(axis), str) and re.fullmatch(r"[A-Za-z0-9_-]{43}", key[axis]) for axis in ("x", "y"))
+    )
+except (ValueError, TypeError):
+    public_key = False
+sys.exit(0 if public_key else 1)
+' <<<"${DEMO_RESEARCH_ASSERTION_PUBLIC_JWK}"; then
+    echo 'ERROR: DEMO_RESEARCH_ASSERTION_PUBLIC_JWK must be a P-256 public JWK.' >&2
+    exit 1
+  fi
+fi
+
 SEARCH_PROVIDER="${SEARCH_PROVIDER:-mem}"
 POSTGRES_DSN="${POSTGRES_DSN:-}"
 POSTGRES_SEARCH_TABLE="${POSTGRES_SEARCH_TABLE:-resource_search_index}"
@@ -292,6 +322,9 @@ kubectl -n "${K8S_NAMESPACE}" create configmap "${CONFIGMAP_NAME}" \
   --from-literal=PRECONV_DEFAULT_SUBJECT_DID_PREFIX="${PRECONV_DEFAULT_SUBJECT_DID_PREFIX:-did:web:globaldatacare.es}" \
   --from-literal=PRECONV_AUTH_MODE="${PRECONV_AUTH_MODE:-parse-only}" \
   --from-literal=DEMO_MODE="${DEMO_MODE:-false}" \
+  --from-literal=DEMO_RESEARCH_ASSERTION_ISSUER="${DEMO_RESEARCH_ASSERTION_ISSUER:-}" \
+  --from-literal=DEMO_RESEARCH_ASSERTION_AUDIENCE="${DEMO_RESEARCH_ASSERTION_AUDIENCE:-}" \
+  --from-literal=DEMO_RESEARCH_ASSERTION_PUBLIC_JWK="${DEMO_RESEARCH_ASSERTION_PUBLIC_JWK:-}" \
   --from-literal=EXCHANGE_ALLOW_INSECURE_ASSERTIONS="${EXCHANGE_ALLOW_INSECURE_ASSERTIONS:-false}" \
   --from-literal=EXCHANGE_OIDC_ISSUER="${EXCHANGE_OIDC_ISSUER}" \
   --from-literal=EXCHANGE_OIDC_AUDIENCE="${EXCHANGE_OIDC_AUDIENCE}" \

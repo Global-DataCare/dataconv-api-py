@@ -551,6 +551,46 @@ def test_research_operations_reject_unscoped_tokens_and_cross_study_tokens() -> 
         )
 
 
+def test_saved_tag_lookup_uses_the_signed_study_and_researcher() -> None:
+    from adapter_ingestion.runtime.adapters.search import InMemorySearchRepository
+    from adapter_ingestion.service.managers.conversion_search import ConversionSearchManager
+    from adapter_ingestion.service.research import build_storage_namespace
+
+    settings = _settings()
+    key = ec.generate_private_key(ec.SECP384R1())
+    grant = _manager(key).exchange({"subject_token": _smart_token(key), "subject_token_type": SMART_ACCESS_TOKEN_TYPE},
+                                   tenant_id=TENANT, jurisdiction="CA-BC", sector="animal-research")
+    repository = InMemorySearchRepository()
+    vault_id = build_storage_namespace(network_kind=settings.network_mode, jurisdiction="CA-BC", sector="animal-research", tenant_id=TENANT)
+    tag = {"system": "urn:multibase:zResearcher", "code": "follow-up"}
+    other_study = "ResearchStudy/other"
+    for doc_id, actor, study in [("own-marker", ACTOR, STUDY), ("other-actor", "did:web:other.example", STUDY),
+                                  ("other-study", ACTOR, other_study)]:
+        repository.upsert(vault_id=vault_id, resource_type="Composition", resource={
+            "id": doc_id, "resourceType": "Composition", "meta": {"claims": {
+                "Composition.author": actor, "Composition.research-study": study,
+                "Composition.meta-tag": f"{tag['system']}|{tag['code']}",
+            }},
+        })
+    manager = ConversionSearchManager(SimpleNamespace(settings=settings, search_repo=repository))
+
+    def read(study: str):
+        parameters = [{"name": "Composition.meta-tag", "valueCoding": tag}]
+        if study:
+            parameters.append({"name": "Composition.research-study", "valueReference": {"reference": study}})
+        return manager.handle(tenant_id=TENANT, jurisdiction="CA-BC", sector="animal-research", resource_type="Composition",
+                              response=SimpleNamespace(), request=SimpleNamespace(headers={"authorization": f"Bearer {grant.access_token}"}, query_params={}),
+                              body={"resourceType": "Parameters", "parameter": parameters})
+
+    assert [entry["resource"]["id"] for entry in read(STUDY)["entry"]] == ["own-marker"]
+    with pytest.raises(HTTPException) as wrong_study:
+        read(other_study)
+    assert wrong_study.value.status_code == 403
+    with pytest.raises(HTTPException) as missing_study:
+        read("")
+    assert missing_study.value.status_code == 400
+
+
 def test_research_exchange_route_accepts_only_the_rfc8693_wire_fields() -> None:
     fastapi = pytest.importorskip("fastapi")
     testclient = pytest.importorskip("fastapi.testclient")

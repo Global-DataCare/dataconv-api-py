@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Resolve saved researcher tags by exact study, signed researcher identity
+  and coded tag in the research search index.
 - Accept standalone Excel reports under the existing study-scoped SMART grant
   in network deployments. Keep the upload mapping per job and require review
   scope for row-level terminology lookup and coding decisions.

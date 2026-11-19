@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from typing import Any
 import base64
 import gzip
@@ -244,10 +244,10 @@ class ConversionUploadManager:
             if is_reserved_api_config_software_id(software_id):
                 input_bytes = self._deps.blob_store.get_bytes(input_ref)
                 input_suffix = self._suffix_from_input_ref(input_ref, default_suffix)
-                with NamedTemporaryFile(suffix=input_suffix, delete=True) as tmp:
-                    tmp.write(input_bytes)
-                    tmp.flush()
-                    extracted_config = extract_embedded_api_config(Path(tmp.name))
+                with TemporaryDirectory() as workspace:
+                    input_path = Path(workspace) / f"input{input_suffix}"
+                    input_path.write_bytes(input_bytes)
+                    extracted_config = extract_embedded_api_config(input_path)
 
                 if extracted_config:
                     runtime_defaults = extracted_config.get("runtimeDefaults")

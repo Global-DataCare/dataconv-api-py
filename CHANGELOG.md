@@ -12,6 +12,8 @@
 - Let authorized Demo reviewers apply existing terminology candidates to one
   standalone report row in the retained workbook preview. A review leaves the
   original conversion artifact unchanged and returns only the reviewed row.
+- Close the temporary input before extracting a stored workbook's API-CONFIG
+  so persistent imports can reopen and parse it on Windows.
 - Add a repository-owned agent contract, linked rules index and executable
   link gate that keeps index-provider identity separate from clinical and
   hosted-organization authority.

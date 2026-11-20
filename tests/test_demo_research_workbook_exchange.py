@@ -1,4 +1,4 @@
-# Flow contract: a trusted Demo BFF assertion opens only workbook rights for one active Demo tenant route, actor and study.
+# Flow contract: a trusted Demo BFF assertion opens only workbook rights for one active Demo tenant route, actor and study, and the running API reviews reports using its configured terminology client.
 from datetime import datetime, timezone
 from io import BytesIO
 import json
@@ -125,7 +125,7 @@ def test_real_demo_app_checks_activation_and_uses_its_token_for_coding_review(ex
         "EXCHANGE_SESSION_TOKEN_SECRET": settings.exchange_session_token_secret,
         "DEMO_RESEARCH_ASSERTION_ISSUER": ISSUER, "DEMO_RESEARCH_ASSERTION_AUDIENCE": AUDIENCE,
         "DEMO_RESEARCH_ASSERTION_PUBLIC_JWK": settings.demo_research_assertion_public_jwk,
-        "TERMINOLOGY_BASE_URL": "https://terminology.example",
+        "PRECONV_TERMINOLOGY_BASE_URL": "https://terminology.example",
     }.items():
         monkeypatch.setenv(name, value)
     from adapter_ingestion.service.api import ConfigKey, create_app

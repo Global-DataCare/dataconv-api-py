@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Configure the Demo workbook review integration test with the runtime
+  terminology environment variable so candidate search is exercised.
+
 - Accept controller phone authentication for organization tenant activation
   and upload exchange when the token issuer and audience identify the
   explicitly trusted Firebase project.

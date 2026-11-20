@@ -55,6 +55,7 @@ from .openapi_contract import build_custom_openapi
 from .routes_config import register_config_routes
 from .routes_digital_twin import register_digital_twin_routes
 from .routes_exchange import register_exchange_routes
+from .managers.demo_research_workbook_exchange import DemoResearchWorkbookExchangeManager
 from .routes_system import register_system_routes
 from .routes_tenant_auth import register_tenant_auth_routes
 from .routes_organization_tenant import register_organization_tenant_routes
@@ -346,6 +347,9 @@ def create_app():
         app,
         exchange_manager=exchange_manager,
         smart_research_exchange_manager=smart_research_exchange_manager,
+        demo_research_workbook_exchange_manager=DemoResearchWorkbookExchangeManager(
+            settings, tenant_is_active=_research_tenant_is_active,
+        ) if settings.network_mode == "demo" and not settings.demo_mode else None,
     )
     register_tenant_auth_routes(app, tenant_api_key_manager=tenant_api_key_manager, settings=settings)
     if organization_tenant_activation_manager is not None:

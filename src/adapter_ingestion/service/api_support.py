@@ -16,6 +16,7 @@ from urllib.parse import parse_qsl, unquote, urlencode, urlparse, urlunparse
 from urllib.request import Request as UrlRequest, urlopen
 
 from .auth_exchange import _scope_pattern_matches, validate_session_access_token
+from .research_study import DEMO_RESEARCH_TOKEN_PROFILE
 
 try:
     import certifi
@@ -755,6 +756,11 @@ def _enforce_auth_context(
                 settings,
                 force_secure=require_study_research,
             )
+            token_profile = str(session_claims.get("token_profile") or "").strip()
+            if token_profile == DEMO_RESEARCH_TOKEN_PROFILE and (
+                demo_mode or getattr(settings, "network_mode", "") != "demo" or not require_study_research
+            ):
+                raise HTTPException(status_code=403, detail="Demo reviewer tokens require a study-scoped Demo route")
             token_organization = str(session_claims.get("organization") or "").strip().lower()
             required_organization = str(expected_organization or "").strip().lower()
             if required_organization and token_organization != required_organization:
@@ -766,8 +772,7 @@ def _enforce_auth_context(
                 if missing:
                     raise HTTPException(status_code=403, detail=f"insufficient scope: missing {missing[0]}")
             if require_study_research:
-                token_profile = str(session_claims.get("token_profile") or "").strip()
-                if token_profile not in {"professional_research", "organization_research", "research_reader"}:
+                if token_profile not in {"professional_research", "organization_research", "research_reader", DEMO_RESEARCH_TOKEN_PROFILE}:
                     raise HTTPException(status_code=403, detail="Bearer token is not a study research token")
                 actor = str(session_claims.get("actor") or "").strip()
                 subject = str(session_claims.get("sub") or "").strip()

@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 
 RESEARCH_SUBJECT_STUDY_CLAIM = "ResearchSubject.study"
 RESEARCH_STUDY_SCOPED_SECTORS = frozenset({"onehealth-research", "animal-research"})
+DEMO_RESEARCH_TOKEN_PROFILE = "demo_research_reviewer"
+STUDY_REPORT_WORKBOOK_MODE = "study-report"
 _FHIR_ID = re.compile(r"^[A-Za-z0-9\-.]{1,64}$")
 
 
@@ -26,6 +28,14 @@ def sector_requires_professional_research_auth(sector: Any, settings: Any) -> bo
     return not bool(getattr(settings, "demo_mode", False)) or bool(
         getattr(settings, "smart_research_auth_required_in_demo", False)
     )
+
+
+def standalone_report_workbook_mode_allowed(settings: Any, sector: str, mode: str) -> bool:
+    if getattr(settings, "demo_mode", False) or not sector_requires_research_study(sector):
+        return False
+    if getattr(settings, "network_mode", "") == "demo":
+        return mode == "demo-ephemeral"
+    return mode == STUDY_REPORT_WORKBOOK_MODE
 
 
 def normalize_research_study_reference(reference: Any) -> str:

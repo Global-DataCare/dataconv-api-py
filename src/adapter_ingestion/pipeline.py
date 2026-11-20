@@ -45,6 +45,7 @@ from .fhir_claims import (
 from .models import (
     AdapterContext,
     CanonicalRecord,
+    STANDALONE_REPORT_DATA_USE,
     didcomm_plaintext_message,
     jsonapi_resource_entry,
     stable_uuid,
@@ -374,6 +375,8 @@ def _diagnostic_report_resource(
     claims.setdefault(DiagnosticReportClaim.IDENTIFIER, report_id)
     claims.setdefault(DiagnosticReportClaim.SUBJECT, record.subject_id)
     claims.setdefault(DiagnosticReportClaim.DATE, record.timestamp)
+    if context.data_use == STANDALONE_REPORT_DATA_USE:
+        claims.setdefault(DiagnosticReportClaim.STATUS, "unknown")
     proposals = _coding_proposals(
         context=context,
         record=record,
@@ -532,7 +535,9 @@ def _condition_resource(
         suggestions=suggestions,
         resource_type="Condition",
     )
-    if not proposals and ConditionClaim.CODE not in record.coding_inputs:
+    if not proposals and ConditionClaim.CODE not in record.coding_inputs and not (
+        context.data_use == STANDALONE_REPORT_DATA_USE and record.flat_claims.get(ConditionClaim.CODE)
+    ):
         return None
     condition_id = stable_uuid(
         context.manufacturer,
@@ -570,7 +575,9 @@ def _procedure_resource(
         suggestions=suggestions,
         resource_type="Procedure",
     )
-    if not proposals and ProcedureClaim.CODE not in record.coding_inputs:
+    if not proposals and ProcedureClaim.CODE not in record.coding_inputs and not (
+        context.data_use == STANDALONE_REPORT_DATA_USE and record.flat_claims.get(ProcedureClaim.CODE)
+    ):
         return None
     source_text = str(record.coding_inputs.get(ProcedureClaim.CODE, "") or "").strip()
     procedure_id = stable_uuid(
@@ -1078,12 +1085,50 @@ def _thid(prefix: str) -> str:
     return f"{prefix}-{digest}"
 
 
+def _standalone_report_pipeline(
+    records: list[CanonicalRecord], context: AdapterContext, coding_assistant: CodingAssistant,
+    row_issues: list[dict[str, Any]],
+) -> PipelineResult:
+    entries = []
+    builders = (_diagnostic_report_resource, _observation_resource, _allergy_intolerance_resource, _condition_resource,
+                _procedure_resource, _immunization_resource, _medication_statement_resource)
+    for record in records:
+        suggestions = coding_assistant.suggest_codes(record)
+        contained = []
+        for build in builders:
+            resource = build(context=context, record=record, suggestions=suggestions)
+            if resource is None:
+                continue
+            resource.pop("subject", None)
+            resource.pop("patient", None)
+            claims = resource.get("meta", {}).get("claims", {})
+            claims.pop(f"{resource['resourceType']}.subject", None)
+            claims.pop(f"{resource['resourceType']}.patient", None)
+            contained.append(resource)
+        if contained:
+            entries.append(jsonapi_resource_entry({"resourceType": "Composition", "id": record.source_id,
+                                                    "status": "preliminary", "contained": contained}))
+    report_count = len(entries)
+    entries.extend(_operation_outcome_entries(context=context, row_issues=row_issues))
+    proposals, ambiguous = _coding_proposal_counts_from_entries(entries)
+    return PipelineResult(
+        composition_message=didcomm_plaintext_message(
+            thid=_thid("report"), issuer_did=context.issuer_did, audience_did=context.audience_did, entries=entries,
+        ),
+        summary={"recordsTotal": len(records), "standaloneReportEntries": report_count, "researchSubjectEntries": 0,
+                 "patientEntries": 0, "codingProposalEntries": proposals, "ambiguousCodingProposalEntries": ambiguous,
+                 "resourceTypeCounts": _resource_type_counts_from_entries(entries)},
+    )
+
+
 def run_pipeline(
     records: list[CanonicalRecord],
     context: AdapterContext,
     coding_assistant: CodingAssistant,
     row_issues: list[dict[str, Any]] | None = None,
 ) -> PipelineResult:
+    if context.data_use == STANDALONE_REPORT_DATA_USE:
+        return _standalone_report_pipeline(records, context, coding_assistant, row_issues or [])
     document_entries_count = 0
     diagnostic_report_entries_count = 0
     observation_entries_count = 0

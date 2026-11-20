@@ -5,7 +5,6 @@ from __future__ import annotations
 
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
-from hashlib import sha256
 import re
 from typing import Any
 import unicodedata
@@ -21,6 +20,7 @@ from gdc_data_utils import (
 )
 from ...models import stable_uuid
 from ..api_support import HTTPException, _enforce_auth_context, _enforce_supported_scope
+from ..coding_candidates import CodingCandidateQuery, coding_candidate, search_coding_candidates
 from ..coding_review import apply_coding_reviews, has_pending_coding_proposals
 from ..research import build_storage_namespace
 from ..research_drafts import _safe_token
@@ -53,23 +53,6 @@ def _resources(subject: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _has_pending(subject: dict[str, Any]) -> bool:
     return any(has_pending_coding_proposals(resource) for resource in _resources(subject))
-
-
-def _candidate(resource_type: str, field: str, value: TerminologyCandidate) -> dict[str, Any]:
-    return {
-        "id": sha256("|".join((
-            resource_type,
-            field,
-            value.system,
-            value.code,
-        )).encode("utf-8")).hexdigest()[:24],
-        "system": value.system,
-        "code": value.code,
-        "display": value.display,
-        "source": value.source,
-        "recommendationPercent": 0.0,
-        "evidence": "terminology candidate",
-    }
 
 
 _RECLASSIFICATION_TARGETS = {
@@ -385,20 +368,9 @@ class ResearchCodingReviewManager:
         resource_type = str(payload.get("resourceType", "") or "").strip()
         resource_id = str(payload.get("resourceId", "") or "").strip()
         proposal_id = str(payload.get("proposalId", "") or "").strip()
-        text = str(payload.get("text", "") or "").strip()
-        language = str(payload.get("language", "") or "").strip()
-        raw_sources = payload.get("sources", [])
         if not re.fullmatch(r"[A-Z][A-Za-z0-9]*", resource_type) or not resource_id or not proposal_id:
             raise HTTPException(status_code=400, detail="resource and proposal identity are required")
-        if len(text) < 2 or len(text) > 160:
-            raise HTTPException(status_code=400, detail="text must contain between 2 and 160 characters")
-        if not re.fullmatch(r"[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*", language):
-            raise HTTPException(status_code=400, detail="language must be a valid BCP 47 tag")
-        if not isinstance(raw_sources, list) or len(raw_sources) > 10:
-            raise HTTPException(status_code=400, detail="sources must be a bounded list")
-        sources = tuple(str(value or "").strip() for value in raw_sources)
-        if any(not re.fullmatch(r"[A-Z][A-Z0-9_]{1,31}", value) for value in sources):
-            raise HTTPException(status_code=400, detail="source is invalid")
+        query = CodingCandidateQuery.parse(payload)
 
         subjects = self._deps.vault_repo.query(
             vault_id,
@@ -418,37 +390,16 @@ class ResearchCodingReviewManager:
                 if isinstance(item, dict) and str(item.get("id", "")) == proposal_id), None)
             if proposal is None or str(proposal.get("status", "")) != "proposed":
                 continue
-            field = str(proposal.get("field", "") or "").strip()
-            if not re.fullmatch(rf"{re.escape(resource_type)}\.(?:code|[a-z][a-z0-9-]*-code)", field):
-                raise HTTPException(status_code=409, detail="proposal field does not match the resource")
-            found = terminology.search(TerminologySearchRequest(
-                text=text,
-                language=language,
-                fhir_version="R4",
-                sector=sector,
-                jurisdiction=jurisdiction,
-                resource_type=resource_type,
-                field=field,
-                sources=sources,
-                limit=50,
-            ))
-            merged = {
-                str(item.get("id", "")): item
-                for item in proposal.get("candidates", [])
-                if isinstance(item, dict) and str(item.get("id", ""))
-            }
-            for value in found:
-                candidate = _candidate(resource_type, field, value)
-                merged[candidate["id"]] = candidate
-            proposal["candidates"] = list(merged.values())
+            proposal["candidates"] = search_coding_candidates(terminology, query=query, sector=sector,
+                jurisdiction=jurisdiction, resource_type=resource_type, proposal=proposal)
             self._deps.vault_repo.put(vault_id, [resource], resource_type)
             self._deps.vault_repo.put(vault_id, [subject], "ResearchSubject")
             return {
                 "proposalId": proposal_id,
                 "resourceType": resource_type,
                 "resourceId": resource_id,
-                "field": field,
-                "query": {"text": text, "language": language, "sources": list(sources)},
+                "field": str(proposal["field"]).strip(),
+                "query": {"text": query.text, "language": query.language, "sources": list(query.sources)},
                 "candidates": proposal["candidates"],
             }
         raise HTTPException(status_code=404, detail="pending coding proposal was not found in the authorized study")
@@ -827,7 +778,7 @@ class ResearchCodingReviewManager:
                     "species": str(subject_claims.get("Subject.animal-species", "") or ""),
                     "breed": str(subject_claims.get("Subject.animal-breed", "") or ""),
                 },
-                "candidates": [_candidate(resource_type, field, candidate) for candidate in candidates],
+                "candidates": [coding_candidate(resource_type, field, candidate) for candidate in candidates],
             })
             proposal_count += 1
             candidate_count += len(candidates)

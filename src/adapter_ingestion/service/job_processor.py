@@ -3,22 +3,26 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 import json
+import re
 import unicodedata
 
-from ..models import AdapterContext
+from ..models import AdapterContext, STANDALONE_REPORT_DATA_USE
 from ..manufacturers import get_adapter
 from ..pipeline import run_pipeline
 from ..runtime import BlobStore, ConfigKey, IVaultRepository, PreconversionControlPlane
 from ..runtime.models import now_iso_utc
 from ..subject_links import ProtectedSubjectLinkStore, SubjectLinkScope
+from .api_config import extract_embedded_api_config
 from .api_support import _compose_software_id_token
 from .observability import log_event
 from .research import DEFAULT_SECTOR, build_storage_namespace
 from .research_drafts import annotate_composition_message_for_research, persist_research_drafts
+from .research_study import STUDY_REPORT_WORKBOOK_MODE, standalone_report_workbook_mode_allowed
 from .settings import ServiceSettings
 from .factory import build_coding_assistant
 from .completion_notifications import (
@@ -334,7 +338,7 @@ def process_one_job(
             if notification_config.enabled:
                 deliver_notifications()
             return job.job_id
-        if job.request.mode == "demo-ephemeral":
+        if job.request.mode in {"demo-ephemeral", STUDY_REPORT_WORKBOOK_MODE}:
             config_payload = dict(job.request.inline_config or {})
         else:
             if not job.config_key_used:
@@ -350,6 +354,18 @@ def process_one_job(
             tmp.write(input_bytes)
             tmp_path = Path(tmp.name)
 
+        # Keep the selected mapping and authorized purpose. Only the source
+        # language from the workbook informs terminology lookup.
+        runtime_defaults = config_payload.get("runtimeDefaults")
+        report_workbook_mode = standalone_report_workbook_mode_allowed(settings, job.request.sector, job.request.mode)
+        if report_workbook_mode and isinstance(runtime_defaults, dict) and suffix.lower() == ".xlsx":
+            embedded = extract_embedded_api_config(tmp_path) or {}
+            language = embedded.get("runtimeDefaults", {}).get("language", "")
+            if re.fullmatch(r"[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2}", language):
+                config_payload["runtimeDefaults"] = {
+                    **runtime_defaults, "language": language.replace("_", "-"),
+                }
+
         context = _build_context(
             settings=settings,
             request_alternate_name=job.request.alternate_name,
@@ -362,6 +378,12 @@ def process_one_job(
             settings_target_sector=job.request.sector,
         )
         runtime_defaults = config_payload.get("runtimeDefaults")
+        standalone_report = context.data_use == STANDALONE_REPORT_DATA_USE
+        if standalone_report:
+            if (not report_workbook_mode or not job.request.research_study_reference
+                    or job.request.send or suffix.lower() != ".xlsx"):
+                raise ValueError("Standalone reports require a study-scoped Excel workbook job")
+            context = replace(context, report_batch_id=job.job_id, personal_id_resolver=None)
         configured_adapter_id = (
             str(runtime_defaults.get("adapterId") or "").strip()
             if isinstance(runtime_defaults, dict)
@@ -383,7 +405,7 @@ def process_one_job(
         if isinstance(adapter_report, dict) and adapter_report:
             result.summary["adapterReport"] = adapter_report
         annotated_message = annotate_composition_message_for_research(result.composition_message)
-        draft_count = persist_research_drafts(
+        draft_count = 0 if standalone_report else persist_research_drafts(
             vault_repo=vault_repo,
             job=job,
             network_kind=settings.network_mode,

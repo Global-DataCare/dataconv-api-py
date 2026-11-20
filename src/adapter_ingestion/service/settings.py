@@ -192,6 +192,9 @@ class ServiceSettings:
     smart_gw_expected_audiences: tuple[str, ...] = ()
     smart_gw_did_cache_ttl_seconds: int = 300
     smart_gw_http_timeout_seconds: int = 5
+    demo_research_assertion_issuer: str = ""
+    demo_research_assertion_audience: str = ""
+    demo_research_assertion_public_jwk: str = ""
     smart_research_auth_required_in_demo: bool = False
     max_research_workbook_bytes: int = 8 * 1024 * 1024
     gw_completion_notifications_enabled: bool = False
@@ -330,6 +333,9 @@ def load_settings() -> ServiceSettings:
         smart_gw_expected_audiences=_split_csv_raw(_getenv("SMART_GW_EXPECTED_AUDIENCES", "")),
         smart_gw_did_cache_ttl_seconds=_getenv_int("SMART_GW_DID_CACHE_TTL_SECONDS", 300),
         smart_gw_http_timeout_seconds=_getenv_int("SMART_GW_HTTP_TIMEOUT_SECONDS", 5),
+        demo_research_assertion_issuer=_getenv("DEMO_RESEARCH_ASSERTION_ISSUER", ""),
+        demo_research_assertion_audience=_getenv("DEMO_RESEARCH_ASSERTION_AUDIENCE", ""),
+        demo_research_assertion_public_jwk=_getenv("DEMO_RESEARCH_ASSERTION_PUBLIC_JWK", ""),
         smart_research_auth_required_in_demo=_getenv("SMART_RESEARCH_AUTH_REQUIRED_IN_DEMO", "false").lower() in {
             "1", "true", "yes", "on"
         },

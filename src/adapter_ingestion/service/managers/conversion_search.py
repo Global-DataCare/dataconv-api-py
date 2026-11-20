@@ -287,6 +287,24 @@ class ConversionSearchManager:
                 _require_resource_qualified_research_parameters(body)
             search_params.update(_search_params_from_fhir_parameters(body))
 
+        if not demo_mode and resource_type == "Composition" and sector_requires_professional_research_auth(sector, self._deps.settings):
+            claims = validate_session_access_token(_extract_bearer_token(auth_header), self._deps.settings)
+            if claims.get("study") or any(key.lower() in {"composition.meta-tag", "meta-tag"} for key in search_params):
+                try:
+                    study = normalize_research_study_reference(_parameter_reference(search_params.get("Composition.research-study")))
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+                _enforce_auth_context({}, self._deps.settings, authorization_header=auth_header, require_token=True,
+                                      required_scopes={"dataconv.read"}, expected_organization=tenant_id,
+                                      expected_research_study=study, require_study_research=True)
+                tag = search_params.get("Composition.meta-tag")
+                system = tag.get("system", "") if isinstance(tag, dict) else ""
+                code = tag.get("code", "") if isinstance(tag, dict) else ""
+                if (not re.fullmatch(r"urn:multibase:z[A-Za-z0-9]+", str(system))
+                        or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", str(code))):
+                    raise HTTPException(status_code=400, detail="Composition.meta-tag must be one valid working-selection Coding")
+                search_params = {"research-study": study, "author": claims["actor"], "meta-tag": f"{system}|{code}"}
+
         _validate_financial_search_parameters(resource_type, search_params)
         if str(resource_type or "").strip() == "ResearchSubject":
             raw_study = search_params.get("ResearchSubject.study", search_params.get("study"))

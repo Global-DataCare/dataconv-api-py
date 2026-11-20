@@ -608,7 +608,7 @@ def validate_session_access_token(token: str, settings: Any, *, force_secure: bo
                 raise ValueError("Invalid session token signature")
         else:
             allow_insecure = bool(getattr(settings, "exchange_allow_insecure_assertions", True))
-            if not allow_insecure:
+            if not allow_insecure or getattr(settings, "network_mode", "") == "demo":
                 raise ValueError("Unsupported session token algorithm")
 
         now_epoch = int(datetime.now(tz=timezone.utc).timestamp())

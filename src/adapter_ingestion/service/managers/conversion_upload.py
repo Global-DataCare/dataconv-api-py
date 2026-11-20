@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import TemporaryDirectory
 from typing import Any
 import base64
 import gzip
@@ -12,6 +12,7 @@ from urllib.parse import quote
 import uuid
 
 from ...runtime import ConfigKey, JobRequest
+from ...models import STANDALONE_REPORT_DATA_USE
 from ..api_support import (
     HTTPException,
     _coerce_bool,
@@ -41,11 +42,31 @@ from ..defaults import load_software_id_preset
 from ..defaults import resolve_software_id_default_template
 from ..observability import log_event
 from ..research import build_upload_response_path
+from ..research_study import STUDY_REPORT_WORKBOOK_MODE
 from ..research_study import research_study_reference as optional_research_study_reference
 from ..research_study import require_research_study_reference
 from ..research_study import sector_requires_research_study
 from ..research_study import sector_requires_professional_research_auth
+from ..research_study import standalone_report_workbook_mode_allowed
 from .dependencies import ApiManagerDependencies
+
+
+def _explicit_workbook_mapping(payload: dict[str, Any]) -> dict[str, Any]:
+    inline = _extract_payload_value(payload, "inlineConfig")
+    schema = inline.get("schemaConfig") if isinstance(inline, dict) else None
+    runtime = inline.get("runtimeDefaults") if isinstance(inline, dict) else None
+    data_use = runtime.get("dataUse", "secondary") if isinstance(runtime, dict) else "secondary"
+    fields = schema.get("fieldMap") if isinstance(schema, dict) else None
+    header = schema.get("headerRowIndex") if isinstance(schema, dict) else None
+    if (data_use not in ("secondary", STANDALONE_REPORT_DATA_USE) or type(header) is not int or not 0 <= header <= 100 or not isinstance(fields, dict)
+            or not 1 <= len(fields) <= 256 or any(
+                not isinstance(key, str) or not 0 < len(key.strip()) <= 160
+                or not isinstance(value, str) or not 0 < len(value.strip()) <= 256
+                for key, value in fields.items()
+            )):
+        raise HTTPException(status_code=400, detail="An explicit workbook header and field mapping is required")
+    return {"schemaConfig": {"headerRowIndex": header, "fieldMap": fields},
+            "runtimeDefaults": {"dataUse": data_use, "adapterId": "api-config"}}
 
 
 class ConversionUploadManager:
@@ -141,6 +162,24 @@ class ConversionUploadManager:
         if not thid:
             raise HTTPException(status_code=400, detail="thid is required in DIDComm payload")
         input_ref = str(_extract_payload_value(payload, "inputRef") or "").strip()
+        inline_config = _extract_payload_value(payload, "inlineConfig")
+        inline_runtime = inline_config.get("runtimeDefaults") if isinstance(inline_config, dict) else None
+        report_mapping = isinstance(inline_runtime, dict) and inline_runtime.get("dataUse") == STANDALONE_REPORT_DATA_USE
+        if mode == STUDY_REPORT_WORKBOOK_MODE or report_mapping:
+            if (not report_mapping or not standalone_report_workbook_mode_allowed(self._deps.settings, sector, mode)
+                    or send or input_ref or file is None or normalized_source_format != "excel"
+                    or Path(str(file.filename or "")).suffix.lower() != ".xlsx"):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Standalone study reports require an uploaded Excel workbook and a per-upload mapping",
+                )
+            inline_config = _explicit_workbook_mapping(payload)
+        elif (getattr(self._deps.settings, "network_mode", "") == "demo"
+                and not getattr(self._deps.settings, "demo_mode", False)):
+            if (mode != "demo-ephemeral" or send or input_ref or file is None or normalized_source_format != "excel"
+                    or not sector_requires_research_study(sector)):
+                raise HTTPException(status_code=403, detail="Demo study uploads require a local workbook and a per-upload mapping")
+            inline_config = _explicit_workbook_mapping(payload)
         attachment_payload = None if file is not None else _extract_didcomm_attachment_payload(
             payload,
             default_suffix=default_suffix,
@@ -218,10 +257,10 @@ class ConversionUploadManager:
             if is_reserved_api_config_software_id(software_id):
                 input_bytes = self._deps.blob_store.get_bytes(input_ref)
                 input_suffix = self._suffix_from_input_ref(input_ref, default_suffix)
-                with NamedTemporaryFile(suffix=input_suffix, delete=True) as tmp:
-                    tmp.write(input_bytes)
-                    tmp.flush()
-                    extracted_config = extract_embedded_api_config(Path(tmp.name))
+                with TemporaryDirectory() as workspace:
+                    input_path = Path(workspace) / f"input{input_suffix}"
+                    input_path.write_bytes(input_bytes)
+                    extracted_config = extract_embedded_api_config(input_path)
 
                 if extracted_config:
                     runtime_defaults = extracted_config.get("runtimeDefaults")
@@ -311,7 +350,7 @@ class ConversionUploadManager:
                 send=should_send,
                 requested_by=effective_requested_by,
                 mode=normalized_mode,
-                inline_config=payload.get("inlineConfig", {}) if isinstance(payload.get("inlineConfig"), dict) else {},
+                inline_config=inline_config if isinstance(inline_config, dict) else {},
                 thid=effective_thid,
                 research_study_reference=research_study_reference,
             )

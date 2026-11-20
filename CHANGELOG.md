@@ -5,7 +5,27 @@
 - Accept controller phone authentication for organization tenant activation
   and upload exchange when the token issuer and audience identify the
   explicitly trusted Firebase project.
-
+- Pass Demo research assertion trust through the GKE runtime ConfigMap. Reject
+  incomplete settings, private JWKs and incompatible modes before deployment.
+- Resolve saved researcher tags by exact study, signed researcher identity
+  and coded tag in the research search index.
+- Accept standalone Excel reports under the existing study-scoped SMART grant
+  in network deployments. Keep the upload mapping per job and require review
+  scope for row-level terminology lookup and coding decisions.
+- Add a signed research assertion exchange for the isolated, authenticated
+  Demo deployment. It checks the pre-provisioned DataConv tenant route and
+  issues a short-lived reviewer token bound to one actor and study. Reject
+  unsigned Demo session tokens and block generic reads with Demo reviewer tokens.
+- Use the reviewed mapping for each Demo workbook and preserve its declared
+  source language for terminology lookup. Standalone report jobs return one
+  independent FHIR Composition per converted row, without persisting twin drafts.
+- Let authorized Demo reviewers apply existing terminology candidates to one
+  standalone report row in the retained workbook preview. A review leaves the
+  original conversion artifact unchanged and returns only the reviewed row.
+- Search governed terminology for a workbook report proposal and verify that
+  each manually found code still belongs to that proposal before applying it.
+- Close the temporary input before extracting a stored workbook's API-CONFIG
+  so persistent imports can reopen and parse it on Windows.
 - Add a repository-owned agent contract, linked rules index and executable
   link gate that keeps index-provider identity separate from clinical and
   hosted-organization authority.

@@ -65,3 +65,19 @@ kubectl -n <namespace-prod> get deploy preconversion-worker -o jsonpath='{.spec.
 ```
 
 Both deployments must point to the same immutable digest.
+
+## Isolated Demo research exchange
+
+Run the Demo research instance with `NETWORK_MODE=demo` and `DEMO_MODE=false`
+so the service enforces signed access on study routes. Provision an active
+DataConv tenant in a study-scoped sector. Use a dedicated session-token secret
+of at least 32 characters and a separate Demo storage configuration. Demo
+reviewer tokens require signed, study-scoped operations. Configure
+`DEMO_RESEARCH_ASSERTION_ISSUER`, `DEMO_RESEARCH_ASSERTION_AUDIENCE`, and
+`DEMO_RESEARCH_ASSERTION_PUBLIC_JWK` with the Professional BFF's dedicated
+P-256 verification key and exact issuer and audience. Keep the private key in
+the Professional BFF secret binding. The GKE deploy script reads those three
+settings from the selected deployment profile into the runtime ConfigMap.
+Run the script with Python 3 available to validate the public JWK before it
+contacts GKE. The normal SMART exchange stays available for gateway-backed
+deployments, where the Demo assertion endpoint is absent.

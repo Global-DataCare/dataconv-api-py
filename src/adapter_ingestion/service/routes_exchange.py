@@ -5,6 +5,7 @@ import uuid
 from typing import Any
 
 from .api_support import Body, HTTPException, Request, Response
+from .managers.smart_research_token_exchange import SmartResearchTokenExchangeManager
 
 EXCHANGE_JOBS: dict[str, dict[str, Any]] = {}
 
@@ -35,7 +36,7 @@ async def _read_exchange_payload(request: Request, body: Any) -> dict[str, Any]:
     return payload
 
 
-def register_exchange_routes(app, *, exchange_manager, smart_research_exchange_manager=None) -> None:  # type: ignore[no-untyped-def]
+def register_exchange_routes(app, *, exchange_manager, smart_research_exchange_manager=None, demo_research_workbook_exchange_manager=None) -> None:  # type: ignore[no-untyped-def]
     @app.post(
         "/exchange",
         tags=["1.1 Controller Auth Exchange"],
@@ -99,6 +100,28 @@ def register_exchange_routes(app, *, exchange_manager, smart_research_exchange_m
         except ValueError as exc:
             raise HTTPException(status_code=401, detail=str(exc)) from exc
         return smart_research_exchange_manager.as_response(result)
+
+    if demo_research_workbook_exchange_manager is not None:
+        @app.post(
+            "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/research/auth/_demo-exchange",
+            include_in_schema=False,
+        )
+        async def exchange_demo_research_workbook_assertion(
+            jurisdiction: str, sector: str, tenant_id: str, response: Response,
+            body: dict[str, Any] = Body(default_factory=dict),
+        ) -> dict[str, Any]:
+            if set(body) != {"assertion"}:
+                raise HTTPException(status_code=400, detail="A Demo research assertion is required")
+            try:
+                result = demo_research_workbook_exchange_manager.exchange(
+                    body["assertion"], tenant_id=tenant_id, jurisdiction=jurisdiction, sector=sector,
+                )
+            except PermissionError as exc:
+                raise HTTPException(status_code=403, detail=str(exc)) from exc
+            except ValueError as exc:
+                raise HTTPException(status_code=401, detail=str(exc)) from exc
+            response.headers["Cache-Control"] = "no-store"
+            return SmartResearchTokenExchangeManager.as_response(result)
 
     @app.post(
         "/publisher/cds-{jurisdiction}/v1/{sector}/{tenant_id}/identity/auth/_exchange",

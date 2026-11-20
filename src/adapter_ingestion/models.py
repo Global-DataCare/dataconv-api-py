@@ -9,6 +9,8 @@ from hashlib import sha256
 from typing import Any, Callable, Iterable
 import uuid
 
+STANDALONE_REPORT_DATA_USE = "standalone-report"
+
 
 @dataclass(frozen=True)
 class AdapterContext:
@@ -30,7 +32,8 @@ class AdapterContext:
     schema_config: dict[str, Any] = field(default_factory=dict)
     personal_id_resolver: Callable[[str], str] | None = None
     embed_xhtml_content: bool = False
-    data_use: str = "individual"  # individual | secondary
+    data_use: str = "individual"  # individual | secondary | standalone-report
+    report_batch_id: str = ""
     log_composition: bool = False
     coding_context_fields: tuple[str, ...] = field(default_factory=tuple)
 

@@ -205,6 +205,7 @@ class ServiceSettings:
     gw_completion_notification_audience_did: str = ""
     gw_completion_notification_timeout_seconds: int = 5
     gw_completion_notification_max_attempts: int = 5
+    firestore_database: str = ""
 
 
 def load_settings() -> ServiceSettings:
@@ -244,6 +245,7 @@ def load_settings() -> ServiceSettings:
         local_data_dir=_getenv("PRECONV_LOCAL_DATA_DIR", "./runtime-data"),
         gcp_project_id=_getenv("GCP_PROJECT_ID") or _getenv("FIREBASE_PROJECT_ID"),
         gcp_region=_getenv("GCP_REGION", "europe-west1"),
+        firestore_database=_getenv("PRECONV_FIRESTORE_DATABASE"),
         firestore_config_collection=_env_or_profiled_default(
             "PRECONV_FIRESTORE_CONFIG_COLLECTION",
             "configs",

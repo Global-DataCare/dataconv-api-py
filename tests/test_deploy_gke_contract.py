@@ -10,6 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class DeployGkeContractTests(unittest.TestCase):
+    def test_cluster_location_and_firestore_database_are_independent_of_region(self) -> None:
+        deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
+        self.assertIn('--location "${K8S_CLUSTER_LOCATION:-${GCP_REGION}}"', deploy_script)
+        self.assertIn('--from-literal=PRECONV_FIRESTORE_DATABASE="${PRECONV_FIRESTORE_DATABASE:-}"', deploy_script)
+
     def test_cloud_sql_secret_file_is_scoped_to_the_deployment_environment(self) -> None:
         deploy_script = (ROOT / "scripts" / "deploy-gke.sh").read_text(encoding="utf-8")
         self.assertIn('private-cloudsql.${ENV_NAME}.env', deploy_script)

@@ -175,7 +175,7 @@ def _dict_to_job(data: dict[str, Any]) -> JobRecord:
 
 
 class FirestoreVaultRepository(IVaultRepository):
-    def __init__(self, project_id: str) -> None:
+    def __init__(self, project_id: str, *, database: str = "") -> None:
         try:
             from google.cloud import firestore
         except ImportError as exc:  # pragma: no cover
@@ -184,7 +184,7 @@ class FirestoreVaultRepository(IVaultRepository):
                 "pip install 'adapter-ingestion-py[gcp]'"
             ) from exc
 
-        self._client = firestore.Client(project=project_id or None)
+        self._client = firestore.Client(project=project_id or None, database=database or None)
         
     def _docs_ref(self, collection_name: str, section_id: str) -> "google.cloud.firestore.CollectionReference":
         # Follows the {collection_name}/{section_id}/org.hl7.fhir.api pattern
@@ -249,7 +249,7 @@ class FirestoreVaultRepository(IVaultRepository):
 class FirestoreSubjectLinkRecordStore:
     """Dedicated confidential store for encrypted external-id to twin UUID links."""
 
-    def __init__(self, *, project_id: str, collection: str) -> None:
+    def __init__(self, *, project_id: str, collection: str, database: str = "") -> None:
         try:
             from google.cloud import firestore
         except ImportError as exc:  # pragma: no cover
@@ -258,7 +258,7 @@ class FirestoreSubjectLinkRecordStore:
                 "pip install 'adapter-ingestion-py[gcp]'"
             ) from exc
 
-        self._client = firestore.Client(project=project_id or None)
+        self._client = firestore.Client(project=project_id or None, database=database or None)
         self._collection = str(collection or "preconversion-subject-links")
 
     @staticmethod
@@ -298,7 +298,7 @@ class FirestoreSubjectLinkRecordStore:
 
 
 class FirestoreConfigStore(ConfigStore):
-    def __init__(self, *, project_id: str, collection: str) -> None:
+    def __init__(self, *, project_id: str, collection: str, database: str = "") -> None:
         try:
             from google.cloud import firestore
         except ImportError as exc:  # pragma: no cover
@@ -307,7 +307,7 @@ class FirestoreConfigStore(ConfigStore):
                 "pip install 'adapter-ingestion-py[gcp]'"
             ) from exc
 
-        self._client = firestore.Client(project=project_id or None)
+        self._client = firestore.Client(project=project_id or None, database=database or None)
         self._collection = str(collection or "preconversion-configs")
 
     def put(self, config: StoredConfig) -> StoredConfig:
@@ -339,7 +339,7 @@ class FirestoreConfigStore(ConfigStore):
 
 
 class FirestoreJobStore(JobStore):
-    def __init__(self, *, project_id: str, collection: str) -> None:
+    def __init__(self, *, project_id: str, collection: str, database: str = "") -> None:
         try:
             from google.cloud import firestore
         except ImportError as exc:  # pragma: no cover
@@ -348,7 +348,7 @@ class FirestoreJobStore(JobStore):
                 "pip install 'adapter-ingestion-py[gcp]'"
             ) from exc
 
-        self._client = firestore.Client(project=project_id or None)
+        self._client = firestore.Client(project=project_id or None, database=database or None)
         self._collection = str(collection or "preconversion-jobs")
 
     def put(self, job: JobRecord) -> JobRecord:

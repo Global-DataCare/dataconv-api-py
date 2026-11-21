@@ -1,3 +1,4 @@
+# Flow contract: verify the real GCP adapters in the selected Firestore database with run-scoped records and queue resources.
 # Copyright Conéctate Soluciones y Aplicaciones SL
 # SPDX-License-Identifier: Apache-2.0
 
@@ -61,14 +62,15 @@ class GcpRuntimeIntegrationTests(unittest.TestCase):
         cls.storage_client = storage.Client(project=cls.project_id)
         cls.bucket = cls.storage_client.bucket(cls.bucket_name)
 
-        cls.config_store = FirestoreConfigStore(cls.project_id, cls.config_collection)
-        cls.job_store = FirestoreJobStore(cls.project_id, cls.job_collection)
+        database = os.getenv("PRECONV_FIRESTORE_DATABASE", "").strip()
+        cls.config_store = FirestoreConfigStore(project_id=cls.project_id, collection=cls.config_collection, database=database)
+        cls.job_store = FirestoreJobStore(project_id=cls.project_id, collection=cls.job_collection, database=database)
         cls.job_queue = PubSubJobQueue(
             project_id=cls.project_id,
             topic_id=cls.topic_id,
             subscription_id=cls.subscription_id,
         )
-        cls.vault_repo = FirestoreVaultRepository(cls.project_id)
+        cls.vault_repo = FirestoreVaultRepository(cls.project_id, database=database)
         cls.blob_store = GCSBlobStore(
             project_id=cls.project_id,
             bucket_name=cls.bucket_name,

@@ -35,6 +35,7 @@ def build_config_store(settings: ServiceSettings) -> ConfigStore:
     if provider == "firestore":
         return FirestoreConfigStore(
             project_id=settings.gcp_project_id,
+            database=settings.firestore_database,
             collection=settings.firestore_config_collection,
         )
     if provider == "fs":
@@ -49,6 +50,7 @@ def build_job_store(settings: ServiceSettings) -> JobStore:
     if provider == "firestore":
         return FirestoreJobStore(
             project_id=settings.gcp_project_id,
+            database=settings.firestore_database,
             collection=settings.firestore_job_collection,
         )
     if provider == "fs":
@@ -63,6 +65,7 @@ def build_vault_repository(settings: ServiceSettings) -> IVaultRepository:
     if provider == "firestore":
         return FirestoreVaultRepository(
             project_id=settings.gcp_project_id,
+            database=settings.firestore_database,
         )
     if provider == "fs":
         provider = "mem"
@@ -78,6 +81,7 @@ def build_subject_link_store(settings: ServiceSettings) -> ProtectedSubjectLinkS
     if provider == "firestore":
         records = FirestoreSubjectLinkRecordStore(
             project_id=settings.gcp_project_id,
+            database=settings.firestore_database,
             collection=settings.firestore_subject_link_collection,
         )
     elif provider in {"mem", "fs"}:

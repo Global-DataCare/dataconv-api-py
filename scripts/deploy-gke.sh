@@ -268,7 +268,7 @@ echo "Deploying namespace: ${K8S_NAMESPACE}"
 echo
 
 gcloud config set project "${GCP_PROJECT_ID}" >/dev/null
-gcloud container clusters get-credentials "${K8S_CLUSTER}" --region "${GCP_REGION}"
+gcloud container clusters get-credentials "${K8S_CLUSTER}" --location "${K8S_CLUSTER_LOCATION:-${GCP_REGION}}"
 gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" -q
 
 if [[ -z "${IMAGE_REF}" ]]; then
@@ -296,6 +296,7 @@ kubectl -n "${K8S_NAMESPACE}" create configmap "${CONFIGMAP_NAME}" \
   --from-literal=PORT="${PORT:-8080}" \
   --from-literal=HOST_INTERNAL_IP="${HOST_INTERNAL_IP:-0.0.0.0}" \
   --from-literal=PRECONV_DATASPACE_ID="${PRECONV_DATASPACE_ID}" \
+  --from-literal=PRECONV_FIRESTORE_DATABASE="${PRECONV_FIRESTORE_DATABASE:-}" \
   --from-literal=DB_PROVIDER="${DB_PROVIDER:-firestore}" \
   --from-literal=SEARCH_PROVIDER="${SEARCH_PROVIDER}" \
   --from-literal=QUEUE_PROVIDER="${QUEUE_PROVIDER:-pubsub}" \

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Support a dedicated Firestore database for all DataConv state and a zonal GKE
+  control plane independently of the Artifact Registry region.
+
 - Configure the Demo workbook review integration test with the runtime
   terminology environment variable so candidate search is exercised.
 

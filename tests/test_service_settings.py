@@ -23,6 +23,14 @@ class ServiceSettingsTests(unittest.TestCase):
         module = importlib.import_module("adapter_ingestion.service.settings")
         return importlib.reload(module)
 
+    def test_firestore_database_is_explicit_and_optional(self) -> None:
+        settings_module = self._settings_module()
+        with patch.object(settings_module, "_load_default_dotenvs", new=lambda: None):
+            with patch.dict(os.environ, {}, clear=True):
+                self.assertEqual(settings_module.load_settings().firestore_database, "")
+            with patch.dict(os.environ, {"PRECONV_FIRESTORE_DATABASE": "isolated-test"}, clear=True):
+                self.assertEqual(settings_module.load_settings().firestore_database, "isolated-test")
+
     def test_profile_defaults_for_dev_like_env(self) -> None:
         settings_module = self._settings_module()
         with patch.object(settings_module, "_load_default_dotenvs", new=lambda: None):

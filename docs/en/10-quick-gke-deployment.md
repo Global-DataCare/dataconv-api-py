@@ -24,6 +24,7 @@ Fill at least:
 - `GCP_PROJECT_ID`
 - `GCP_REGION`
 - `K8S_CLUSTER`
+- `K8S_CLUSTER_LOCATION` when the cluster location differs from `GCP_REGION`, such as a zonal cluster
 - `K8S_NAMESPACE`
 - `PRECONV_GCP_SERVICE_ACCOUNT`
 - `PRECONV_INGRESS_HOST`
@@ -40,6 +41,8 @@ Fill at least:
 - HPA and rollout settings
 
 Automatic naming uses `{profile}-preconvert-{dataspace}-{resource}`. Explicit `PRECONV_FIRESTORE_*`, `PRECONV_PUBSUB_*`, and `PRECONV_GCS_PREFIX` values override the derived names.
+
+Set `PRECONV_FIRESTORE_DATABASE` to a named database for dedicated persistence. If it is omitted, the service uses the project’s default database.
 
 Logging:
 
